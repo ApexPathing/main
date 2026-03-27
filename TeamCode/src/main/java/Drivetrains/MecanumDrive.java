@@ -4,11 +4,9 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
-<<<<<<< HEAD
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
-=======
->>>>>>> 5e9d75400a1896ae8936189bff63bffa3688d89b
+
 import java.util.List;
 
 /**
@@ -28,11 +26,9 @@ public class MecanumDrive extends Drivetrain{
     DcMotorEx rf;
     DcMotorEx rr;
 
-<<<<<<< HEAD
     boolean useBrakeMode;
 
-=======
->>>>>>> 5e9d75400a1896ae8936189bff63bffa3688d89b
+
     //Constructor
     public MecanumDrive(HardwareMap hardwareMap, MecanumConstants constants, List<DcMotorEx> motors, double[] lastMotorPowers){
         this.mechconstants = constants;
@@ -55,7 +51,6 @@ public class MecanumDrive extends Drivetrain{
      * @param strafe the power to strafe
      * @param turn the power to turn
      */
-<<<<<<< HEAD
 
     /**
      * sets the calculated powers of each motor
@@ -63,8 +58,7 @@ public class MecanumDrive extends Drivetrain{
      * @param strafe power to strafe
      * @param turn power to turn
      */
-=======
->>>>>>> 5e9d75400a1896ae8936189bff63bffa3688d89b
+
     public void setPowers(double drive, double strafe, double turn){
         double [] powers = calculatePower(drive, strafe, turn);
         lf.setPower(powers[0]);
@@ -89,7 +83,6 @@ public class MecanumDrive extends Drivetrain{
         //return
         return  calculatedPowers;
     }
-<<<<<<< HEAD
 
     /**
      * robot centric drive
@@ -97,8 +90,6 @@ public class MecanumDrive extends Drivetrain{
      * @param y
      * @param turn
      */
-=======
->>>>>>> 5e9d75400a1896ae8936189bff63bffa3688d89b
     public void botCentricDrive(double x, double y, double turn) {
         double adjX = deadzone(x, 0.05);
         double adjY = deadzone(y, 0.05);
@@ -114,7 +105,6 @@ public class MecanumDrive extends Drivetrain{
         normalizePowers(powers);
         runDrive(powers);
     }
-<<<<<<< HEAD
 
     /**
      * field centric drive
@@ -140,8 +130,6 @@ public class MecanumDrive extends Drivetrain{
         normalizePowers(powers);
         runDrive(powers);
     }
-=======
->>>>>>> 5e9d75400a1896ae8936189bff63bffa3688d89b
     private static double deadzone(double value, double threshold) {
         return Math.abs(value) < threshold ? 0.0 : value;
     }
@@ -163,7 +151,6 @@ public class MecanumDrive extends Drivetrain{
             }
         }
     }
-<<<<<<< HEAD
     public void breakFollowing() {
         for (int i = 0; i < motors.size(); i++) lastMotorPowers[i] = 0;
         setPower(0);
@@ -180,8 +167,6 @@ public class MecanumDrive extends Drivetrain{
 
     /** Syncs live constants (useful with FTC Dashboard). */
     //abstract overrides
-=======
->>>>>>> 5e9d75400a1896ae8936189bff63bffa3688d89b
     @Override
     public void setPower(DcMotorEx motor, double power) {
         motor.setPower(power);
@@ -193,7 +178,6 @@ public class MecanumDrive extends Drivetrain{
             motor.setPower(power);
         }
     }
-<<<<<<< HEAD
 
     @Override
     public void setPower(double power) {
@@ -234,6 +218,5 @@ public class MecanumDrive extends Drivetrain{
         telemetry.addData("leftRear velocity", lr.getVelocity());
         telemetry.addData("rightRear velocity", rr.getVelocity());
     }
-=======
->>>>>>> 5e9d75400a1896ae8936189bff63bffa3688d89b
+
 }
