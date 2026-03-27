@@ -7,10 +7,6 @@ public abstract class Follower {
     //declerations
     private boolean followerIsBusy;
 
-    /**
-     * default constructor
-     */
-    public abstract Follower follower();
 
     /**
      * sets the follower to a new target Pose
