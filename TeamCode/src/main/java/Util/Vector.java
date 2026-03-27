@@ -29,14 +29,25 @@ public class Vector {
         return new Vector(r * cos(theta), r * sin(theta));
     }
 
-
+    /**
+     * gets the x component of the vector
+     * @return the x
+     */
     public double getX() { return x; }
+    /**
+     * gets the y component of the vector
+     * @return the y
+     */
     public double getY() { return y; }
+
 
     public void setX(double x) { this.x = x; }
     public void setY(double y) { this.y = y; }
 
-
+    /**
+     * gets the magnitude of the vector
+     * @return
+     */
     public double getMagnitude() {
         return hypot(x, y);
     }
