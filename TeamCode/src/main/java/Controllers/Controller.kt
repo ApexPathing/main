@@ -1,4 +1,4 @@
-package com.apexpathing.util
+package Controllers
 
 abstract class Controller {
     var goal: Double = 0.0
