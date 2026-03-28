@@ -4,17 +4,11 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-import org.firstinspires.ftc.robotcore.external.Telemetry;
 
-=======
->>>>>>> 5e9d75400a1896ae8936189bff63bffa3688d89b
-=======
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 
->>>>>>> be745d4b69d7d4ab5db5f97c7cc37107e354a4af
+
 import java.util.List;
 
 /**
@@ -34,17 +28,7 @@ public class MecanumDrive extends Drivetrain{
     DcMotorEx rf;
     DcMotorEx rr;
 
-<<<<<<< HEAD
-<<<<<<< HEAD
     boolean useBrakeMode;
-
-=======
->>>>>>> 5e9d75400a1896ae8936189bff63bffa3688d89b
-=======
-    boolean useBrakeMode;
-
-
->>>>>>> be745d4b69d7d4ab5db5f97c7cc37107e354a4af
     //Constructor
     public MecanumDrive(HardwareMap hardwareMap, MecanumConstants constants, List<DcMotorEx> motors, double[] lastMotorPowers){
         this.mechconstants = constants;
@@ -67,10 +51,7 @@ public class MecanumDrive extends Drivetrain{
      * @param strafe the power to strafe
      * @param turn the power to turn
      */
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> be745d4b69d7d4ab5db5f97c7cc37107e354a4af
+
 
     /**
      * sets the calculated powers of each motor
@@ -78,12 +59,6 @@ public class MecanumDrive extends Drivetrain{
      * @param strafe power to strafe
      * @param turn power to turn
      */
-<<<<<<< HEAD
-=======
->>>>>>> 5e9d75400a1896ae8936189bff63bffa3688d89b
-=======
-
->>>>>>> be745d4b69d7d4ab5db5f97c7cc37107e354a4af
     public void setPowers(double drive, double strafe, double turn){
         double [] powers = calculatePower(drive, strafe, turn);
         lf.setPower(powers[0]);
@@ -108,10 +83,7 @@ public class MecanumDrive extends Drivetrain{
         //return
         return  calculatedPowers;
     }
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> be745d4b69d7d4ab5db5f97c7cc37107e354a4af
+
 
     /**
      * robot centric drive
@@ -119,11 +91,6 @@ public class MecanumDrive extends Drivetrain{
      * @param y
      * @param turn
      */
-<<<<<<< HEAD
-=======
->>>>>>> 5e9d75400a1896ae8936189bff63bffa3688d89b
-=======
->>>>>>> be745d4b69d7d4ab5db5f97c7cc37107e354a4af
     public void botCentricDrive(double x, double y, double turn) {
         double adjX = deadzone(x, 0.05);
         double adjY = deadzone(y, 0.05);
@@ -139,10 +106,6 @@ public class MecanumDrive extends Drivetrain{
         normalizePowers(powers);
         runDrive(powers);
     }
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> be745d4b69d7d4ab5db5f97c7cc37107e354a4af
 
     /**
      * field centric drive
@@ -168,11 +131,6 @@ public class MecanumDrive extends Drivetrain{
         normalizePowers(powers);
         runDrive(powers);
     }
-<<<<<<< HEAD
-=======
->>>>>>> 5e9d75400a1896ae8936189bff63bffa3688d89b
-=======
->>>>>>> be745d4b69d7d4ab5db5f97c7cc37107e354a4af
     private static double deadzone(double value, double threshold) {
         return Math.abs(value) < threshold ? 0.0 : value;
     }
@@ -194,10 +152,7 @@ public class MecanumDrive extends Drivetrain{
             }
         }
     }
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> be745d4b69d7d4ab5db5f97c7cc37107e354a4af
+
     public void breakFollowing() {
         for (int i = 0; i < motors.size(); i++) lastMotorPowers[i] = 0;
         setPower(0);
@@ -214,11 +169,6 @@ public class MecanumDrive extends Drivetrain{
 
     /** Syncs live constants (useful with FTC Dashboard). */
     //abstract overrides
-<<<<<<< HEAD
-=======
->>>>>>> 5e9d75400a1896ae8936189bff63bffa3688d89b
-=======
->>>>>>> be745d4b69d7d4ab5db5f97c7cc37107e354a4af
     @Override
     public void setPower(DcMotorEx motor, double power) {
         motor.setPower(power);
@@ -230,10 +180,6 @@ public class MecanumDrive extends Drivetrain{
             motor.setPower(power);
         }
     }
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> be745d4b69d7d4ab5db5f97c7cc37107e354a4af
 
     @Override
     public void setPower(double power) {
@@ -274,10 +220,4 @@ public class MecanumDrive extends Drivetrain{
         telemetry.addData("leftRear velocity", lr.getVelocity());
         telemetry.addData("rightRear velocity", rr.getVelocity());
     }
-<<<<<<< HEAD
-=======
->>>>>>> 5e9d75400a1896ae8936189bff63bffa3688d89b
-=======
-
->>>>>>> be745d4b69d7d4ab5db5f97c7cc37107e354a4af
 }
