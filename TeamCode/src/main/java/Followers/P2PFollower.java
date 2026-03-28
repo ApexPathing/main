@@ -85,7 +85,16 @@ public class P2PFollower extends Follower {
      * @param newTargetPose the new target pose
      */
     public void setTargetPose(Pose newTargetPose) {
+        isBusy = true;
         targetPose = newTargetPose;
+    }
+
+    /**
+     * Get the current target pose of the follower
+     * @return the current target pose of the follower
+     */
+    public Pose getTargetPose() {
+        return targetPose;
     }
 
     @Override

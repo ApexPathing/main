@@ -13,6 +13,14 @@ public abstract class Follower {
     protected Pose pose;
 
     /**
+     * Set the current pose of the robot (for starting pose or relocalization)
+     * @param pose the current pose of the robot
+     */
+    public void setPose(Pose pose) {
+        this.pose = pose;
+    }
+
+    /**
      * Update loop for the follower, should be called in a loop to update the follower's movement
      */
     public abstract void update();
