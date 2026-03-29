@@ -1,7 +1,7 @@
 package Followers;
 
 import Drivetrains.Mecanum;
-import Localizers.PinpointLocalizer;
+import Localizers.Pinpoint;
 import Util.Pose;
 import Util.Vector;
 
@@ -12,7 +12,7 @@ import Util.Vector;
  */
 public class P2PFollower extends Follower {
     private final Mecanum drive;
-    private final PinpointLocalizer localizer;
+    private final Pinpoint localizer;
 
     private Pose targetPose;
 
@@ -32,7 +32,7 @@ public class P2PFollower extends Follower {
      * @param drive the mecanum drivetrain class to control
      * @param localizer the Pinpoint localizer to get pose estimates from
      */
-    public P2PFollower(Mecanum drive, PinpointLocalizer localizer) {
+    public P2PFollower(Mecanum drive, Pinpoint localizer) {
         this.drive = drive;
         this.localizer = localizer;
     }
@@ -44,7 +44,7 @@ public class P2PFollower extends Follower {
      * @param translationalKp the proportional coefficient for translational control
      * @param headingKp the proportional coefficient for heading control
      */
-    public P2PFollower(Mecanum drive, PinpointLocalizer localizer, double translationalKp, double headingKp) {
+    public P2PFollower(Mecanum drive, Pinpoint localizer, double translationalKp, double headingKp) {
         this.drive = drive;
         this.localizer = localizer;
         this.translationalKp = translationalKp;
@@ -108,7 +108,7 @@ public class P2PFollower extends Follower {
 
         Pose errorPose = targetPose.subtract(pose);
         double dist = targetPose.distanceFrom(pose);
-        double headingError = normalizeAngle(errorPose.getHeading());
+        double headingError = Pose.normalize(errorPose.getHeading());
 
         if (dist < translationalTolerance && Math.abs(headingError) < headingTolerance) {
             drive.drive(0, 0, 0);
@@ -163,17 +163,6 @@ public class P2PFollower extends Follower {
      */
     private double clip(double val, double min, double max) {
         return Math.max(min, Math.min(max, val));
-    }
-
-    /**
-     * Method to normalize an angle to the range [-pi, pi]
-     * @param angle the angle to normalize
-     * @return the normalized angle
-     */
-    private double normalizeAngle(double angle) {
-        while (angle > Math.PI) angle -= 2 * Math.PI;
-        while (angle < -Math.PI) angle += 2 * Math.PI;
-        return angle;
     }
 
     /**

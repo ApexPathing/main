@@ -1,5 +1,9 @@
 package Util;
 
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+
 import static java.lang.Math.*;
 
 /**
@@ -8,6 +12,7 @@ import static java.lang.Math.*;
  * Provides methods for arithmetic functions with positions.
  *
  * @author Sohum Arora
+ * @author Dylan B. - 18597 RoboClovers - Delta
  */
 public class Pose {
 
@@ -217,12 +222,35 @@ public class Pose {
         return "Pose { x: " + x + ", y: " + y + ", heading: " + heading + " }";
     }
 
-
     // Angle normalization
     public static double normalize(double angle) {
         double a = angle % (2 * PI);
         if (a > PI) a -= 2 * PI;
         if (a <= -PI) a += 2 * PI;
         return a;
+    }
+
+    /**
+     * Convert a Pose2D to a Pose. This is useful for converting between the Pose class and the Pose2D class used by the localizers.
+     * @param pose2D the Pose2D to convert
+     * @return the converted Pose
+     */
+    public static Pose fromPose2D(Pose2D pose2D) {
+        return new Pose(
+                pose2D.getX(DistanceUnit.INCH), pose2D.getY(DistanceUnit.INCH),
+                pose2D.getHeading(AngleUnit.RADIANS)
+        );
+    }
+
+    /**
+     * Convert a Pose to a Pose2D. This is useful for converting between the Pose class and the Pose2D class used by the localizers.
+     * @param pose the Pose to convert
+     * @return the converted Pose2D
+     */
+    public static Pose2D toPose2D(Pose pose) {
+        return new Pose2D(
+                DistanceUnit.INCH, pose.getX(), pose.getY(),
+                AngleUnit.RADIANS, pose.getHeading()
+        );
     }
 }

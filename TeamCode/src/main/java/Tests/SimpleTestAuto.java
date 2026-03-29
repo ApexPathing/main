@@ -5,7 +5,7 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
 import Followers.P2PFollower;
 import Drivetrains.Mecanum;
-import Localizers.PinpointLocalizer;
+import Localizers.Pinpoint;
 import Util.Pose;
 
 @Autonomous(name = "SimpleTestAuto", group = "Tests")
@@ -23,11 +23,8 @@ public class SimpleTestAuto extends LinearOpMode {
     @Override
     public void runOpMode() throws InterruptedException {
         Mecanum dt = new Mecanum(hardwareMap, Constants.driveConstants);
-        PinpointLocalizer localizer = new PinpointLocalizer(hardwareMap, "pinpoint");
+        Pinpoint localizer = new Pinpoint(hardwareMap, Constants.pinpointConstants, startPose);
         P2PFollower follower = new P2PFollower(dt, localizer);
-
-        follower.setPose(startPose);
-        follower.setPowerLimits(0.05, 0.5);
 
         waitForStart();
         while (opModeIsActive()) {
