@@ -10,11 +10,14 @@ import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 
 import java.util.List;
 import Util.Pose;
+import Util.Vector;
 
+// TODO: Add LimelightConstants class for pipeline numbers, camera offsets, etc.
 /**
  * Limelight Class localizer for apriltags rewritten for safety and accuracy.
  * @author Krish Joshi - 26192 Heatwaves
  * @author Xander Haemel - 31616 404 not found
+ * @author Dylan B. - 18597 RoboClovers - Delta
  */
 public class LimelightLocalizer extends Localizer {
     private final Limelight3A limelight3A;
@@ -31,9 +34,7 @@ public class LimelightLocalizer extends Localizer {
      * Switch the limelight pipeline.
      * @param pipelineNumber The pipeline index to switch to.
      */
-    public void switchPipeline(int pipelineNumber) {
-        limelight3A.pipelineSwitch(pipelineNumber);
-    }
+    public void switchPipeline(int pipelineNumber) {limelight3A.pipelineSwitch(pipelineNumber); }
 
     /**
      * Get fiducial results from the latest capture.
@@ -64,9 +65,7 @@ public class LimelightLocalizer extends Localizer {
         }
         return 0;
     }
-    /**
-     * Updates the limelight result from the hardware.
-     */
+
     @Override
     public void update() {
         limelightResult = limelight3A.getLatestResult();
@@ -81,34 +80,13 @@ public class LimelightLocalizer extends Localizer {
         }
     }
 
-    /**
-     * Gets the robot's current pose.
-     * @return The current pose if valid, otherwise the last known pose.
-     */
     @Override
-    public Pose getPose() {
-        return lastKnownPose;
-    }
+    public Pose getPose() { return lastKnownPose; }
 
-    /**
-     * Sets the robot's current pose.
-     * @param pose The new pose.
-     */
     @Override
-    public void setPose(Pose pose) {
-        this.lastKnownPose = pose;
-    }
+    public void setPose(Pose pose) { this.lastKnownPose = pose; }
 
-    /**
-     * Gets the robot's current velocity.
-     * @return The current velocity (not supported by Limelight directly, returns zero).
-     */
+    // TODO: Add velocity support to Limelight
     @Override
-    public Pose getVelocity() {
-        return new Pose(0, 0, 0);
-    }
-    @Override
-    public void initLocalizer(HardwareMap hardwareMap) {
-
-    }
+    public Vector getVelocity() { return new Vector(0, 0); }
 }
