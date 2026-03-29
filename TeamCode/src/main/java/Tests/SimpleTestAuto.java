@@ -22,9 +22,10 @@ public class SimpleTestAuto extends LinearOpMode {
 
     @Override
     public void runOpMode() throws InterruptedException {
-        Mecanum dt = new Mecanum(hardwareMap, Constants.driveConstants);
-        Pinpoint localizer = new Pinpoint(hardwareMap, Constants.pinpointConstants, startPose);
-        P2PFollower follower = new P2PFollower(dt, localizer);
+        // !!!! NOTE: Do not directly use the drivetrain or localizer in the opmode, only use the follower !!!!
+        Mecanum drivetrain = new Mecanum(hardwareMap, Constants.driveConstants);
+        Pinpoint localizer = new Pinpoint(hardwareMap, Constants.localizerConstants, startPose);
+        P2PFollower follower = new P2PFollower(Constants.followerConstants, drivetrain, localizer);
 
         waitForStart();
         while (opModeIsActive()) {
@@ -44,7 +45,7 @@ public class SimpleTestAuto extends LinearOpMode {
                     }
                     break;
                 case END:
-                    dt.stop();
+                    follower.stop();
                     break;
             }
 
@@ -56,7 +57,7 @@ public class SimpleTestAuto extends LinearOpMode {
             telemetry.addData("Auto State", autoState);
             telemetry.addData("Current Pose", follower.getPose().debug());
             telemetry.addData("Target Pose", follower.getTargetPose().debug());
-            telemetry.addData("Vector", follower.getVector().debug());
+            telemetry.addData("Velocity", follower.getVelocity().toString());
             telemetry.addData("Is Busy", follower.isBusy());
             telemetry.update();
         }

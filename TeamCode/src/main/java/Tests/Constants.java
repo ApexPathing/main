@@ -8,6 +8,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
 import Drivetrains.Constants.MecanumConstants;
 import Localizers.Constants.PinpointConstants;
+import Followers.Constants.P2PFollowerConstants;
 
 /**
  * Constants file for testing
@@ -27,13 +28,21 @@ public class Constants {
             .setRobotCentric(true)
             .setMaxPower(0.5);
 
-    public static PinpointConstants pinpointConstants = new PinpointConstants()
+    public static PinpointConstants localizerConstants = new PinpointConstants()
             .setName("pinpoint")
             .setDistanceUnit(DistanceUnit.INCH)
             .setAngleUnit(AngleUnit.DEGREES)
-            .setXOffset(-3.31) // In distanceUnit
-            .setYOffset(-6.61) // In distanceUnit
+            .setXOffset(-3.31) // In distanceUnit // TODO: Auto offset tuner
+            .setYOffset(-6.61) // In distanceUnit // TODO: Auto offset tuner
             .setXPodDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD)
             .setYPodDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD)
             .setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
+
+    public static P2PFollowerConstants followerConstants = new P2PFollowerConstants()
+            .setTranslationalKp(0.03) // TODO: Tuner
+            .setHeadingKp(0.5) // TODO: Tuner
+            .setTranslationalTolerance(1.0) // Inches
+            .setHeadingTolerance(3.0) // Degrees
+            .setMaxPower(0.5) // Power limits can be overwritten by the drivetrain's power limits, these are specifically for following
+            .setMinPower(0.05);
 }

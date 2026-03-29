@@ -2,105 +2,42 @@ package Followers;
 
 import Drivetrains.Mecanum;
 import Localizers.Pinpoint;
+import Followers.Constants.P2PFollowerConstants;
+
 import Util.Pose;
 import Util.Vector;
 
 /**
- * Simple point-to-point follower for a mecanum drivetrain using a goBILDA Pinpoint Odometry Computer.
+ * Simple point-to-point follower
  * @author Sohum Arora 22985 Paraducks
  * @author Dylan B. 18597 RoboClovers - Delta
  */
 public class P2PFollower extends Follower {
-    private final Mecanum drive;
-    private final Pinpoint localizer;
-
-    private Pose targetPose;
-
-    private Vector currentVector;
-
-    private double translationalKp = 0.03;
-    private double headingKp = 0.5;
-
-    private double translationalTolerance = 1.0; // Inches
-    private double headingTolerance = 0.05; // Radians
-
-    private double maxPower = 1.0;
-    private double minPower = 0.05;
+    private final P2PFollowerConstants constants;
 
     /**
      * Constructor for the P2PFollower
-     * @param drive the mecanum drivetrain class to control
+     * @param drivetrain the mecanum drivetrain class to control
      * @param localizer the Pinpoint localizer to get pose estimates from
      */
-    public P2PFollower(Mecanum drive, Pinpoint localizer) {
-        this.drive = drive;
+    public P2PFollower(P2PFollowerConstants constants, Mecanum drivetrain, Pinpoint localizer) {
+        this.constants = constants;
+        this.drivetrain = drivetrain;
         this.localizer = localizer;
-    }
-
-    /**
-     * Constructor for the P2PFollower with custom coefficients
-     * @param drive the mecanum drivetrain class to control
-     * @param localizer the Pinpoint localizer to get pose estimates from
-     * @param translationalKp the proportional coefficient for translational control
-     * @param headingKp the proportional coefficient for heading control
-     */
-    public P2PFollower(Mecanum drive, Pinpoint localizer, double translationalKp, double headingKp) {
-        this.drive = drive;
-        this.localizer = localizer;
-        this.translationalKp = translationalKp;
-        this.headingKp = headingKp;
-    }
-
-    /**
-    * Method to set the coefficients for the follower
-    * @param translationalKp the proportional coefficient for translational control
-    * @param headingKp the proportional coefficient for heading control
-    */
-    public void setCoefficients(double translationalKp, double headingKp) {
-        this.translationalKp = translationalKp;
-        this.headingKp = headingKp;
-    }
-
-    /**
-     * Set tolerances for the follower to consider itself at the target pose
-     * @param translationalTolerance the distance tolerance for the follower to consider itself at the target pose
-     * @param headingTolerance the heading tolerance for the follower to consider itself at the target pose
-     */
-    public void setTolerances(double translationalTolerance, double headingTolerance) {
-        this.translationalTolerance = translationalTolerance;
-        this.headingTolerance = headingTolerance;
-    }
-
-    /**
-     * Set the maximum and minimum motor power
-     * @param maxPower the maximum motor power to apply
-     */
-    public void setPowerLimits(double maxPower, double minPower) {
-        this.maxPower = maxPower;
-        this.minPower = minPower;
     }
 
     /**
      * Set the target pose for the robot to move to
-     * @param newTargetPose the new target pose
+     * @param targetPose the new target pose
      */
-    public void setTargetPose(Pose newTargetPose) {
-        isBusy = true;
-        targetPose = newTargetPose;
-    }
-
-    /**
-     * Get the current target pose of the follower
-     * @return the current target pose of the follower
-     */
-    public Pose getTargetPose() {
-        return targetPose;
+    public void setTargetPose(Pose targetPose) {
+        super.setTargetPose(targetPose); // Use the unexposed method from the Follower class
     }
 
     @Override
     public void update() {
         localizer.update();
-        pose = localizer.getPose();
+        Pose pose = localizer.getPose();
 
         if (pose == null || targetPose == null) {
             return;
@@ -110,9 +47,10 @@ public class P2PFollower extends Follower {
         double dist = targetPose.distanceFrom(pose);
         double headingError = Pose.normalize(errorPose.getHeading());
 
-        if (dist < translationalTolerance && Math.abs(headingError) < headingTolerance) {
-            drive.drive(0, 0, 0);
+        if (dist < constants.translationalTolerance && Math.abs(headingError) < constants.headingTolerance) {
+            drivetrain.stop();
             isBusy = false;
+            targetPose = null; // Clear target pose to prevent further movement until a new target is set
             return;
         }
 
@@ -122,13 +60,12 @@ public class P2PFollower extends Follower {
         Vector error = new Vector(dx, dy);
         error.rotateVec(-pose.getHeading());
 
-        double x = error.getX() * translationalKp;
-        double y = error.getY() * translationalKp;
-        double turn = headingError * headingKp;
-        currentVector = new Vector(x, y);
+        double x = error.getX() * constants.translationalKp;
+        double y = error.getY() * constants.translationalKp;
+        double turn = headingError * constants.headingKp;
 
         double mag = Math.hypot(x, y);
-        if (mag > maxPower) {
+        if (mag > constants.maxPower) {
             x /= mag;
             y /= mag;
         }
@@ -138,8 +75,8 @@ public class P2PFollower extends Follower {
             y = applyMinPower(y);
         }
 
-        turn = clip(turn, -maxPower, maxPower);
-        drive.drive(x, y, turn);
+        turn = clip(turn, -constants.maxPower, constants.maxPower);
+        drivetrain.drive(x, y, turn, 0); // Heading = 0 for robot centric drive
     }
 
     /**
@@ -148,8 +85,8 @@ public class P2PFollower extends Follower {
      * @return the value with minimum power applied
      */
     private double applyMinPower(double val) {
-        if (Math.abs(val) < minPower) {
-            return Math.signum(val) * minPower;
+        if (Math.abs(val) < constants.minPower) {
+            return Math.signum(val) * constants.minPower;
         }
         return val;
     }
@@ -163,13 +100,5 @@ public class P2PFollower extends Follower {
      */
     private double clip(double val, double min, double max) {
         return Math.max(min, Math.min(max, val));
-    }
-
-    /**
-     * Get the current movement vector of the robot, where the x component is the forward/backward power and the y component is the strafe power
-     * @return the current movement vector of the robot
-     */
-    public Vector getVector() {
-        return currentVector;
     }
 }

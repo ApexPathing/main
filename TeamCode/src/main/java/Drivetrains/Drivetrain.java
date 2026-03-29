@@ -58,18 +58,6 @@ public abstract class Drivetrain {
     public abstract void drive(double x, double y, double turn, double robotHeading);
 
     /**
-     * Drives the robot using the provided joystick inputs.
-     * Constants are ignored and robot centric is used because no heading is passed. A deadzone is applied to prevent drift.
-     * @param x the left/right joystick input (positive for right, negative for left)
-     * @param y the forward/backward joystick input (positive for forward, negative for backward)
-     * @param turn the rotation joystick input (positive for clockwise, negative for counterclockwise)
-     */
-    public void drive(double x, double y, double turn) {
-        drive(x, y, turn, 0);
-    }
-
-
-    /**
      * Stop all drivetrain actuators
      */
     public abstract void stop();

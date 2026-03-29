@@ -4,6 +4,7 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import Drivetrains.Mecanum;
+import Followers.P2PFollower;
 import Localizers.Pinpoint;
 import Util.Pose;
 
@@ -14,13 +15,12 @@ import Util.Pose;
  */
 @TeleOp(name = "MecanumDrive Test", group = "Apex beta test")
 public class MecanumDriveTest extends LinearOpMode {
-    Pinpoint localizer;
-    Mecanum dt;
-
     @Override
     public void runOpMode() {
-        localizer = new Pinpoint(hardwareMap, Constants.pinpointConstants, new Pose(0.0, 0.0, 0.0));
-        dt = new Mecanum(hardwareMap, Constants.driveConstants);
+        // !!!! NOTE: Do not directly use the drivetrain or localizer in the opmode, only use the follower !!!!
+        Mecanum drivetrain = new Mecanum(hardwareMap, Constants.driveConstants);
+        Pinpoint localizer = new Pinpoint(hardwareMap, Constants.localizerConstants, new Pose(0, 0, 0));
+        P2PFollower follower = new P2PFollower(Constants.followerConstants, drivetrain, localizer);
 
         while (opModeIsActive()) {
             // Update localizer and grab current pose
@@ -34,10 +34,10 @@ public class MecanumDriveTest extends LinearOpMode {
 
             // Start: emergency stop — cuts all motor power
             if (gamepad1.start) {
-                dt.stop();
-                telemetry.addLine("Motors stopped");
+                follower.stop();
+                telemetry.addLine("Follower stopped");
             } else {
-                dt.drive(x, y, turn, currentPose.getHeading());
+                follower.drive(x, y, turn, currentPose.getHeading());
             }
 
             // Telemetry output

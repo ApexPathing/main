@@ -50,10 +50,11 @@ public class Pinpoint extends Localizer {
     }
 
     @Override
-    public Vector getVelocity() {
-        return new Vector(
+    public Pose getVelocity() {
+        return new Pose(
                 pinpoint.getVelX(constants.distanceUnit),
-                pinpoint.getVelY(constants.distanceUnit)
+                pinpoint.getVelY(constants.distanceUnit),
+                pinpoint.getHeadingVelocity(constants.angleUnit.getUnnormalized())
         );
     }
 

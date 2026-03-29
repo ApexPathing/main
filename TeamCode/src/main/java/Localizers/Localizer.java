@@ -11,10 +11,8 @@ import Util.Vector;
  * @author Dylan B. 18597 RoboClovers - Delta
  */
 public abstract class Localizer {
-    // TODO: Add the @Pathing annotation stuff here
-
     public Pose currentPosition = new Pose(0.0, 0.0, 0.0);
-    public Vector currentVelocity = new Vector(0.0, 0.0);
+    public Pose currentVelocity = new Pose(0.0, 0.0, 0.0);
 
     /**
      * Gets the current robot pose (position and heading).
@@ -26,7 +24,7 @@ public abstract class Localizer {
      * Gets the current velocity vector. This is useful for path following and other advanced control algorithms.
      * @return the current velocity of the robot as a Vector (x, y)
      */
-    public Vector getVelocity() { return currentVelocity; }
+    public Pose getVelocity() { return currentVelocity; }
 
     /**
      * Sets the current pose of the robot.
