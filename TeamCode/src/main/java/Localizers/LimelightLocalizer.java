@@ -88,5 +88,5 @@ public class LimelightLocalizer extends Localizer {
 
     // TODO: Add velocity support to Limelight
     @Override
-    public Vector getVelocity() { return new Vector(0, 0); }
+    public Pose getVelocity() { return new Pose(0, 0, 0); }
 }
