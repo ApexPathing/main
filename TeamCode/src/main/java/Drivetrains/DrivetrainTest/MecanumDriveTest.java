@@ -1,11 +1,11 @@
 package Drivetrains.DrivetrainTest;
-
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 
 import Drivetrains.MecanumConstants;
 import Drivetrains.MecanumDrive;
+import Localizers.LimelightLocalizer;
 import Localizers.PinpointLocalizer;
 import Util.Pose;
 
@@ -38,7 +38,10 @@ public class MecanumDriveTest extends LinearOpMode {
     PinpointLocalizer localizer;
     String localizerName = "localizer"; //todo change as required
     double localizerXOffset = 0.0;         //todo replace with actual offset
-    double localizerYOffset = 0.0;         //todo replace with actual offset
+    double localizerYOffset = 0.0; //todo replace with actual offset
+
+    LimelightLocalizer localizer2;
+    String localizer2Name = "limelight"; //todo change as required
 
     @Override
     public void runOpMode() {
@@ -46,6 +49,8 @@ public class MecanumDriveTest extends LinearOpMode {
         // Init localizer
         localizer = new PinpointLocalizer(hardwareMap, localizerName, localizerXOffset, localizerYOffset);
         localizer.init();
+
+        localizer2 = new LimelightLocalizer(hardwareMap, localizer2Name);
 
         // Build motor list and power-tracking array for MecanumDrive
         List<DcMotorEx> motors = Arrays.asList(
@@ -69,7 +74,21 @@ public class MecanumDriveTest extends LinearOpMode {
         telemetry.addLine("B - toggle brake mode on and off");
         telemetry.update();
 
+        localizer2.switchPipeline(0);
+        localizer2.updateHeadingForMT2(0);
+
         waitForStart();
+
+        while (opModeInInit()) {
+            localizer2.update();
+            Pose startPose = localizer2.getPose();
+            if (startPose.getX() != 0 || startPose.getY() != 0) {
+                localizer.setPose(startPose);
+                telemetry.addLine("Relocalized using limelight");
+            } else {
+                telemetry.addLine("No april tag found");
+            }
+        }
 
         // Apply initial brake mode setting
         drive.startTeleopDrive(brakeMode);
@@ -81,9 +100,9 @@ public class MecanumDriveTest extends LinearOpMode {
             Pose currentPose = localizer.getPose();
 
             // Read driver inputs (invert Y so forward stick = positive drive)
-            double x = gamepad1.left_stick_x;
-            double y = -gamepad1.left_stick_y;
-            double turn = gamepad1.right_stick_x;
+            double x = -gamepad1.left_stick_x;
+            double y = gamepad1.left_stick_y;
+            double turn = -gamepad1.right_stick_x;
 
             // Y: toggle field-centric / bot-centric (rising edge only)
             if (gamepad1.y && !lastY) {
