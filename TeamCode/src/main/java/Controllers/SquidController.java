@@ -15,10 +15,8 @@ public class SquidController {
     private double lastError = 0;
     private double error = 0;
     private double motorDeadzone = 0.05;
-
     private double lastTimestamp = 0;
     private final ElapsedTime timer;
-
     /**
      * default constuctor
      * @param kP is the kP of the controller

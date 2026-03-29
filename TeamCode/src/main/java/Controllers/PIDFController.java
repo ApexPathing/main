@@ -1,14 +1,13 @@
 package Controllers;
 
-import com.apexpathing.util.Controller;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 /**
  * PIDF feedback controller.
  * @author Xander Haemel -31616
  */
-public class PIDFController extends Controller {
-    public double kP, kI, kD, kF;
+public class PIDFController{
+   /* public double kP, kI, kD, kF;
     private double integralSum = 0;
     private double derivative;
     private double lastError = 0;
@@ -32,7 +31,8 @@ public class PIDFController extends Controller {
      * @param currentPosition the current position of the mechanism
      * @return the power output
      */
-    @Override
+
+    /*
     public synchronized double calculate(double currentPosition) {
         double timestamp = timer.milliseconds() / 1000;
         double deltaTime = timestamp - lastTimestamp;
@@ -62,5 +62,5 @@ public class PIDFController extends Controller {
             power = 0;
         }
         return Math.max(-1.0, Math.min(1.0, power));
-    }
+    }*/
 }

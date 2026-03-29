@@ -1,41 +1,43 @@
 package Followers;
 
 import Util.Pose;
-import Util.Vector;
 
 /**
  * Parent class for followers
  * @author Xander Haemel 31616 404 Not Found
  * @author Sohum Arora 22985 Paraducks
+ * @author Dylan B. 18597 RoboClovers - Delta
  */
 public abstract class Follower {
-    //declerations
-    private boolean followerIsBusy;
-
-
-    /**
-     * sets the follower to a new target Pose
-     * @param targetPose the new pose to move to
-     */
-    public abstract void setTargetPose(Pose targetPose);
+    protected boolean isBusy;
+    protected Pose pose;
 
     /**
-     * gets the current target Pose
+     * Set the current pose of the robot (for starting pose or relocalization)
+     * @param pose the current pose of the robot
      */
-    public abstract Pose getCurrentTargetPose();
+    public void setPose(Pose pose) {
+        this.pose = pose;
+    }
 
     /**
-     * x vector getter
-     * @return the x vector
+     * Update loop for the follower, should be called in a loop to update the follower's movement
      */
-    public abstract Vector getXVector();
+    public abstract void update();
+
     /**
-     * y vector getter
-     * @return the y vector
+     * Checks if the follower is still moving towards the target pose
+     * @return true if the follower is still moving towards the target pose, false if it has reached the target pose
      */
-    public abstract Vector getYVector();
+    public boolean isBusy() {
+        return isBusy;
+    }
 
-
-
-
+    /**
+     * Get the robot's current pose estimate
+     * @return the robot's current pose estimate
+     */
+    public Pose getPose() {
+        return pose;
+    }
 }
