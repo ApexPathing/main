@@ -1,15 +1,12 @@
 package Localizers;
 
-import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.LLResultTypes;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
-
 
 import java.util.List;
 import Util.Pose;
@@ -19,7 +16,7 @@ import Util.Pose;
  * @author Krish Joshi - 26192 Heatwaves
  * @author Xander Haemel - 31616 404 not found
  */
-public class LimelightLocalizer extends LocalizerBase {
+public class LimelightLocalizer extends Localizer {
     private final Limelight3A limelight3A;
     private LLResult limelightResult;
     private Pose lastKnownPose = new Pose(0, 0, 0);
