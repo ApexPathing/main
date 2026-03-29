@@ -1,6 +1,6 @@
 package Followers;
 
-import Drivetrains.MecanumDrive;
+import Drivetrains.Mecanum;
 import Localizers.PinpointLocalizer;
 import Util.Pose;
 import Util.Vector;
@@ -11,7 +11,7 @@ import Util.Vector;
  * @author Dylan B. 18597 RoboClovers - Delta
  */
 public class P2PFollower extends Follower {
-    private final MecanumDrive drive;
+    private final Mecanum drive;
     private final PinpointLocalizer localizer;
 
     private Pose targetPose;
@@ -32,7 +32,7 @@ public class P2PFollower extends Follower {
      * @param drive the mecanum drivetrain class to control
      * @param localizer the Pinpoint localizer to get pose estimates from
      */
-    public P2PFollower(MecanumDrive drive, PinpointLocalizer localizer) {
+    public P2PFollower(Mecanum drive, PinpointLocalizer localizer) {
         this.drive = drive;
         this.localizer = localizer;
     }
@@ -44,7 +44,7 @@ public class P2PFollower extends Follower {
      * @param translationalKp the proportional coefficient for translational control
      * @param headingKp the proportional coefficient for heading control
      */
-    public P2PFollower(MecanumDrive drive, PinpointLocalizer localizer, double translationalKp, double headingKp) {
+    public P2PFollower(Mecanum drive, PinpointLocalizer localizer, double translationalKp, double headingKp) {
         this.drive = drive;
         this.localizer = localizer;
         this.translationalKp = translationalKp;
@@ -111,7 +111,7 @@ public class P2PFollower extends Follower {
         double headingError = normalizeAngle(errorPose.getHeading());
 
         if (dist < translationalTolerance && Math.abs(headingError) < headingTolerance) {
-            drive.botCentricDrive(0, 0, 0);
+            drive.drive(0, 0, 0);
             isBusy = false;
             return;
         }
@@ -139,7 +139,7 @@ public class P2PFollower extends Follower {
         }
 
         turn = clip(turn, -maxPower, maxPower);
-        drive.botCentricDrive(x, y, turn);
+        drive.drive(x, y, turn);
     }
 
     /**

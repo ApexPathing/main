@@ -4,7 +4,7 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
 import Followers.P2PFollower;
-import Drivetrains.MecanumDrive;
+import Drivetrains.Mecanum;
 import Localizers.PinpointLocalizer;
 import Util.Pose;
 
@@ -22,9 +22,9 @@ public class SimpleTestAuto extends LinearOpMode {
 
     @Override
     public void runOpMode() throws InterruptedException {
-        MecanumDrive drive = new MecanumDrive(hardwareMap, null, null, null);
+        Mecanum dt = new Mecanum(hardwareMap, Constants.driveConstants);
         PinpointLocalizer localizer = new PinpointLocalizer(hardwareMap, "pinpoint");
-        P2PFollower follower = new P2PFollower(drive, localizer);
+        P2PFollower follower = new P2PFollower(dt, localizer);
 
         follower.setPose(startPose);
         follower.setPowerLimits(0.05, 0.5);
@@ -47,12 +47,12 @@ public class SimpleTestAuto extends LinearOpMode {
                     }
                     break;
                 case END:
-                    drive.setPower(0);
+                    dt.stop();
                     break;
             }
 
             // Stop
-            if(gamepad1.a){
+            if (gamepad1.a) {
                 requestOpModeStop();
             }
 
