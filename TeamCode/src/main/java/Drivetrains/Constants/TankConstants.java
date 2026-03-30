@@ -9,7 +9,7 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 public class TankConstants {
     //declerations
     //TODO select motor count
-    public final boolean FourMotorTankDrive = true;
+    public boolean FourMotorTankDrive = true;
     public boolean useBrakingMode = false; // Brake mode = true, Float mode = false
     public boolean useFeedForward = true; // Whether to use feedforward in the velocity controller TODO: USE THIS
     public boolean robotCentric = true; // Whether to use robot-centric controls (true) or field-centric controls (false) in TeleOp
@@ -43,8 +43,6 @@ public class TankConstants {
      * defualt constructor
      */
     public TankConstants(){}
-
-
     /**
      * Sets the left front motor name
      * @param leftFrontMotorName is the new name
@@ -77,9 +75,57 @@ public class TankConstants {
      * @return this instance for chaining
      */
     public TankConstants rightRearMotorName(String rightRearMotorName){
-        this.lF_name = rightRearMotorName;
+        this.rR_name = rightRearMotorName;
         return this;
     }
+
+
+    //directions setters
+    /**
+     * Sets the left front motor direction
+     * @param leftFrontMotorDirection is the new name
+     * @return this instance for chaining
+     */
+    public TankConstants setLeftFrontMotorDirection(DcMotorSimple.Direction leftFrontMotorDirection){
+        this.lF_Direction = leftFrontMotorDirection;
+        return this;
+    }
+
+    /**
+     * Sets the left back motor name
+     * @param leftRearMotorDirection is the new name
+     * @return this instance for chaining
+     */
+    public TankConstants setLeftRearMotorDirection(DcMotorSimple.Direction leftRearMotorDirection){
+        this.lR_Direction = leftRearMotorDirection;
+        return this;
+    }
+    /**
+     * Sets the right front motor direction
+     * @param rightFrontMotorDirection is the new name
+     * @return this instance for chaining
+     */
+    public TankConstants setRightFrontMotorDirection(DcMotorSimple.Direction rightFrontMotorDirection){
+        this.rF_Direction = rightFrontMotorDirection;
+        return this;
+    }
+    /**
+     * Sets the right back motor direction
+     * @param rightRearMotorDirection is the new name
+     * @return this instance for chaining
+     */
+    public TankConstants setRightRearMotorDirection(DcMotorSimple.Direction rightRearMotorDirection){
+        this.rR_Direction = rightRearMotorDirection;
+        return this;
+    }
+    /**
+     * sets two motor or four motor tank drive
+     */
+    public void setFourMotorTankDrive(boolean enableFourMotorTankDrive){
+        this.FourMotorTankDrive = enableFourMotorTankDrive;
+    }
+
+
 
 
 
