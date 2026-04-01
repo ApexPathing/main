@@ -1,4 +1,4 @@
-package Drivetrains;
+package drivetrains;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
 

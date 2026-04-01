@@ -1,12 +1,12 @@
-package Drivetrains;
+package drivetrains;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 import Drivetrains.Constants.MecanumConstants;
+import motors.MotorEx;
 
 /**
  * Mecanum Drivetrain controller class
@@ -18,10 +18,10 @@ public class Mecanum extends Drivetrain {
     MecanumConstants constants;
 
     // Motors
-    DcMotorEx lf;
-    DcMotorEx lb;
-    DcMotorEx rf;
-    DcMotorEx rb;
+    MotorEx flMotor;
+    MotorEx blMotor;
+    MotorEx frMotor;
+    MotorEx brMotor;
 
     /**
      * Creates a mecanum drivetrain
@@ -31,27 +31,18 @@ public class Mecanum extends Drivetrain {
     public Mecanum(HardwareMap hardwareMap, MecanumConstants constants){
         this.constants = constants;
 
-        // Initialize motors
-        lf = hardwareMap.get(DcMotorEx.class, constants.getFrontLeftMotorName());
-        lb = hardwareMap.get(DcMotorEx.class, constants.getBackLeftMotorName());
-        rf = hardwareMap.get(DcMotorEx.class, constants.getFrontRightMotorName());
-        rb = hardwareMap.get(DcMotorEx.class, constants.getBackRightMotorName());
-
-        // Set motor directions
-        lf.setDirection(constants.getFrontLeftMotorDirection());
-        lb.setDirection(constants.getBackLeftMotorDirection());
-        rf.setDirection(constants.getFrontRightMotorDirection());
-        rb.setDirection(constants.getBackRightMotorDirection());
-
-        setBrakeMode(constants.getUseBrakeMode());
+        flMotor = new MotorEx(hardwareMap, constants.flData);
+        frMotor = new MotorEx(hardwareMap, constants.frData);
+        blMotor = new MotorEx(hardwareMap, constants.blData);
+        brMotor = new MotorEx(hardwareMap, constants.brData);
     }
 
     @Override
     protected void setZeroPowerBehavior(DcMotor.ZeroPowerBehavior behavior) {
-        lf.setZeroPowerBehavior(behavior);
-        lb.setZeroPowerBehavior(behavior);
-        rf.setZeroPowerBehavior(behavior);
-        rb.setZeroPowerBehavior(behavior);
+        flMotor.setBrakeMode(behavior);
+        blMotor.setBrakeMode(behavior);
+        frMotor.setBrakeMode(behavior);
+        brMotor.setBrakeMode(behavior);
     }
 
     /**
@@ -74,10 +65,10 @@ public class Mecanum extends Drivetrain {
             rrPower = (rrPower / max) * constants.maxPower;
         }
 
-        lf.setPower(lfPower);
-        lb.setPower(lrPower);
-        rf.setPower(rfPower);
-        rb.setPower(rrPower);
+        flMotor.motor.setPower(lfPower);
+        flMotor.motor.setPower(lrPower);
+        frMotor.motor.setPower(rfPower);
+        brMotor.motor.setPower(rrPower);
     }
 
     @Override
@@ -113,16 +104,9 @@ public class Mecanum extends Drivetrain {
 
     @Override
     public void debug(Telemetry telemetry) {
-        telemetry.addLine("---Power---");
-        telemetry.addData("leftFront Power", lf.getPower());
-        telemetry.addData("rightFront Power", rf.getPower());
-        telemetry.addData("leftRear Power", lb.getPower());
-        telemetry.addData("rightRear Power", rb.getPower());
-
-        telemetry.addLine("---Velocity---");
-        telemetry.addData("leftFront velocity", lf.getVelocity());
-        telemetry.addData("rightFront velocity", rf.getVelocity());
-        telemetry.addData("leftRear velocity", lb.getVelocity());
-        telemetry.addData("rightRear velocity", rb.getVelocity());
+        telemetry.addData("Front Left Power", flMotor.motor.getPower());
+        telemetry.addData("Front Right Power", frMotor.motor.getPower());
+        telemetry.addData("Back left Power", blMotor.motor.getPower());
+        telemetry.addData("Back Right Power", brMotor.motor.getPower());
     }
 }

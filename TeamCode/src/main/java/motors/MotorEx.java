@@ -5,13 +5,16 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
-public class MotorEx  {
+public class MotorEx {
     public DcMotorEx motor;
     public MotorMetaData data;
 
     public MotorEx(HardwareMap hardwareMap, MotorMetaData data) {
+        super();
         motor = hardwareMap.get(DcMotorEx.class, data.getName());
-        motor.setMode(data.getRunMode());
+        setRunMode(data.getRunMode());
+        setDirection(data.getDirection());
+        setBrakeMode(data.getBrakeMode());
     }
 
     public void setRunMode(DcMotor.RunMode mode) {
@@ -23,9 +26,9 @@ public class MotorEx  {
         motor.setDirection(direction);
         data.setDirection(direction);
     }
+
     public void setBrakeMode(DcMotor.ZeroPowerBehavior mode) {
         motor.setZeroPowerBehavior(mode);
         data.setBrakeMode(mode);
     }
-
 }

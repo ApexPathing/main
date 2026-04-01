@@ -1,45 +1,54 @@
-package Drivetrains;
+package drivetrains;
 
 import androidx.annotation.NonNull;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import java.util.ArrayList;
+
 import Drivetrains.Constants.TankConstants;
 import motors.MotorEx;
 
-@SuppressWarnings("unused")
+/**
+ * Tank Drivetrain controller class
+ * @author Xander Haemel - 31616 - 404 Not Found
+ * @author Dylan B. - 18597 RoboClovers - Delta
+ */
 public class Tank extends Drivetrain {
     TankConstants constants;
-    ArrayList<MotorEx> left = new ArrayList<>();
-    ArrayList<MotorEx> right = new ArrayList<>();
+
+    // Motors
+    MotorEx flMotor;
+    MotorEx blMotor; // Only used for 4 motor tank drive
+    MotorEx frMotor;
+    MotorEx brMotor; // Only used for 4 motor tank drive
 
     public Tank(HardwareMap hardwareMap, @NonNull TankConstants constants) {
         this.constants = constants;
 
-        left.add(new MotorEx(hardwareMap, constants.leftFrontData));
-        right.add(new MotorEx(hardwareMap, constants.rightFrontData));
-
+        flMotor = new MotorEx(hardwareMap, constants.leftFrontData);
+        frMotor = new MotorEx(hardwareMap, constants.rightFrontData);
 
         if (constants.fourMotorTankDrive) {
-            left.add(new MotorEx(hardwareMap, constants.leftRearData));
-            right.add(new MotorEx(hardwareMap, constants.rightRearData));
+            blMotor = new MotorEx(hardwareMap, constants.leftRearData);
+            brMotor = new MotorEx(hardwareMap, constants.rightRearData);
         }
     }
+
     @Override
     protected void setZeroPowerBehavior(DcMotor.ZeroPowerBehavior behavior) {
-        for (MotorEx motor : left) {
-            motor.motor.setZeroPowerBehavior(behavior);
-        }
-        for (MotorEx motor : right) {
-            motor.motor.setZeroPowerBehavior(behavior);
+        flMotor.setBrakeMode(behavior);
+        frMotor.setBrakeMode(behavior);
+
+        if (constants.fourMotorTankDrive) {
+            blMotor.setBrakeMode(behavior);
+            brMotor.setBrakeMode(behavior);
         }
     }
 
     @Override
     public void moveWithVectors(double drive, double strafe, double turn) {
-
         // Interpreting the values
         double leftSidePower = drive + turn;
         double rightSidePower = drive - turn;
@@ -57,27 +66,33 @@ public class Tank extends Drivetrain {
 
     @Override
     public void drive(double x, double y, double turn, double robotHeading) {
-        //TODO: Implement field-centric drive
+        // TODO: Implement field-centric drive, then make the other moveWithVectors call this method with a heading of 0 for robot-centric control
         moveWithVectors(y, x, turn);
+    }
 
+    public void setPowers(double leftPower, double rightPower) {
+        flMotor.motor.setPower(leftPower);
+        frMotor.motor.setPower(rightPower);
+
+        if (constants.fourMotorTankDrive) {
+            blMotor.motor.setPower(leftPower);
+            brMotor.motor.setPower(rightPower);
+        }
     }
 
     @Override
     public void stop() {
-
+        setPowers(0, 0);
     }
 
     @Override
     public void debug(Telemetry telemetry) {
+        telemetry.addData("Front Left Power", flMotor.motor.getPower());
+        telemetry.addData("Front Right Power", frMotor.motor.getPower());
 
-    }
-
-    public void setPowers(double leftPower, double rightPower) {
-        for (MotorEx motor : left) {
-            motor.motor.setPower(leftPower);
-        }
-        for (MotorEx motor : right) {
-            motor.motor.setPower(rightPower);
+        if (constants.fourMotorTankDrive) {
+            telemetry.addData("Back left Power", blMotor.motor.getPower());
+            telemetry.addData("Back Right Power", brMotor.motor.getPower());
         }
     }
 }
