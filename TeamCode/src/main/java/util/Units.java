@@ -1,4 +1,4 @@
-package Util;
+package util;
 
 /**
 * Class for conversion between distance units and angle units

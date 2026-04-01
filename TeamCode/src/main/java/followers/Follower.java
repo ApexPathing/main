@@ -1,8 +1,8 @@
-package Followers;
+package followers;
 
-import Drivetrains.Drivetrain;
-import Localizers.Localizer;
-import Util.Pose;
+import drivetrains.Drivetrain;
+import localizers.Localizer;
+import util.Pose;
 
 /**
  * Parent class for followers

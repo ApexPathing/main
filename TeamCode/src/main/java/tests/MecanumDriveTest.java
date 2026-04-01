@@ -1,12 +1,12 @@
-package Tests;
+package tests;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
-import Drivetrains.Mecanum;
-import Followers.P2PFollower;
-import Localizers.Pinpoint;
-import Util.Pose;
+import drivetrains.Mecanum;
+import followers.P2PFollower;
+import localizers.Pinpoint;
+import util.Pose;
 
 /**
  * Test for the Mecanum drivetrain class using a Pinpoint localizer

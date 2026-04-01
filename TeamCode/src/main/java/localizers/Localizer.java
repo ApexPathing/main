@@ -1,9 +1,6 @@
-package Localizers;
+package localizers;
 
-import com.qualcomm.robotcore.hardware.HardwareMap;
-
-import Util.Pose;
-import Util.Vector;
+import util.Pose;
 
 /**
  * Abstract Localizer class that all localizers should extend. This is used to define the basic structure of a localizer and to provide some common functionality.

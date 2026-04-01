@@ -1,4 +1,4 @@
-package Tests;
+package tests;
 
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
@@ -6,9 +6,9 @@ import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
-import Drivetrains.Constants.MecanumConstants;
-import Localizers.Constants.PinpointConstants;
-import Followers.Constants.P2PFollowerConstants;
+import drivetrains.constants.MecanumConstants;
+import localizers.constants.PinpointConstants;
+import followers.constants.P2PFollowerConstants;
 
 /**
  * Constants file for testing
