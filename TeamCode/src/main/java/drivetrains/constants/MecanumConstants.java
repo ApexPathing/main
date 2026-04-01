@@ -1,6 +1,8 @@
 package drivetrains.constants;
 
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.DcMotor.ZeroPowerBehavior;
+import com.qualcomm.robotcore.hardware.DcMotorSimple.Direction;
+import motors.MotorMetaData;
 
 /**
  * Mecanum Constants class
@@ -8,17 +10,11 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
  * @author Dylan B. - 18597 RoboClovers - Delta
  */
 public class MecanumConstants {
-    // Motor names
-    public String leftFrontMotorName = "font_left_drive";
-    public String leftRearMotorName = "back_left_drive";
-    public String rightFrontMotorName = "front_right_drive";
-    public String rightRearMotorName = "back_right_drive";
-
-    // Motor directions
-    public DcMotorSimple.Direction leftFrontDirection = DcMotorSimple.Direction.REVERSE;
-    public DcMotorSimple.Direction leftRearDirection = DcMotorSimple.Direction.REVERSE;
-    public DcMotorSimple.Direction rightFrontDirection = DcMotorSimple.Direction.FORWARD;
-    public DcMotorSimple.Direction rightRearDirection = DcMotorSimple.Direction.FORWARD;
+    // Motors
+    public MotorMetaData flData = new MotorMetaData("front_left_drive");
+    public MotorMetaData blData = new MotorMetaData("back_left_drive");
+    public MotorMetaData frData = new MotorMetaData("front_right_drive");
+    public MotorMetaData brData = new MotorMetaData("back_right_drive");
 
     // Tuned values TODO: USE THESE
     public double xVelocity = 60; // Inches per second
@@ -26,93 +22,91 @@ public class MecanumConstants {
 
     // Miscellaneous constants
     public double maxPower = 1.0; // 0 to 1, max power to apply to the motors
-    public boolean useBrakingMode = false; // Brake mode = true, Float mode = false
     public boolean useFeedForward = true; // Whether to use feedforward in the velocity controller TODO: USE THIS
     public boolean robotCentric = true; // Whether to use robot-centric controls (true) or field-centric controls (false) in TeleOp
 
     /**
      * Constructor for the MecanumConstants class
-     * Default constants are derived from the BasicOmniOpMode_Linear SDK sample with untuned values
      */
     public MecanumConstants() {}
 
     /**
-     * Sets the left front motor name.
-     * @param leftFrontMotorName the name of the left front motor
+     * Sets the left front motor name. Default: "front_left_drive"
+     * @param name the name of the left front motor
      * @return this instance for chaining
      */
-    public MecanumConstants setLeftFrontMotorName(String leftFrontMotorName) {
-        this.leftFrontMotorName = leftFrontMotorName;
+    public MecanumConstants setFrontLeftMotorName(String name) {
+        this.flData.setName(name);
         return this;
     }
 
     /**
-     * Sets the left rear motor name.
-     * @param leftRearMotorName the name of the left rear motor
+     * Sets the left rear motor name. Default: "back_left_drive"
+     * @param name the name of the left rear motor
      * @return this instance for chaining
      */
-    public MecanumConstants setLeftRearMotorName(String leftRearMotorName) {
-        this.leftRearMotorName = leftRearMotorName;
+    public MecanumConstants setBackLeftMotorName(String name) {
+        this.blData.setName(name);
         return this;
     }
 
     /**
-     * Sets the right front motor name.
-     * @param rightFrontMotorName the name of the right front motor
+     * Sets the right front motor name. Default: "front_right_drive"
+     * @param name the name of the right front motor
      * @return this instance for chaining
      */
-    public MecanumConstants setRightFrontMotorName(String rightFrontMotorName) {
-        this.rightFrontMotorName = rightFrontMotorName;
+    public MecanumConstants setFrontRightMotorName(String name) {
+        this.frData.setName(name);
         return this;
     }
 
     /**
-     * Sets the right rear motor name.
-     * @param rightRearMotorName the name of the right rear motor
+     * Sets the right rear motor name. Default: "back_right_drive"
+     * @param name the name of the right rear motor
      * @return this instance for chaining
      */
-    public MecanumConstants setRightRearMotorName(String rightRearMotorName) {
-        this.rightRearMotorName = rightRearMotorName;
+    public MecanumConstants setBackRightMotorName(String name) {
+        this.brData.setName(name);
         return this;
     }
 
     /**
-     * Sets the left front motor direction.
-     * @param leftFrontDirection the direction of the left front motor
+     * Default direction is FORWARD.
+     * @param reversed whether the front left motor is reversed
      * @return this instance for chaining
      */
-    public MecanumConstants setLeftFrontDirection(DcMotorSimple.Direction leftFrontDirection) {
-        this.leftFrontDirection = leftFrontDirection;
+    public MecanumConstants setFrontLeftReversed(boolean reversed) {
+        this.flData.setDirection(reversed ? Direction.REVERSE : Direction.FORWARD);
         return this;
     }
 
     /**
-     * Sets the left rear motor direction.
-     * @param leftRearDirection the direction of the left rear motor
+     * Default direction is FORWARD.
+     * @param reversed whether the back left motor is reversed
      * @return this instance for chaining
      */
-    public MecanumConstants setLeftRearDirection(DcMotorSimple.Direction leftRearDirection) {
-        this.leftRearDirection = leftRearDirection;
+    public MecanumConstants setBackLeftReversed(boolean reversed) {
+        this.blData.setDirection(reversed ? Direction.REVERSE : Direction.FORWARD);
         return this;
     }
 
     /**
-     * Sets the right front motor direction.
-     * @param rightFrontDirection the direction of the right front motor
+     * Default direction is FORWARD.
+     * @param reversed whether the front right motor is reversed
      * @return this instance for chaining
      */
-    public MecanumConstants setRightFrontDirection(DcMotorSimple.Direction rightFrontDirection) {
-        this.rightFrontDirection = rightFrontDirection;
+    public MecanumConstants setFrontRightReversed(boolean reversed) {
+        this.frData.setDirection(reversed ? Direction.REVERSE : Direction.FORWARD);
         return this;
     }
 
     /**
-     * Sets the right rear motor direction.
-     * @param rightRearDirection the direction of the right rear motor
+     * Default direction is FORWARD.
+     * @param reversed whether the back right motor is reversed
      * @return this instance for chaining
      */
-    public MecanumConstants setRightRearDirection(DcMotorSimple.Direction rightRearDirection) {
-        this.rightRearDirection = rightRearDirection;
+    public MecanumConstants setBackRightReversed(boolean reversed) {
+        this.brData.setDirection(reversed ? Direction.REVERSE : Direction.FORWARD);
         return this;
     }
 
@@ -147,12 +141,15 @@ public class MecanumConstants {
     }
 
     /**
-     * Sets whether to use braking mode.
-     * @param useBrakingMode true for brake mode, false for float mode
+     * Sets whether to use braking mode. Default: true (brake mode).
+     * @param brakeMode true for brake mode, false for float mode
      * @return this instance for chaining
      */
-    public MecanumConstants setUseBrakingMode(boolean useBrakingMode) {
-        this.useBrakingMode = useBrakingMode;
+    public MecanumConstants setUseBrakeMode(boolean brakeMode) {
+        this.flData.setBrakeMode(brakeMode ? ZeroPowerBehavior.BRAKE : ZeroPowerBehavior.FLOAT);
+        this.blData.setBrakeMode(brakeMode ? ZeroPowerBehavior.BRAKE : ZeroPowerBehavior.FLOAT);
+        this.frData.setBrakeMode(brakeMode ? ZeroPowerBehavior.BRAKE : ZeroPowerBehavior.FLOAT);
+        this.brData.setBrakeMode(brakeMode ? ZeroPowerBehavior.BRAKE : ZeroPowerBehavior.FLOAT);
         return this;
     }
 
