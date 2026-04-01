@@ -1,18 +1,15 @@
-package drivetrains;
+package Drivetrains;
 
 import androidx.annotation.NonNull;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-
 import java.util.ArrayList;
-import java.util.Objects;
-
-import drivetrains.constants.TankConstants;
+import Drivetrains.Constants.TankConstants;
 import motors.MotorEx;
 
+@SuppressWarnings("unused")
 public class Tank extends Drivetrain {
     TankConstants constants;
     ArrayList<MotorEx> left = new ArrayList<>();
@@ -62,6 +59,7 @@ public class Tank extends Drivetrain {
     public void drive(double x, double y, double turn, double robotHeading) {
         //TODO: Implement field-centric drive
         moveWithVectors(y, x, turn);
+
     }
 
     @Override

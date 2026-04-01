@@ -1,6 +1,6 @@
 package followers;
 
-import drivetrains.Mecanum;
+import Drivetrains.Mecanum;
 import localizers.Pinpoint;
 import followers.constants.P2PFollowerConstants;
 

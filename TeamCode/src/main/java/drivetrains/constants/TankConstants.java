@@ -1,15 +1,14 @@
-package drivetrains.constants;
+package Drivetrains.Constants;
 
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
-
-import motors.MotorEx;
 import motors.MotorMetaData;
 
 /**
  * Tank Drive Constants Class
  * @author Xander Haemel - 31616- 404 Not Found
  */
-public class TankConstants {
+
+@SuppressWarnings("unused")public class TankConstants {
     //declerations
     //TODO select motor count
     public boolean fourMotorTankDrive = true;
@@ -70,7 +69,7 @@ public class TankConstants {
      * @param rightRearMotorName is the new name
      * @return this instance for chaining
      */
-    public TankConstants rightRearMotorName(String rightRearMotorName){
+    public TankConstants setRightRearMotorName(String rightRearMotorName){
         this.rightRearData.setName(rightRearMotorName);
         return this;
     }

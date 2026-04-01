@@ -3,7 +3,7 @@ package tests;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
-import drivetrains.Mecanum;
+import Drivetrains.Mecanum;
 import followers.P2PFollower;
 import localizers.Pinpoint;
 import util.Pose;
@@ -13,6 +13,7 @@ import util.Pose;
  * @author Sohum Arora - 22985 Paraducks
  * @author Dylan B. - 18597 RoboClovers - Delta
  */
+@SuppressWarnings("unused")
 @TeleOp(name = "MecanumDrive Test", group = "Apex beta test")
 public class MecanumDriveTest extends LinearOpMode {
     @Override
