@@ -16,6 +16,7 @@ import followers.constants.P2PFollowerConstants;
  * @author Dylan B. - 18597 RoboClovers - Delta
  * @author Xander Haemel -31616 - 404 Not Found
  */
+@SuppressWarnings("unused")
 public class Constants {
     public static MecanumConstants driveConstants = new MecanumConstants()
             .setFrontLeftMotorName("leftFront")
@@ -38,7 +39,6 @@ public class Constants {
             .setLeftRearMotorDirection(DcMotorSimple.Direction.FORWARD)
             .setRightFrontMotorDirection(DcMotorSimple.Direction.REVERSE)
             .setRightRearMotorDirection(DcMotorSimple.Direction.REVERSE);
-            ;
 
     public static PinpointConstants localizerConstants = new PinpointConstants()
             .setName("pinpoint")

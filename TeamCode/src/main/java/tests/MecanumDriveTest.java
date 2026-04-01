@@ -13,6 +13,7 @@ import util.Pose;
  * @author Sohum Arora - 22985 Paraducks
  * @author Dylan B. - 18597 RoboClovers - Delta
  */
+@SuppressWarnings("unused")
 @TeleOp(name = "MecanumDrive Test", group = "Apex beta test")
 public class MecanumDriveTest extends LinearOpMode {
     @Override

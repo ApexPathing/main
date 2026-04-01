@@ -1,15 +1,14 @@
 package Drivetrains.Constants;
 
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
-
-import motors.MotorEx;
 import motors.MotorMetaData;
 
 /**
  * Tank Drive Constants Class
  * @author Xander Haemel - 31616- 404 Not Found
  */
-public class TankConstants {
+
+@SuppressWarnings("unused")public class TankConstants {
     //declerations
     //TODO select motor count
     public boolean fourMotorTankDrive = true;

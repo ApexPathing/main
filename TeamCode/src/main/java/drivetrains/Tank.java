@@ -4,16 +4,12 @@ import androidx.annotation.NonNull;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-
 import java.util.ArrayList;
-import java.util.Objects;
-
-import Drivetrains.Drivetrain;
 import Drivetrains.Constants.TankConstants;
 import motors.MotorEx;
 
+@SuppressWarnings("unused")
 public class Tank extends Drivetrain {
     TankConstants constants;
     ArrayList<MotorEx> left = new ArrayList<>();
