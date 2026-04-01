@@ -6,27 +6,39 @@ import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
-import drivetrains.constants.MecanumConstants;
+import Drivetrains.Constants.MecanumConstants;
+import Drivetrains.Constants.TankConstants;
 import localizers.constants.PinpointConstants;
 import followers.constants.P2PFollowerConstants;
 
 /**
  * Constants file for testing
  * @author Dylan B. - 18597 RoboClovers - Delta
+ * @author Xander Haemel -31616 - 404 Not Found
  */
 public class Constants {
     public static MecanumConstants driveConstants = new MecanumConstants()
-            .setLeftFrontMotorName("leftFront")
-            .setLeftRearMotorName("leftRear")
-            .setRightFrontMotorName("rightFront")
-            .setRightRearMotorName("rightRear")
-            .setLeftFrontDirection(DcMotorSimple.Direction.FORWARD)
-            .setLeftRearDirection(DcMotorSimple.Direction.FORWARD)
-            .setRightFrontDirection(DcMotorSimple.Direction.REVERSE)
-            .setRightRearDirection(DcMotorSimple.Direction.REVERSE)
+            .setFrontLeftMotorName("leftFront")
+            .setBackLeftMotorName("leftRear")
+            .setFrontRightMotorName("rightFront")
+            .setBackRightMotorName("rightRear")
+            .setFrontLeftMotorDirection(DcMotorSimple.Direction.FORWARD)
+            .setBackLeftMotorDirection(DcMotorSimple.Direction.FORWARD)
+            .setFrontRightMotorDirection(DcMotorSimple.Direction.REVERSE)
+            .setBackRightMotorDirection(DcMotorSimple.Direction.REVERSE)
             .setUseBrakingMode(true)
             .setRobotCentric(true)
             .setMaxPower(0.5);
+    public static TankConstants tankDriveConstants = new TankConstants()
+            .setLeftFrontMotorName("leftFront")
+            .setLeftRearMotorName("leftBack")
+            .setRightFrontMotorName("rightFront")
+            .setRightRearMotorName("rightBack")
+            .setLeftFrontMotorDirection(DcMotorSimple.Direction.FORWARD)
+            .setLeftRearMotorDirection(DcMotorSimple.Direction.FORWARD)
+            .setRightFrontMotorDirection(DcMotorSimple.Direction.REVERSE)
+            .setRightRearMotorDirection(DcMotorSimple.Direction.REVERSE);
+            ;
 
     public static PinpointConstants localizerConstants = new PinpointConstants()
             .setName("pinpoint")

@@ -3,7 +3,7 @@ package tests;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
-import drivetrains.Mecanum;
+import Drivetrains.Mecanum;
 import followers.P2PFollower;
 import localizers.Pinpoint;
 import util.Pose;

@@ -1,4 +1,4 @@
-package drivetrains.constants;
+package Drivetrains.Constants;
 
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
@@ -70,7 +70,7 @@ public class TankConstants {
      * @param rightRearMotorName is the new name
      * @return this instance for chaining
      */
-    public TankConstants rightRearMotorName(String rightRearMotorName){
+    public TankConstants setRightRearMotorName(String rightRearMotorName){
         this.rightRearData.setName(rightRearMotorName);
         return this;
     }

@@ -1,4 +1,4 @@
-package drivetrains;
+package Drivetrains;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
 
@@ -9,6 +9,7 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
  * @author ohum Arora - 22985 Paraducks
  * @author Dylan B. - 18597 RoboClovers - Delta
  */
+@SuppressWarnings("unused")
 public abstract class Drivetrain {
     /**
      * Sets the zero power behavior for all drivetrain motors
