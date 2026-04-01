@@ -1,13 +1,12 @@
-package Localizers;
+package localizers;
 
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 
-import Localizers.Constants.PinpointConstants;
-import Util.Pose;
-import Util.Vector;
+import localizers.constants.PinpointConstants;
+import util.Pose;
 
 /**
  * Localizer for the goBILDA Pinpoint Odometry Computer using the GoBildaPinpointDriver class.

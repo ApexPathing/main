@@ -1,11 +1,11 @@
-package Followers;
+package followers;
 
-import Drivetrains.Mecanum;
-import Localizers.Pinpoint;
-import Followers.Constants.P2PFollowerConstants;
+import drivetrains.Mecanum;
+import localizers.Pinpoint;
+import followers.constants.P2PFollowerConstants;
 
-import Util.Pose;
-import Util.Vector;
+import util.Pose;
+import util.Vector;
 
 /**
  * Simple point-to-point follower

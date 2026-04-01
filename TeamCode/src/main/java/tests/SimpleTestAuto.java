@@ -1,14 +1,14 @@
-package Tests;
+package tests;
 
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
-import Followers.P2PFollower;
-import Drivetrains.Mecanum;
-import Localizers.Pinpoint;
-import Util.Pose;
+import followers.P2PFollower;
+import drivetrains.Mecanum;
+import localizers.Pinpoint;
+import util.Pose;
 
-@Autonomous(name = "SimpleTestAuto", group = "Tests")
+@Autonomous(name = "SimpleTestAuto", group = "tests")
 public class SimpleTestAuto extends LinearOpMode {
     public enum AutoState {
         ROTATE, FORWARD, END

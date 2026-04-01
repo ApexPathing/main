@@ -1,4 +1,4 @@
-package Localizers.Constants;
+package localizers.constants;
 
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 

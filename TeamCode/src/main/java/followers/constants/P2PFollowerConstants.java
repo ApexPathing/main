@@ -1,4 +1,4 @@
-package Followers.Constants;
+package followers.constants;
 
 /**
  * Point to point follower constants class

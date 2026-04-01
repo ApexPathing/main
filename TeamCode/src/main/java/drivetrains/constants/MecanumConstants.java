@@ -1,4 +1,4 @@
-package Drivetrains.Constants;
+package drivetrains.constants;
 
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
