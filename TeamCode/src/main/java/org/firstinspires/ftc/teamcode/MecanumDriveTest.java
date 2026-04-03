@@ -1,9 +1,9 @@
-package tests;
+package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
-import Drivetrains.Mecanum;
+import drivetrains.Mecanum;
 import followers.P2PFollower;
 import localizers.Pinpoint;
 import util.Pose;

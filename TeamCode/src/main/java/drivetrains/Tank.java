@@ -7,7 +7,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
-import Drivetrains.Constants.TankConstants;
+import drivetrains.constants.TankConstants;
 import motors.MotorEx;
 
 /**
@@ -27,12 +27,12 @@ public class Tank extends Drivetrain {
     public Tank(HardwareMap hardwareMap, @NonNull TankConstants constants) {
         this.constants = constants;
 
-        flMotor = new MotorEx(hardwareMap, constants.leftFrontData);
-        frMotor = new MotorEx(hardwareMap, constants.rightFrontData);
+        flMotor = new MotorEx(hardwareMap, constants.flData);
+        frMotor = new MotorEx(hardwareMap, constants.frData);
 
-        if (constants.fourMotorTankDrive) {
-            blMotor = new MotorEx(hardwareMap, constants.leftRearData);
-            brMotor = new MotorEx(hardwareMap, constants.rightRearData);
+        if (constants.fourMotor) {
+            blMotor = new MotorEx(hardwareMap, constants.blData);
+            brMotor = new MotorEx(hardwareMap, constants.brData);
         }
     }
 
@@ -41,7 +41,7 @@ public class Tank extends Drivetrain {
         flMotor.setBrakeMode(behavior);
         frMotor.setBrakeMode(behavior);
 
-        if (constants.fourMotorTankDrive) {
+        if (constants.fourMotor) {
             blMotor.setBrakeMode(behavior);
             brMotor.setBrakeMode(behavior);
         }
@@ -74,7 +74,7 @@ public class Tank extends Drivetrain {
         flMotor.motor.setPower(leftPower);
         frMotor.motor.setPower(rightPower);
 
-        if (constants.fourMotorTankDrive) {
+        if (constants.fourMotor) {
             blMotor.motor.setPower(leftPower);
             brMotor.motor.setPower(rightPower);
         }
@@ -90,7 +90,7 @@ public class Tank extends Drivetrain {
         telemetry.addData("Front Left Power", flMotor.motor.getPower());
         telemetry.addData("Front Right Power", frMotor.motor.getPower());
 
-        if (constants.fourMotorTankDrive) {
+        if (constants.fourMotor) {
             telemetry.addData("Back left Power", blMotor.motor.getPower());
             telemetry.addData("Back Right Power", brMotor.motor.getPower());
         }

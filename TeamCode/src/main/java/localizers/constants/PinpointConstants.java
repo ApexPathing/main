@@ -31,7 +31,6 @@ public class PinpointConstants {
 
     public double yawScalar = 0; // Overrides the default Pinpoint yaw scalar if != 0 (NOT RECOMMENDED TO CHANGE)
 
-
     /**
      * Constructor for the PinpointConstants class
      * Default constants are derived from the SensorGoBildaPinpoint SDK sample with untuned values
@@ -57,7 +56,6 @@ public class PinpointConstants {
         this.distanceUnit = distanceUnit;
         return this;
     }
-
     /**
      * Sets the angle unit used by the pinpoint.
      * @param angleUnit the angle unit
@@ -77,7 +75,6 @@ public class PinpointConstants {
         this.xOffset = xOffset;
         return this;
     }
-
     /**
      * Sets the Y offset of the pods.
      * @param yOffset the Y offset in distanceUnit
@@ -97,7 +94,6 @@ public class PinpointConstants {
         this.xPodDirection = xPodDirection;
         return this;
     }
-
     /**
      * Sets the Y pod encoder direction.
      * @param yPodDirection the direction of the Y pod
@@ -117,7 +113,6 @@ public class PinpointConstants {
         this.encoderResolution = encoderResolution;
         return this;
     }
-
     /**
      * Sets a custom encoder resolution, overriding the model selection if is not 0.
      * @param customEncoderResolution the custom resolution in ticks per mm

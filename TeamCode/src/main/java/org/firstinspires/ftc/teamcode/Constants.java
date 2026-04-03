@@ -1,4 +1,4 @@
-package tests;
+package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
@@ -6,8 +6,8 @@ import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
-import Drivetrains.Constants.MecanumConstants;
-import Drivetrains.Constants.TankConstants;
+import drivetrains.constants.MecanumConstants;
+import drivetrains.constants.TankConstants;
 import localizers.constants.PinpointConstants;
 import followers.constants.P2PFollowerConstants;
 
@@ -23,22 +23,23 @@ public class Constants {
             .setBackLeftMotorName("leftRear")
             .setFrontRightMotorName("rightFront")
             .setBackRightMotorName("rightRear")
-            .setFrontLeftMotorDirection(DcMotorSimple.Direction.FORWARD)
-            .setBackLeftMotorDirection(DcMotorSimple.Direction.FORWARD)
-            .setFrontRightMotorDirection(DcMotorSimple.Direction.REVERSE)
-            .setBackRightMotorDirection(DcMotorSimple.Direction.REVERSE)
-            .setUseBrakingMode(true)
+            .setFrontRightReversed(true)
+            .setFrontRightReversed(true)
+            .setBrakeMode(true)
             .setRobotCentric(true)
             .setMaxPower(0.5);
+
     public static TankConstants tankDriveConstants = new TankConstants()
-            .setLeftFrontMotorName("leftFront")
-            .setLeftRearMotorName("leftBack")
-            .setRightFrontMotorName("rightFront")
-            .setRightRearMotorName("rightBack")
-            .setLeftFrontMotorDirection(DcMotorSimple.Direction.FORWARD)
-            .setLeftRearMotorDirection(DcMotorSimple.Direction.FORWARD)
-            .setRightFrontMotorDirection(DcMotorSimple.Direction.REVERSE)
-            .setRightRearMotorDirection(DcMotorSimple.Direction.REVERSE);
+            .setFourMotorDrive(true)
+            .setFrontLeftMotorName("leftFront")
+            .setBackLeftMotorName("leftRear")
+            .setFrontRightMotorName("rightFront")
+            .setBackRightMotorName("rightRear")
+            .setFrontRightReversed(true)
+            .setFrontRightReversed(true)
+            .setBrakeMode(true)
+            .setRobotCentric(true)
+            .setMaxPower(0.5);
 
     public static PinpointConstants localizerConstants = new PinpointConstants()
             .setName("pinpoint")

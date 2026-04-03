@@ -1,122 +1,164 @@
-package Drivetrains.Constants;
+package drivetrains.constants;
 
+import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+
 import motors.MotorMetaData;
 
 /**
- * Tank Drive Constants Class
+ * Tank drivetrain constants class
  * @author Xander Haemel - 31616- 404 Not Found
+ * @author Dylan B. - 18597 RoboClovers - Delta
  */
 
 @SuppressWarnings("unused")public class TankConstants {
-    //declerations
-    //TODO select motor count
-    public boolean fourMotorTankDrive = true;
-    public boolean useBrakingMode = false; // Brake mode = true, Float mode = false
-    public boolean useFeedForward = true; // Whether to use feedforward in the velocity controller TODO: USE THIS
+    // Motors
+    public MotorMetaData flData = new MotorMetaData("front_left_drive");
+    public MotorMetaData blData = new MotorMetaData("back_left_drive");
+    public MotorMetaData frData = new MotorMetaData("front_right_drive");
+    public MotorMetaData brData = new MotorMetaData("back_right_drive");
+
+    // Tunable constants TODO: USE THESE
+    public final double forwardVelocity = 60; // Inches per second, 60 ips default
+    public final double headingVelocity = 6.82; // Radians per second, 1rps (2pi rad) default
+
+    // Miscellaneous constants
+    public double maxPower = 1.0; // 0 to 1, max power to apply to the motors
+    public boolean fourMotor = true; // Four motor tank (true) or two motor tank (false)
+    public boolean brakeMode = false; // Brake mode (true) or coast mode (false) for the motors
+    public boolean feedForward = true; // Whether to use feedforward in the velocity controller TODO: USE THIS
     public boolean robotCentric = true; // Whether to use robot-centric controls (true) or field-centric controls (false) in TeleOp
 
-    //motor names
-    //TODO note for 2 motor tank just use the front motors
-    public MotorMetaData leftFrontData = new MotorMetaData("frontLeft");
-    public MotorMetaData rightFrontData = new MotorMetaData("frontRight");
-    public MotorMetaData leftRearData = new MotorMetaData("rearLeft");
-    public MotorMetaData rightRearData = new MotorMetaData("rearRight");
-
-    //maximumVelocity
-    public final double forwardVelocity = 60; //in per sec
-
-    //heading velocity
-    public final double headingVelocity = 6.82; // radians per second (1 rotation per second default)
-
-    //max power
-    public double maxPower = 1.0; //1.0 default
-
-    //setters
 
     /**
-     * defualt constructor
+     * Constructor for the TankConstants class
      */
-    public TankConstants(){}
+    public TankConstants() {}
+
     /**
-     * Sets the left front motor name
-     * @param leftFrontMotorName is the new name
+     * Sets the left front motor name. Default: "front_left_drive"
+     * @param name the name of the left front motor
      * @return this instance for chaining
      */
-    public TankConstants setLeftFrontMotorName(String leftFrontMotorName){
-        leftFrontData.setName(leftFrontMotorName);
+    public TankConstants setFrontLeftMotorName(String name) {
+        this.flData.setName(name);
         return this;
     }
     /**
-     * Sets the left back motor name
-     * @param leftRearMotorName is the new name
+     * Sets the left rear motor name. Default: "back_left_drive"
+     * @param name the name of the left rear motor
      * @return this instance for chaining
      */
-    public TankConstants setLeftRearMotorName(String leftRearMotorName){
-        this.leftRearData.setName(leftRearMotorName);
+    public TankConstants setBackLeftMotorName(String name) {
+        this.blData.setName(name);
         return this;
     }
     /**
-     * Sets the right front motor name
-     * @param rightFrontMotorName is the new name
+     * Sets the right front motor name. Default: "front_right_drive"
+     * @param name the name of the right front motor
      * @return this instance for chaining
      */
-    public TankConstants setRightFrontMotorName(String rightFrontMotorName){
-        this.rightFrontData.setName(rightFrontMotorName);
-        return this;
-    }/**
-     * Sets the left front motor name
-     * @param rightRearMotorName is the new name
-     * @return this instance for chaining
-     */
-    public TankConstants setRightRearMotorName(String rightRearMotorName){
-        this.rightRearData.setName(rightRearMotorName);
+    public TankConstants setFrontRightMotorName(String name) {
+        this.frData.setName(name);
         return this;
     }
-
-
-    //directions setters
     /**
-     * Sets the left front motor direction
-     * @param leftFrontMotorDirection is the new name
+     * Sets the right rear motor name. Default: "back_right_drive"
+     * @param name the name of the right rear motor
      * @return this instance for chaining
      */
-    public TankConstants setLeftFrontMotorDirection(DcMotorSimple.Direction leftFrontMotorDirection){
-        this.leftFrontData.setDirection(leftFrontMotorDirection);
+    public TankConstants setBackRightMotorName(String name) {
+        this.brData.setName(name);
         return this;
     }
 
     /**
-     * Sets the left back motor name
-     * @param leftRearMotorDirection is the new name
+     * Default direction is FORWARD.
+     * @param reversed whether the front left motor is reversed
      * @return this instance for chaining
      */
-    public TankConstants setLeftRearMotorDirection(DcMotorSimple.Direction leftRearMotorDirection){
-        this.leftRearData.setDirection(leftRearMotorDirection);
+    public TankConstants setFrontLeftReversed(boolean reversed) {
+        this.flData.setDirection(reversed ? DcMotorSimple.Direction.REVERSE : DcMotorSimple.Direction.FORWARD);
         return this;
     }
     /**
-     * Sets the right front motor direction
-     * @param rightFrontMotorDirection is the new name
+     * Default direction is FORWARD.
+     * @param reversed whether the back left motor is reversed
      * @return this instance for chaining
      */
-    public TankConstants setRightFrontMotorDirection(DcMotorSimple.Direction rightFrontMotorDirection){
-        this.rightFrontData.setDirection(rightFrontMotorDirection);
+    public TankConstants setBackLeftReversed(boolean reversed) {
+        this.blData.setDirection(reversed ? DcMotorSimple.Direction.REVERSE : DcMotorSimple.Direction.FORWARD);
         return this;
     }
     /**
-     * Sets the right back motor direction
-     * @param rightRearMotorDirection is the new name
+     * Default direction is FORWARD.
+     * @param reversed whether the front right motor is reversed
      * @return this instance for chaining
      */
-    public TankConstants setRightRearMotorDirection(DcMotorSimple.Direction rightRearMotorDirection){
-        this.rightRearData.setDirection(rightRearMotorDirection);
+    public TankConstants setFrontRightReversed(boolean reversed) {
+        this.frData.setDirection(reversed ? DcMotorSimple.Direction.REVERSE : DcMotorSimple.Direction.FORWARD);
         return this;
     }
     /**
-     * sets two motor or four motor tank drive
+     * Default direction is FORWARD.
+     * @param reversed whether the back right motor is reversed
+     * @return this instance for chaining
      */
-    public void setFourMotorTankDrive(boolean enableFourMotorTankDrive) {
-        this.fourMotorTankDrive = enableFourMotorTankDrive;
+    public TankConstants setBackRightReversed(boolean reversed) {
+        this.brData.setDirection(reversed ? DcMotorSimple.Direction.REVERSE : DcMotorSimple.Direction.FORWARD);
+        return this;
+    }
+
+    /**
+     * Sets the maximum power.
+     * @param maxPower the max power (0 to 1) to apply to the motors
+     * @return this instance for chaining
+     */
+    public TankConstants setMaxPower(double maxPower) {
+        this.maxPower = Math.max(0.0, Math.min(maxPower, 1.0)); // Ensure maxPower is between 0 and 1
+        return this;
+    }
+
+    /**
+     * Sets whether to use four motor (true) or two motor tank drive (false). Default: true
+     * @param fourMotor whether to use four motor tank drive
+     * @return this instance for chaining
+     */
+    public TankConstants setFourMotorDrive(boolean fourMotor) {
+        this.fourMotor = fourMotor;
+        return this;
+    }
+
+    /**
+     * Sets whether to use brake mode. Default: true (brake mode).
+     * @param brakeMode true for brake mode, false for float mode
+     * @return this instance for chaining
+     */
+    public TankConstants setBrakeMode(boolean brakeMode) {
+        this.flData.setBrakeMode(brakeMode ? DcMotor.ZeroPowerBehavior.BRAKE : DcMotor.ZeroPowerBehavior.FLOAT);
+        this.blData.setBrakeMode(brakeMode ? DcMotor.ZeroPowerBehavior.BRAKE : DcMotor.ZeroPowerBehavior.FLOAT);
+        this.frData.setBrakeMode(brakeMode ? DcMotor.ZeroPowerBehavior.BRAKE : DcMotor.ZeroPowerBehavior.FLOAT);
+        this.brData.setBrakeMode(brakeMode ? DcMotor.ZeroPowerBehavior.BRAKE : DcMotor.ZeroPowerBehavior.FLOAT);
+        return this;
+    }
+
+    /**
+     * Sets whether to use feedforward in the velocity controller.
+     * @param useFeedForward true to use feedforward, false otherwise
+     * @return this instance for chaining
+     */
+    public TankConstants setUseFeedForward(boolean useFeedForward) {
+        this.feedForward = useFeedForward;
+        return this;
+    }
+
+    /**
+     * Sets whether to use robot-centric or field-centric controls in TeleOp.
+     * @param robotCentric true for robot-centric controls, false for field-centric controls
+     * @return this instance for chaining
+     */
+    public TankConstants setRobotCentric(boolean robotCentric) {
+        this.robotCentric = robotCentric;
+        return this;
     }
 }

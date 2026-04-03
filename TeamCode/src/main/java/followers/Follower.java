@@ -1,6 +1,6 @@
 package followers;
 
-import Drivetrains.Drivetrain;
+import drivetrains.Drivetrain;
 import localizers.Localizer;
 import util.Pose;
 

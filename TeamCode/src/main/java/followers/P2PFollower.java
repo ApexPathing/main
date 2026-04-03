@@ -1,7 +1,7 @@
 package followers;
 
-import Drivetrains.Mecanum;
-import localizers.Pinpoint;
+import drivetrains.Drivetrain;
+import localizers.Localizer;
 import followers.constants.P2PFollowerConstants;
 
 import util.Pose;
@@ -20,7 +20,7 @@ public class P2PFollower extends Follower {
      * @param drivetrain the mecanum drivetrain class to control
      * @param localizer the Pinpoint localizer to get pose estimates from
      */
-    public P2PFollower(P2PFollowerConstants constants, Mecanum drivetrain, Pinpoint localizer) {
+    public P2PFollower(P2PFollowerConstants constants, Drivetrain drivetrain, Localizer localizer) {
         this.constants = constants;
         this.drivetrain = drivetrain;
         this.localizer = localizer;

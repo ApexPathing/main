@@ -1,11 +1,13 @@
 package drivetrains;
 
+import androidx.annotation.NonNull;
+
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
-import Drivetrains.Constants.MecanumConstants;
+import drivetrains.constants.MecanumConstants;
 import motors.MotorEx;
 
 /**
@@ -28,7 +30,7 @@ public class Mecanum extends Drivetrain {
      * @param hardwareMap the hardware map to use for motor initialization
      * @param constants MecanumConstants object containing all tunable values and motor names/directions
      */
-    public Mecanum(HardwareMap hardwareMap, MecanumConstants constants){
+    public Mecanum(HardwareMap hardwareMap, @NonNull MecanumConstants constants){
         this.constants = constants;
 
         flMotor = new MotorEx(hardwareMap, constants.flData);

@@ -2,10 +2,11 @@ package drivetrains.constants;
 
 import com.qualcomm.robotcore.hardware.DcMotor.ZeroPowerBehavior;
 import com.qualcomm.robotcore.hardware.DcMotorSimple.Direction;
+
 import motors.MotorMetaData;
 
 /**
- * Mecanum Constants class
+ * Mecanum drivetrain constants class
  * @author Xander Haemel - 31616 404 Not Found
  * @author Dylan B. - 18597 RoboClovers - Delta
  */
@@ -138,7 +139,7 @@ public class MecanumConstants {
      * @param brakeMode true for brake mode, false for float mode
      * @return this instance for chaining
      */
-    public MecanumConstants setUseBrakeMode(boolean brakeMode) {
+    public MecanumConstants setBrakeMode(boolean brakeMode) {
         this.flData.setBrakeMode(brakeMode ? ZeroPowerBehavior.BRAKE : ZeroPowerBehavior.FLOAT);
         this.blData.setBrakeMode(brakeMode ? ZeroPowerBehavior.BRAKE : ZeroPowerBehavior.FLOAT);
         this.frData.setBrakeMode(brakeMode ? ZeroPowerBehavior.BRAKE : ZeroPowerBehavior.FLOAT);
@@ -164,46 +165,5 @@ public class MecanumConstants {
     public MecanumConstants setRobotCentric(boolean robotCentric) {
         this.robotCentric = robotCentric;
         return this;
-    }
-
-    /**
-     * @return back left motor name
-     */
-    public String getFrontLeftMotorName() { return this.flData.getName(); }
-    /**
-     * @return back right motor name
-     */
-    public String getFrontRightMotorName() { return this.frData.getName(); }
-    /**
-     * @return back left motor name
-     */
-    public String getBackLeftMotorName() { return this.blData.getName(); }
-    /**
-     * @return back right motor name
-     */
-    public String getBackRightMotorName() { return this.brData.getName(); }
-
-    /**
-     * @return front left motor direction (DcMotorSimple.Direction)
-     */
-    public Direction getFrontLeftMotorDirection() { return this.flData.getDirection(); }
-    /**
-     * @return front right motor direction (DcMotorSimple.Direction)
-     */
-    public Direction getFrontRightMotorDirection() { return this.frData.getDirection(); }
-    /**
-     * @return back left motor direction (DcMotorSimple.Direction)
-     */
-    public Direction getBackLeftMotorDirection() { return this.blData.getDirection(); }
-    /**
-     * @return back right motor direction (DcMotorSimple.Direction)
-     */
-    public Direction getBackRightMotorDirection() { return this.brData.getDirection(); }
-
-    /**
-     * @return a boolean indicating if brake mode is enabled
-     */
-    public boolean getUseBrakeMode() {
-        return (this.flData.getBrakeMode() == ZeroPowerBehavior.BRAKE);
     }
 }
