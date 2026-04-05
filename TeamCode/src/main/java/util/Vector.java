@@ -137,6 +137,7 @@ public class Vector {
     public String debug() {
         return "Vector <x: " + x + ", y: " + y + ">, <magnitude: " + getMagnitude() + ", θ: " + getTheta() + ">";
     }
+
     private static double normalizeAngle(double angle) {
         while (angle > PI) angle -= 2 * PI;
         while (angle < -PI) angle += 2 * PI;
