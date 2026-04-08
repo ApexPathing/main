@@ -11,7 +11,7 @@ import util.Vector;
  * Author: DrPixelCat24 (7842 alum)
  */
 public abstract class VectorController {
-    protected volatile Vector goal = new Vector(); // Changed to protected and volatile!
+    protected volatile Vector goal = new Vector();
 
     public void setGoal(Vector newGoal) {
         this.goal = newGoal;

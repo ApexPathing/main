@@ -11,7 +11,7 @@ import util.Vector;
  * Author: DrPixelCat24 (7842 alum)
  **/
 public class PDLVectorController extends VectorController {
-    private final double kP, kD, kL, kL_tolSq;
+    private double kP, kD, kL, kL_tolSq;
     Vector goal;
     private long lastTime;
     private Vector lastErr;
@@ -31,6 +31,12 @@ public class PDLVectorController extends VectorController {
 
         this.lastErr = new Vector();
         this.goal = new Vector();
+    }
+
+    public void setPDLCoefficients(double kP, double kD, double kL) {
+        this.kP = kP;
+        this.kD = kD;
+        this.kL = kL;
     }
 
     public static Vector scaleToDirection(Vector target, double distSq, double desiredMagnitude) {
@@ -62,7 +68,8 @@ public class PDLVectorController extends VectorController {
         if (distSq > kL_tolSq) {
             pTerm = error.multiply(kP).add(scaleToDirection(error, distSq, kL));
         } else {
-            pTerm = error.multiply(kP);
+            lastErr = error;
+            return new Vector();
         }
 
         // --- DERIVATIVE TERM ---

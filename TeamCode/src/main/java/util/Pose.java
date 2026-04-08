@@ -15,7 +15,6 @@ import static java.lang.Math.*;
  * @author Dylan B. - 18597 RoboClovers - Delta
  */
 public class Pose {
-
     private double x;
     private double y;
     private double heading;

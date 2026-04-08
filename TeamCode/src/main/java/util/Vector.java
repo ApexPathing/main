@@ -52,6 +52,8 @@ public class Vector {
         return hypot(x, y);
     }
 
+    public double getMagnitudeSquared() { return x * x + y * y; }
+
     public void setMagnitude(double value) {
         double ang = getTheta();
         this.x = value * cos(ang);

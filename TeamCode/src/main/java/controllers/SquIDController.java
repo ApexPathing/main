@@ -7,8 +7,8 @@ import com.qualcomm.robotcore.util.ElapsedTime;
  * It takes the square root of the P, but otherwise it's pretty normal for a controller
  * @author Xander Haemel - 31616
  */
-public class SquidController {
-    public double kP, kI, kD;
+public class SquIDController {
+    public double kSq, kI, kD;
     public double goal = 0;
     private double integralSum = 0;
     private double derivative;
@@ -19,12 +19,12 @@ public class SquidController {
     private final ElapsedTime timer;
     /**
      * default constuctor
-     * @param kP is the kP of the controller
+     * @param kSq is the kP of the controller
      * @param kI is the kI of the controller
      * @param kD is the kD of the controller
      */
-    public SquidController(double kP, double kI, double kD) {
-        this.kP = kP;
+    public SquIDController(double kSq, double kI, double kD) {
+        this.kSq = kSq;
         this.kI = kI;
         this.kD = kD;
         timer = new ElapsedTime();
@@ -49,7 +49,7 @@ public class SquidController {
         //p term, but its special because its a square root
         error = goal - currentPosition;
         //absolute value in case the error is negative, math.signum ensures the robot goes the right way
-        double kPOut = kP * Math.sqrt(Math.abs(error)) * Math.signum(error);
+        double kPOut = kSq * Math.sqrt(Math.abs(error)) * Math.signum(error);
 
         //i term, standard PID calculations
         integralSum += error * deltaTime;
