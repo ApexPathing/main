@@ -6,91 +6,80 @@ import util.Vector;
  * This is basically just a SquID controller that uses vectors instead of scalar values. This has two
  * benefits:
  * 1) Cleaner follower code
- * 2) See VectorController.java
+ * 2) Utilizes the VectorController template for boilerplate safety
  * <p>
  * Author: DrPixelCat24 (7842 alum)
  **/
-public class SquIDVectorController extends VectorController {
-    private final double MOTOR_DEADZONE = 0.05 * 0.05; // Squared for better efficiency
-    public double kSq, kD;
-    private long lastTime;
-    private boolean firstRun = true;
-    private Vector lastErr;
 
-    //TODO: Test with vs. without integral component. Hypothesis is that it shouldn't be needed.
-    private double kI;
-    private Vector integralSum;
-    private Vector integral(double dT, Vector dE) {
-        integralSum = integralSum.add(dE.multiply(dT));
-        return integralSum.multiply(kI);
-    }
+// TODO: Test this class with and without integral to assess possibility of removal.
+public class SquIDVectorController extends VectorController {
+    public double kSq, kI, kD;
+    private Vector integralSum = new Vector();
 
     /**
-     * NOTE: NO I COMPONENT NEEDED
+     * Constructor for PD control (Assuming hypothesis: NO I COMPONENT NEEDED)
      * @param kSq Sqrt gain
      * @param kD Derivative gain
      */
     public SquIDVectorController(double kSq, double kD) {
+        super();
         this.kSq = kSq;
         this.kD = kD;
-        this.lastTime = System.nanoTime();
+        this.kI = 0.0; // Explicitly zeroed out
     }
 
-    public void setSquIDCoefficients(double kSq, double kD) {
-        this.kSq = kSq;
-        this.kD = kD;
-    }
-
-    // TODO: Remove below constructor AND following function if hypothesis is confirmed
+    /**
+     * Constructor for full SquID control (for testing the hypothesis)
+     */
     public SquIDVectorController(double kSq, double kI, double kD) {
-        this(kSq, kD);
+        super();
+        this.kSq = kSq;
         this.kI = kI;
+        this.kD = kD;
     }
 
-    public void setSquIDCoefficients(double kSq, double kD, double kI) {
+    public void setCoefficients(double kSq, double kD) {
         this.kSq = kSq;
         this.kD = kD;
+    }
+
+    public void setCoefficients(double kSq, double kI, double kD) {
+        this.kSq = kSq;
         this.kI = kI;
+        this.kD = kD;
     }
 
     @Override
-    public Vector calculate(Vector currentPosition) {
-        long currentTime = System.nanoTime();
-        double deltaTime = (currentTime - lastTime) / 1_000_000_000.0;
-        lastTime = currentTime;
-
-        Vector error = goal.subtract(currentPosition);
-
-        if (firstRun) {
-            lastErr = error;
-            firstRun = false;
-            deltaTime = 0.0;
-        }
-
+    protected Vector computeOutput(Vector error, Vector lastError, double deltaTime) {
         double distanceToGoal = error.getMagnitude();
 
         // --------------- Sqrt response ---------------
-        double squResponse = kSq * Math.sqrt(distanceToGoal); // Mag is always (+) so this is fine
+        double squResponse = kSq * Math.sqrt(distanceToGoal);
+        Vector proportional = error.normalize().multiply(squResponse);
 
-        // --------------- Derivative response ---------------
-        Vector deltaError = error.subtract(lastErr);
-        Vector dResponse = new Vector();
+        if (!timeAnomalyDetected) {
+            // --------------- Derivative response ---------------
+            Vector deltaError = error.subtract(lastError);
+            Vector derivative = deltaError.multiply(kD / deltaTime);
 
-        if (deltaTime > 1E-6) {
-            dResponse = deltaError.multiply(kD / deltaTime);
-        }
+            // --------------- Integral Response ---------------
+            Vector integral = new Vector();
+            if (kI != 0.0) {
+                integralSum = integralSum.add(error.multiply(deltaTime));
+                integral = integralSum.multiply(kI);
+            }
 
-        lastErr = error;
-
-        // --------------- Integral Response --------------- TODO: Remove or clean based on testing conclusions
-        dResponse.add(integral(deltaTime, deltaError));
-
-        Vector response = error.normalize().multiply(squResponse).add(dResponse);
-
-        if (response.getMagnitudeSquared() < MOTOR_DEADZONE) {
-            return new Vector();
+            return proportional.add(derivative).add(integral);
         } else {
-            return response;
+            return proportional;
         }
+    }
+
+    /**
+     * Resets the accumulated integral sum.
+     * Useful when starting a new trajectory to prevent integral windup.
+     */
+    public void resetIntegral() {
+        this.integralSum = new Vector();
     }
 }

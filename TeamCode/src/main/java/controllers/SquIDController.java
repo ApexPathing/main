@@ -1,79 +1,57 @@
 package controllers;
 
-import com.qualcomm.robotcore.util.ElapsedTime;
-
 /**
  * A squID controller for follower
  * It takes the square root of the P, but otherwise it's pretty normal for a controller
  * @author Xander Haemel - 31616
  */
-public class SquIDController {
+public class SquIDController extends Controller {
     public double kSq, kI, kD;
-    public double goal = 0;
+
     private double integralSum = 0;
-    private double derivative;
-    private double lastError = 0;
-    private double error = 0;
-    private double motorDeadzone = 0.05;
-    private double lastTimestamp = 0;
-    private final ElapsedTime timer;
+    private final double iLimit = 1.0; // TODO: confirm this value
+
     /**
-     * default constuctor
-     * @param kSq is the kP of the controller
-     * @param kI is the kI of the controller
-     * @param kD is the kD of the controller
+     * Coefficients:
+     * @param kSq Sqrt gain
+     * @param kI Integral gain
+     * @param kD Derivative gain
      */
     public SquIDController(double kSq, double kI, double kD) {
+        super();
         this.kSq = kSq;
         this.kI = kI;
         this.kD = kD;
-        timer = new ElapsedTime();
-        timer.startTime();
     }
 
-    public void setGoal(double newGoal) {
-        this.goal = newGoal;
+    public void setSquIDCoefficients(double kSq, double kI, double kD) {
+        this.kSq = kSq;
+        this.kI = kI;
+        this.kD = kD;
     }
 
-    /**
-     * Calculates the PIDF output.
-     * @param currentPosition the current position of the mechanism
-     * @return the power output
-     */
-    public synchronized double calculate(double currentPosition) {
-        double timestamp = timer.milliseconds() / 1000;
-        double deltaTime = timestamp - lastTimestamp;
+    @Override
+    protected double computeOutput(double error, double lastError, double deltaTime) {
+        // P term (Square Root)
+        double proportional = kSq * Math.sqrt(Math.abs(error)) * Math.signum(error);
 
-        if (deltaTime == 0) return 0;
+        if (!timeAnomalyDetected) {
+            // I term
+            integralSum += error * deltaTime;
+            if (integralSum > iLimit) integralSum = iLimit;
+            if (integralSum < -iLimit) integralSum = -iLimit;
+            double integral = kI * integralSum;
 
-        //p term, but its special because its a square root
-        error = goal - currentPosition;
-        //absolute value in case the error is negative, math.signum ensures the robot goes the right way
-        double kPOut = kSq * Math.sqrt(Math.abs(error)) * Math.signum(error);
+            // D term
+            double derivative = kD * ((error - lastError) / deltaTime);
 
-        //i term, standard PID calculations
-        integralSum += error * deltaTime;
-        double iLimit = 0.25;
-        if (integralSum > iLimit) integralSum = iLimit;
-        if (integralSum < -iLimit) integralSum = -iLimit;
-        double kIOut = kI * integralSum;
-
-        derivative = (error - lastError) / deltaTime;
-        double kDOut = kD * derivative;
-
-        //reset vars
-        lastTimestamp = timestamp;
-        lastError = error;
-
-        //power variable for ease of calculation
-        final double power = kPOut + kIOut + kDOut;
-
-        //deadband, turns the motors off when the power is too slow to move the robot
-        if(Math.abs(power) < motorDeadzone){
-            return 0;
+            return proportional + integral + derivative;
+        } else {
+            return proportional;
         }
+    }
 
-        //limit power to -1, and 1 for safety
-        return Math.max(-1.0, Math.min(1.0, power));
+    public void resetIntegral() {
+        this.integralSum = 0;
     }
 }
