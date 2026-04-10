@@ -4,6 +4,7 @@ import drivetrains.Drivetrain;
 import localizers.Localizer;
 import followers.constants.P2PFollowerConstants;
 
+import util.Angle;
 import util.Pose;
 import util.Vector;
 
@@ -37,17 +38,17 @@ public class P2PFollower extends Follower {
     @Override
     public void update() {
         localizer.update();
-        Pose pose = localizer.getPose();
+        Pose pose = localizer.getPose(); // Inches and radians
 
         if (pose == null || targetPose == null) {
             return;
         }
 
         Pose errorPose = targetPose.subtract(pose);
-        double dist = targetPose.distanceFrom(pose);
-        double headingError = Pose.normalize(errorPose.getHeading());
+        double headingError = Math.abs(errorPose.getHeadingComponent().get(Angle.Units.RADIANS));
+        double dist = targetPose.distanceTo(pose);
 
-        if (dist < constants.translationalTolerance && Math.abs(headingError) < constants.headingTolerance) {
+        if (dist < constants.translationalTolerance && headingError < constants.headingTolerance) {
             drivetrain.stop();
             isBusy = false;
             targetPose = null; // Clear target pose to prevent further movement until a new target is set
@@ -58,7 +59,7 @@ public class P2PFollower extends Follower {
         double dy = errorPose.getY();
 
         Vector error = new Vector(dx, dy);
-        error.rotateVec(-pose.getHeading());
+        error.rotate(-pose.getHeading());
 
         double x = error.getX() * constants.translationalKp;
         double y = error.getY() * constants.translationalKp;

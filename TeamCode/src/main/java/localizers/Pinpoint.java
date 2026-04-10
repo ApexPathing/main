@@ -3,9 +3,12 @@ package localizers;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
-import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
 import localizers.constants.PinpointConstants;
+import util.Angle;
+import util.Distance;
 import util.Pose;
 
 /**
@@ -14,14 +17,9 @@ import util.Pose;
  * @author Dylan B. 18597 RoboClovers - Delta
  */
 public class Pinpoint extends Localizer {
-    private final PinpointConstants constants;
-
     private final GoBildaPinpointDriver pinpoint;
-    private Pose2D currentPose;
 
     public Pinpoint(HardwareMap hardwareMap, PinpointConstants constants, Pose startPose) {
-        this.constants = constants;
-
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, constants.name);
         pinpoint.setOffsets(constants.xOffset, constants.yOffset, constants.distanceUnit); // Offsets
         if (constants.customEncoderResolution != 0) { // Encoder resolution
@@ -34,31 +32,25 @@ public class Pinpoint extends Localizer {
             pinpoint.setYawScalar(constants.yawScalar);
         }
         pinpoint.resetPosAndIMU(); // Reset IMU
-        pinpoint.setPosition(Pose.toPose2D(startPose)); // Set starting position
+        this.setPose(startPose); // Set starting position
     }
 
     @Override
     public void update() {
         pinpoint.update();
-        currentPose = pinpoint.getPosition(); // Keep as Pose2D for now
-    }
-
-    @Override
-    public Pose getPose() {
-        return Pose.fromPose2D(currentPose); // Convert to Pose for consistency with the Localizer interface
-    }
-
-    @Override
-    public Pose getVelocity() {
-        return new Pose(
-                pinpoint.getVelX(constants.distanceUnit),
-                pinpoint.getVelY(constants.distanceUnit),
-                pinpoint.getHeadingVelocity(constants.angleUnit.getUnnormalized())
+        currentPose = Pose.fromPose2D(
+                pinpoint.getPosition(), Distance.Units.INCHES, Angle.Units.RADIANS, false
+        );
+        currentVelocity = new Pose(
+                pinpoint.getVelX(DistanceUnit.INCH),
+                pinpoint.getVelY(DistanceUnit.INCH),
+                pinpoint.getHeadingVelocity(AngleUnit.RADIANS.getUnnormalized()),
+                Distance.Units.INCHES, Angle.Units.RADIANS, false
         );
     }
 
     @Override
     public void setPose(Pose pose) {
-        pinpoint.setPosition(Pose.toPose2D(pose));
+        pinpoint.setPosition(pose.toPose2D());
     }
 }

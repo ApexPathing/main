@@ -1,17 +1,10 @@
 package controllers;
 
-/**
- * Base class for motion controllers (PIDF, SquID, PDFL).
- * Handles timing, error tracking, and deadzone logic.
- */
 public abstract class Controller {
     protected double goal = 0.0;
     protected double lastError = 0.0;
     protected double motorDeadzone = 0.05;
-
-    // Used by subclasses to skip D/I terms if loop frequency is unstable
     protected boolean timeAnomalyDetected = false;
-
     private long lastTimestamp;
     private boolean hasRun = false;
 
@@ -70,7 +63,6 @@ public abstract class Controller {
     }
 
     /**
-     * Implementation-specific control logic.
      * @param error Difference between goal and current position.
      * @param lastError Error from the previous loop.
      * @param deltaTime Time elapsed since last loop in seconds.
