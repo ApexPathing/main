@@ -6,6 +6,8 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import drivetrains.Mecanum;
 import followers.P2PFollower;
 import localizers.Pinpoint;
+import util.Angle;
+import util.Distance;
 import util.Pose;
 
 /**
@@ -16,11 +18,13 @@ import util.Pose;
 @SuppressWarnings("unused")
 @TeleOp(name = "MecanumDrive Test", group = "Apex beta test")
 public class MecanumDriveTest extends LinearOpMode {
+    Pose startPose = new Pose(0, 0, 0, Distance.Units.INCHES, Angle.Units.DEGREES, false);
+
     @Override
     public void runOpMode() {
         // !!!! NOTE: Do not directly use the drivetrain or localizer in the opmode, only use the follower !!!!
         Mecanum drivetrain = new Mecanum(hardwareMap, Constants.driveConstants);
-        Pinpoint localizer = new Pinpoint(hardwareMap, Constants.localizerConstants, new Pose(0, 0, 0));
+        Pinpoint localizer = new Pinpoint(hardwareMap, Constants.localizerConstants, startPose);
         P2PFollower follower = new P2PFollower(Constants.followerConstants, drivetrain, localizer);
 
         while (opModeIsActive()) {
@@ -42,7 +46,7 @@ public class MecanumDriveTest extends LinearOpMode {
             }
 
             // Telemetry output
-            telemetry.addData("Pose", currentPose.debug());
+            telemetry.addData("Pose", currentPose.toString());
             telemetry.addData("X", currentPose.getX());
             telemetry.addData("Y ",currentPose.getY());
             telemetry.addData("Heading", currentPose.getHeading());
