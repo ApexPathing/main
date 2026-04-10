@@ -1,33 +1,39 @@
 package controllers;
 
 /**
- * PIDF feedback controller.
- * @author Xander Haemel -31616
+ * A squID controller for follower
+ * It takes the square root of the P, but otherwise it's pretty normal for a controller
+ * @author Xander Haemel - 31616
  */
-public class PIDFController extends Controller {
-   private double kP, kI, kD, kF;
-   private double integralSum = 0.0;
-   private final double iLimit = 1.0;
+public class SquIDController extends Controller {
+    public double kSq, kI, kD;
 
-    public PIDFController(double kP, double kI, double kD, double kF) {
-        this.kP = kP;
+    private double integralSum = 0;
+    private final double iLimit = 1.0; // TODO: confirm this value
+
+    /**
+     * Coefficients:
+     * @param kSq Sqrt gain
+     * @param kI Integral gain
+     * @param kD Derivative gain
+     */
+    public SquIDController(double kSq, double kI, double kD) {
+        super();
+        this.kSq = kSq;
         this.kI = kI;
         this.kD = kD;
-        this.kF = kF;
     }
 
-    public void setPIDFCoefficients(double kP, double kI, double kD, double kF) {
-        this.kP = kP;
+    public void setSquIDCoefficients(double kSq, double kI, double kD) {
+        this.kSq = kSq;
         this.kI = kI;
         this.kD = kD;
-        this.kF = kF;
     }
-
 
     @Override
     protected double computeOutput(double error, double lastError, double deltaTime) {
         // P term (Square Root)
-        double proportional = kP * error;
+        double proportional = kSq * Math.sqrt(Math.abs(error)) * Math.signum(error);
 
         if (!timeAnomalyDetected) {
             // I term
