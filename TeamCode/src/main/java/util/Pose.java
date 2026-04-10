@@ -27,6 +27,17 @@ public class Pose {
         if (mirror) { this.mirror(); }
     }
 
+    /**
+     * A default constructor to create and {@link Pose} object.
+     * @param x distance (inches)
+     * @param y distance (inches)
+     * @param heading angle (radians)
+     * @return
+     */
+    public static Pose defaultPose(double x, double y, double heading) {
+        return new Pose(x, y, heading, Distance.Units.INCHES, Angle.Units.RADIANS, false);
+    }
+
     /** Factory method to create a {@link Pose} from an FTC SDK {@link Pose2D} object with specified units and mirroring */
     public static Pose fromPose2D(Pose2D pose2D, Distance.Units posUnit, Angle.Units angleUnit, boolean mirror) {
         return new Pose(

@@ -252,7 +252,7 @@ public class Vector {
      * @return A Pose representation of the vector
      */
     public Pose asPose() {
-        return new Pose(getX(), getY());
+        return new Pose(getX(), getY(), getTheta(), Distance.Units.INCHES, Angle.Units.RADIANS, false);
     }
     
     /** * Returns a copy of this {@link Vector} 
