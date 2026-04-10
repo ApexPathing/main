@@ -35,7 +35,7 @@ public class Pose {
      * @param heading the heading of the pose as an angle value in radians
      */
     public Pose(double x, double y, double heading) {
-        return new Pose(x, y, heading, Distance.Units.INCHES, Angle.Units.RADIANS, false);
+        this(x, y, heading, Distance.Units.INCHES, Angle.Units.RADIANS, false);
     }
 
     /** Factory method to create a {@link Pose} from an FTC SDK {@link Pose2D} object with specified units and mirroring */
@@ -53,6 +53,8 @@ public class Pose {
     // region Getters
     public double getX() { return this.position.getX(); }
     public double getY() { return this.position.getY(); }
+
+    public Vector toVec() { return this.position; }
     public double getHeading() { return this.heading.get(this.angleUnit); }
 
     public Vector getPositionComponent() { return this.position; }

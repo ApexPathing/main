@@ -1,10 +1,11 @@
 package followers;
 
+import com.qualcomm.robotcore.util.Range;
+
 import drivetrains.Drivetrain;
 import localizers.Localizer;
 import followers.constants.P2PFollowerConstants;
 
-import util.Angle;
 import util.Pose;
 import util.Vector;
 
@@ -15,6 +16,7 @@ import util.Vector;
  */
 public class P2PFollower extends Follower {
     private final P2PFollowerConstants constants;
+    private boolean disable = true;
 
     /**
      * Constructor for the P2PFollower
@@ -32,74 +34,42 @@ public class P2PFollower extends Follower {
      * @param targetPose the new target pose
      */
     public void setTargetPose(Pose targetPose) {
+        disable = false;
+        constants.headingController.reset();
+        constants.translationalController.reset();
         super.setTargetPose(targetPose); // Use the unexposed method from the Follower class
     }
 
     @Override
     public void update() {
         localizer.update();
-        Pose pose = localizer.getPose(); // Inches and radians
+        Pose location = localizer.getPose();
+        Vector translationError = targetPose.toVec().subtract(location.toVec());
+        /* NOTE: Controller handles angleWrapping via headingController.useAsAngularController() in base */
+        double headingError = targetPose.getHeading() - location.getHeading();
 
-        if (pose == null || targetPose == null) {
-            return;
-        }
-
-        Pose errorPose = targetPose.subtract(pose);
-        double headingError = Math.abs(errorPose.getHeadingComponent().get(Angle.Units.RADIANS));
-        double dist = targetPose.distanceTo(pose);
-
-        if (dist < constants.translationalTolerance && headingError < constants.headingTolerance) {
+        if (disable) {
             drivetrain.stop();
-            isBusy = false;
-            targetPose = null; // Clear target pose to prevent further movement until a new target is set
             return;
         }
 
-        double dx = errorPose.getX();
-        double dy = errorPose.getY();
-
-        Vector error = new Vector(dx, dy);
-        error.rotate(-pose.getHeading());
-
-        double x = error.getX() * constants.translationalKp;
-        double y = error.getY() * constants.translationalKp;
-        double turn = headingError * constants.headingKp;
-
-        double mag = Math.hypot(x, y);
-        if (mag > constants.maxPower) {
-            x /= mag;
-            y /= mag;
+        // Replaced comparisons with controller methods
+        if (constants.translationalController.isAtTarget() && constants.headingController.isAtTarget()) {
+            disable = true;
+            drivetrain.stop();
+            return;
         }
 
-        if (mag > 0) {
-            x = applyMinPower(x);
-            y = applyMinPower(y);
+        Vector drive = constants.translationalController.calculate(location.toVec()).rotated(-location.getHeading());
+        double turn = constants.headingController.calculate(headingError);
+
+        if (drive.getMagnitudeSquared() > constants.maxPower * constants.maxPower) {
+            drive = drive.normalize().multiply(constants.maxPower);
         }
 
-        turn = clip(turn, -constants.maxPower, constants.maxPower);
-        drivetrain.drive(x, y, turn, 0); // Heading = 0 for robot centric drive
-    }
+        // Note: minimum power provided by controllers
 
-    /**
-     * Method to apply minimum power to a value to ensure the robot can overcome static friction and start moving
-     * @param val the value to apply minimum power to
-     * @return the value with minimum power applied
-     */
-    private double applyMinPower(double val) {
-        if (Math.abs(val) < constants.minPower) {
-            return Math.signum(val) * constants.minPower;
-        }
-        return val;
-    }
-
-    /**
-     * Method to clip a value between a minimum and maximum value
-     * @param val the value to clip
-     * @param min the minimum value to clip val to
-     * @param max the maximum value to clip val to
-     * @return the clipped value
-     */
-    private double clip(double val, double min, double max) {
-        return Math.max(min, Math.min(max, val));
+        turn = Range.clip(turn, -constants.maxPower, constants.maxPower);
+        drivetrain.drive(drive.getX(), drive.getY(), turn, 0); // Heading = 0 for robot centric drive
     }
 }
