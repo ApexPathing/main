@@ -25,7 +25,7 @@ public class Limelight extends Localizer {
     private final Limelight3A cam;
     private Pose lastPose = null;
 
-    private ElapsedTime timer;
+    private final ElapsedTime timer;
     private long lastTime;
 
     public Limelight(HardwareMap hardwareMap, LimelightConstants constants) {
