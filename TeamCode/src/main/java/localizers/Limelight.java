@@ -8,6 +8,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 
+import localizers.constants.LimelightConstants;
 import util.Angle;
 import util.Distance;
 import util.Pose;
@@ -20,23 +21,31 @@ import util.Pose;
  * @author Dylan B. - 18597 RoboClovers - Delta
  */
 public class Limelight extends Localizer {
+    private final LimelightConstants constants;
     private final Limelight3A cam;
     private Pose lastPose = null;
 
     private ElapsedTime timer;
     private long lastTime;
 
-    public Limelight(HardwareMap hardwareMap, String name) {
-        cam = hardwareMap.get(Limelight3A.class, name);
-        cam.pipelineSwitch(0); // Set to the first pipeline, adjust if needed
-        timer = new ElapsedTime();
+    public Limelight(HardwareMap hardwareMap, LimelightConstants constants) {
+        this.constants = constants;
+        this.cam = hardwareMap.get(Limelight3A.class, constants.name);
+        this.cam.pipelineSwitch(constants.pipeline);
+        this.timer = new ElapsedTime();
     }
 
     @Override
     public void update() {
         LLResult result = cam.getLatestResult();
         if (result != null && result.isValid()) {
-            Pose3D botPose = result.getBotpose_MT2();
+            Pose3D botPose;
+            if (constants.useMetaTag2) {
+                botPose = result.getBotpose_MT2();
+            } else {
+                botPose = result.getBotpose(); // Standard ATag detection
+            }
+
             if (botPose != null) {
                 Pose newPose = new Pose(
                         botPose.getPosition().x, botPose.getPosition().y, // Meters
