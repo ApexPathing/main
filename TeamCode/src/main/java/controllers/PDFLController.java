@@ -2,8 +2,9 @@ package controllers;
 
 /**
  * An all-purpose controller for robotics. It removes I term and replaces it with a minimum power term.
+ * <3 Thanks for this amazing concept Wolfpack :D
  */
-public class PDFLController extends Controller{
+public class PDFLController extends Controller {
     private double kP, kD, kF, kL;
     public PDFLController(double kP, double kD, double kF, double kL) {
         this.kP = kP;

@@ -3,6 +3,7 @@ package controllers;
 /**
  * A squID controller for follower
  * It takes the square root of the P, but otherwise it's pretty normal for a controller
+ * <3 thanks Escape Velocity!
  * @author Xander Haemel - 31616
  */
 public class SquIDController extends Controller {
