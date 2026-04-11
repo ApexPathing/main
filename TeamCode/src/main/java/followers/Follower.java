@@ -2,6 +2,8 @@ package followers;
 
 import drivetrains.Drivetrain;
 import localizers.Localizer;
+import util.Angle;
+import util.Distance;
 import util.Pose;
 
 /**
@@ -81,7 +83,9 @@ public abstract class Follower {
      */
     protected void setTargetPose(Pose targetPose) {
         isBusy = true;
-        this.targetPose = targetPose;
+        this.targetPose = targetPose.copy();
+        this.targetPose.setDistanceUnit(Distance.Units.INCHES);
+        this.targetPose.setAngleUnit(Angle.Units.RADIANS);
     }
 
     /**

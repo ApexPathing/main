@@ -6,7 +6,10 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import followers.P2PFollower;
 import drivetrains.Mecanum;
 import localizers.Pinpoint;
+import util.Angle;
+import util.Distance;
 import util.Pose;
+import util.PoseBuilder;
 
 @Autonomous(name = "SimpleTestAuto", group = "tests")
 public class SimpleTestAuto extends LinearOpMode {
@@ -16,9 +19,10 @@ public class SimpleTestAuto extends LinearOpMode {
     public AutoState autoState = AutoState.ROTATE;
 
     // Poses
-    Pose startPose = new Pose(0, 0, 0);
-    Pose turnedPose = new Pose(0, 0, Math.toRadians(90));
-    Pose forwardPose = new Pose(24, 0, Math.toRadians(90));
+    PoseBuilder pb = new PoseBuilder(Distance.Units.INCHES, Angle.Units.DEGREES, false);
+    Pose startPose = pb.build(0, 0, 0);
+    Pose turnedPose = pb.build(0, 0, 90);
+    Pose forwardPose = pb.build(24, 0, 90);
 
     @Override
     public void runOpMode() throws InterruptedException {
@@ -55,8 +59,8 @@ public class SimpleTestAuto extends LinearOpMode {
             }
 
             telemetry.addData("Auto State", autoState);
-            telemetry.addData("Current Pose", follower.getPose().debug());
-            telemetry.addData("Target Pose", follower.getTargetPose().debug());
+            telemetry.addData("Current Pose", follower.getPose().toString());
+            telemetry.addData("Target Pose", follower.getTargetPose().toString());
             telemetry.addData("Velocity", follower.getVelocity().toString());
             telemetry.addData("Is Busy", follower.isBusy());
             telemetry.update();
