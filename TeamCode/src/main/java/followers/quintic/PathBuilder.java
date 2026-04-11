@@ -1,7 +1,7 @@
 package followers.quintic;
 
-import com.arcrobotics.ftclib.command.SequentialCommandGroup;
-import com.arcrobotics.ftclib.command.WaitCommand;
+//import com.arcrobotics.ftclib.command.SequentialCommandGroup;
+//import com.arcrobotics.ftclib.command.WaitCommand;todo
 
 import util.Angle;
 import util.Distance;
@@ -120,19 +120,19 @@ public class PathBuilder {
     }
 
     /**
-     * Build a {@link SequentialCommandGroup} that follows the path and optionally holds at the end
+     * Build a SequentialCommandGroup that follows the path and optionally holds at the end
      * @param follower the {@link QuinticFollower} to use for path following
-     * @return a {@link SequentialCommandGroup} containing the path command and optional wait
+     * @return a SequentialCommandGroup containing the path command and optional wait
      */
-    public SequentialCommandGroup buildCommand(QuinticFollower follower) {
-        if (holdAtEndMs > 0) {
-            return new SequentialCommandGroup(
-                    new PathCommand(follower, build()),
-                    new WaitCommand((long) holdAtEndMs)
-            );
-        }
-        return new SequentialCommandGroup(new PathCommand(follower, build()));
-    }
+//    public SequentialCommandGroup buildCommand(QuinticFollower follower) {
+//        if (holdAtEndMs > 0) {
+//            return new SequentialCommandGroup(
+//                    new PathCommand(follower, build()),
+//                    new WaitCommand((long) holdAtEndMs)
+//            );
+//        }
+//        return new SequentialCommandGroup(new PathCommand(follower, build()));
+//    } TODO
     // endregion
 
     // region Getters

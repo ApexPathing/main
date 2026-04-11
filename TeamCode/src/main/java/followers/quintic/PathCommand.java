@@ -1,15 +1,14 @@
 package followers.quintic;
 
-import com.arcrobotics.ftclib.command.CommandBase;
+//import com.arcrobotics.ftclib.command.CommandBase; //todo
 
-import followers.Follower;
 
 /**
  * FTCLib command that follows a {@link QuinticPath} using a {@link QuinticFollower}.
  * Finishes when the follower is no longer busy.
  * @author Sohum Arora 22985 Paraducks
  */
-public class PathCommand extends CommandBase {
+public class PathCommand /*extends CommandBase todo must add abstract command base*/{
 
     private final QuinticFollower follower;
     private final QuinticPath path;
@@ -24,22 +23,22 @@ public class PathCommand extends CommandBase {
         this.path = path;
     }
 
-    @Override
+//    @Override todo
     public void initialize() {
         follower.followPath(path);
     }
 
-    @Override
+//    @Override todo
     public void execute() {
         follower.update();
     }
 
-    @Override
+//    @Override todo
     public boolean isFinished() {
         return !follower.isBusy();
     }
 
-    @Override
+//    @Override todo
     public void end(boolean interrupted) {
         follower.stop();
     }
