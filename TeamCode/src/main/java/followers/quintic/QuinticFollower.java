@@ -5,6 +5,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import drivetrains.Drivetrain;
 import followers.Follower;
 import localizers.Localizer;
+import util.Angle;
 import util.Pose;
 
 
@@ -117,7 +118,7 @@ public class QuinticFollower extends Follower {
         double dt = Math.max(Timer.seconds() - PrevTime, 0.001);
         PrevTime = Timer.seconds();
 
-        double headingError = Pose.normalize(target.getHeading() - heading);
+        double headingError = Angle.normalize(Math.toRadians(target.getHeading()) - Math.toRadians(heading));
         double headingDeriv = (headingError - PrevHeadingError) / dt;
         PrevHeadingError = headingError;
 
