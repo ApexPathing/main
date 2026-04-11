@@ -93,7 +93,7 @@ public class Angle {
      * @param radians the angle in radians to be normalized
      * @return the normalized angle in radians
      */
-    private static double normalize(double radians) {
+    public static double normalize(double radians) {
         return (radians % (2 * Math.PI) + (2 * Math.PI)) % (2 * Math.PI);
     }
 

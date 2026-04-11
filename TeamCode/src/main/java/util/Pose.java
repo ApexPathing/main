@@ -35,7 +35,7 @@ public class Pose {
      * @param heading the heading of the pose as an angle value in radians
      */
     public Pose(double x, double y, double heading) {
-        return new Pose(x, y, heading, Distance.Units.INCHES, Angle.Units.RADIANS, false);
+        this(x, y, heading, Distance.Units.INCHES, Angle.Units.RADIANS, false);
     }
 
     /** Factory method to create a {@link Pose} from an FTC SDK {@link Pose2D} object with specified units and mirroring */
@@ -131,9 +131,9 @@ public class Pose {
     }
 
     /**
-    * Divide this pose (in the original units) by a scalar value
-    * @param scalar the scalar value to divide this pose by
-    */
+     * Divide this pose (in the original units) by a scalar value
+     * @param scalar the scalar value to divide this pose by
+     */
     public Pose divide(double scalar) {
         return new Pose(
                 this.getX() / scalar,
@@ -163,8 +163,8 @@ public class Pose {
     /** @return true if this pose is equal to another pose, false otherwise */
     public boolean equals(Pose other) {
         return this.getX() == other.getXComponent().get(this.getDistanceUnit()) &&
-               this.getY() == other.getYComponent().get(this.getDistanceUnit()) &&
-               this.getHeading() == other.getHeadingComponent().get(this.angleUnit);
+                this.getY() == other.getYComponent().get(this.getDistanceUnit()) &&
+                this.getHeading() == other.getHeadingComponent().get(this.angleUnit);
     }
 
     /**
@@ -177,8 +177,8 @@ public class Pose {
      */
     public boolean isNear(Pose other, double distTolerance, double angleTolerance) {
         return Math.abs(this.getX() - other.getXComponent().get(this.getDistanceUnit())) < distTolerance &&
-               Math.abs(this.getY() - other.getYComponent().get(this.getDistanceUnit())) < distTolerance &&
-               Math.abs(this.getHeading() - other.getHeadingComponent().get(this.angleUnit)) < angleTolerance;
+                Math.abs(this.getY() - other.getYComponent().get(this.getDistanceUnit())) < distTolerance &&
+                Math.abs(this.getHeading() - other.getHeadingComponent().get(this.angleUnit)) < angleTolerance;
     }
 
     /**
@@ -219,7 +219,7 @@ public class Pose {
                 this.getXComponent().getIn(),
                 this.getYComponent().getIn(),
                 AngleUnit.RADIANS,
-                this.getHeadingComponent().getDeg()
+                this.getHeadingComponent().getRad()
         );
     }
 
