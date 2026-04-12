@@ -3,7 +3,7 @@
 This repository contains the public FTC SDK for the DECODE (2025-2026) competition season.
 
 ## Welcome!
-This GitHub repository contains the source code that is used to build an Android app to control a *FIRST* Tech Challenge competition robot.  To use this SDK, download/clone the entire project to your local computer.
+This GitHub repository contains the source code used to build an Android app for controlling a *FIRST* Tech Challenge competition robot.  To use this SDK, download/clone the entire project to your local computer.
 
 ## Requirements
 To use this Android Studio project, you will need Android Studio Ladybug (2024.2) or later.
@@ -55,7 +55,7 @@ This project contains a large selection of Sample OpModes (robot code examples) 
 
 Samples Folder: &nbsp;&nbsp; [/FtcRobotController/src/main/java/org/firstinspires/ftc/robotcontroller/external/samples](FtcRobotController/src/main/java/org/firstinspires/ftc/robotcontroller/external/samples)
 
-The readme.md file located in the [/TeamCode/src/main/java/org/firstinspires/ftc/teamcode](TeamCode/src/main/java/org/firstinspires/ftc/teamcode) folder contains an explanation of the sample naming convention, and instructions on how to copy them to your own project space.
+The readme.md file located in the [/TeamCode/src/main/java/org/firstinspires/ftc/teamcode](TeamCode/src/main/java/org/firstinspires/ftc/teamcode) folder contains an explanation of the sample naming convention and instructions on how to copy them to your own project space.
 
 # Release Information
 
@@ -68,8 +68,8 @@ The readme.md file located in the [/TeamCode/src/main/java/org/firstinspires/ftc
 * Adds webcam calibrations for goBILDA's USB camera.
 
 ### Bug Fixes
-* Fixes issue [1654](https://github.com/FIRST-Tech-Challenge/FtcRobotController/issues/1654) in GoBildaPinpointDriver that caused error if resolution was set in other than MM
-* Fixes issue [1628](https://github.com/FIRST-Tech-Challenge/FtcRobotController/issues/1628) Blocks editor displays incorrect Java code for gamepad edge detection blocks.
+* Fixes issue [1654](https://github.com/FIRST-Tech-Challenge/FtcRobotController/issues/1654) in GoBildaPinpointDriver that caused an error if the resolution was set in anything other than MM
+* Fixes issue [1628](https://github.com/FIRST-Tech-Challenge/FtcRobotController/issues/1628). The Blocks editor displays incorrect Java code for gamepad edge detection blocks.
 * Fixes possible race condition issue [1884](https://github.com/FIRST-Tech-Challenge/FtcRobotController/issues/1884) on Driver Station startup when Driver Station name doesn't match the Robot Controller name.
 * Fixes issue [1863](https://github.com/FIRST-Tech-Challenge/FtcRobotController/issues/1863) - Incorrect package paths in samples.
 * Fixes an issue where an OnBotJava filename that begins with a lowercase character would fail to properly rename the file if the user tried to rename it so that it begins with an uppercase character.
@@ -79,30 +79,30 @@ The readme.md file located in the [/TeamCode/src/main/java/org/firstinspires/ftc
 ### Enhancements
 
 * OnBotJava now has the concept of a project.  
-  A project is a collection of related files.  A project may be chosen by selecting 'Example Project'
+  A project is a collection of related files.  A project may be chosen by selecting 'Example Project.'
   from the 'File type:' dropdown.  Doing so will populate the dropdown to the immediate right with 
   a list of projects to choose from.
-  When selecting a project all of the related files appear in the left pane of the workspace 
+  When selecting a project, all of the related files appear in the left pane of the workspace 
   underneath a directory with the chosen project name.
-  This is useful for example for ConceptExternalHardwareClass which has a dependency upon
+  This is useful, for example, for ConceptExternalHardwareClass, which has a dependency upon
   RobotHardware.  This feature simplifies the usage of this Concept example by automatically
   pulling in dependent classes.
 * Adds support for AndyMark ToF, IMU, and Color sensors.
 * The Driver Station app indicates if WiFi is disabled on the device.
 * Adds several features to the Color Processing software:
   * DECODE colors `ARTIFACT_GREEN` and `ARTIFACT_PURPLE`
-  * Choice of the order of pre-processing steps Erode and Dilate
+  * Choice of the order of pre-processing steps: Erode and Dilate
   * Best-fit preview shape called `circleFit`, an alternate to the existing `boxFit`
   * Sample OpMode `ConceptVisionColorLocator_Circle`, an alternate to the renamed `ConceptVisionColorLocator_Rectangle`
 * The Driver Station app play button has a green background with a white play symbol if
-  * the driver station and robot controller are connected and have the same team number
-  * there is at least one gamepad attached
+  * The driver station and robot controller are connected and have the same team number
+  * There is at least one gamepad attached
   * the timer is enabled (for an Autonomous OpMode)
 * Updated AprilTag Library for DECODE. Notably, getCurrentGameTagLibrary() now returns DECODE tags.
   * Since the AprilTags on the Obelisk should not be used for localization, the ConceptAprilTagLocalization samples only use those tags without the name 'Obelisk' in them.
 * OctoQuad I2C driver updated to support firmware v3.x 
   * Adds support for odometry localizer on MK2 hardware revision
-  * Adds ability to track position for an absolute encoder across multiple rotations
+  * Adds the ability to track the position for an absolute encoder across multiple rotations
   * Note that some driver APIs have changed; minor updates to user software may be required
   * Requires firmware v3.x. For instructions on updating firmware, see
     https://github.com/DigitalChickenLabs/OctoQuad/blob/master/documentation/OctoQuadDatasheet_Rev_3.0C.pdf
@@ -112,14 +112,14 @@ The readme.md file located in the [/TeamCode/src/main/java/org/firstinspires/ftc
 
 ### Breaking Changes
 * The behavior of setGlobalErrorMsg() is changed.  Note that this is an SDK internal method that is not 
-  meant to be used by team software or third party libraries.  Teams or libraries using this method should
+  meant to be used by team software or third-party libraries.  Teams or libraries using this method should
   find another means to communicate failure.  The design intent of setGlobalErrorMsg() is to report an 
   error and force the user to restart the robot, which in certain circumstances when used inappropriately
   could cause a robot to continue running while Driver Station controls are disabled.  To prevent this,
   processing of a call to setGlobalErrorMsg() is deferred until the robot is in a known safe state.  This may
   mean that a call to setGlobalErrorMsg() that does not also result in stopping a running OpMode will appear
   as though nothing happened until the robot is stopped, at which point, if clearGlobalErrorMsg() has not 
-  been called the message will appear on the Driver Station and a restart will be required.
+  been called, the message will appear on the Driver Station, and a restart will be required.
   Addresses issue [1381](https://github.com/FIRST-Tech-Challenge/FtcRobotController/issues/1381)
 * Fixes getLatestResult in Limelight3A so if the Limelight hasn't provided data yet, it still returns an LLResult but valid will be false
   * If you previously used to check and see if this was `null` to see if the Limelight had been contacted, you now need to use `isValid()` on the result.  That is because now it always returns an LLResult even before it talks to the Limelight, but if it doesn't have valid data, the `isValid()` will be `false`.
