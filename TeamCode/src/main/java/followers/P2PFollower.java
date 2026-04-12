@@ -1,5 +1,6 @@
 package followers;
 
+import controllers.pidf.PIDFController;
 import drivetrains.Drivetrain;
 import localizers.Localizer;
 import followers.constants.P2PFollowerConstants;
@@ -16,6 +17,10 @@ import util.Vector;
 public class P2PFollower extends Follower {
     private final P2PFollowerConstants constants;
 
+    private final PIDFController translationalController;
+    private final PIDFController headingController;
+
+
     /**
      * Constructor for the P2PFollower
      * @param drivetrain the mecanum drivetrain class to control
@@ -25,6 +30,9 @@ public class P2PFollower extends Follower {
         this.constants = constants;
         this.drivetrain = drivetrain;
         this.localizer = localizer;
+
+        this.translationalController = new PIDFController(constants.translationalPIDF);
+        this.headingController = new PIDFController(constants.headingPIDF);
     }
 
     /**
