@@ -69,9 +69,9 @@ public class P2PFollower extends Follower {
         Vector error = new Vector(dx, dy);
         error.rotate(-pose.getHeading());
 
-        double x = error.getX() * constants.translationalKp;
-        double y = error.getY() * constants.translationalKp;
-        double turn = headingError * constants.headingKp;
+        double x = translationalController.calculateFromError(dx);
+        double y = translationalController.calculateFromError(dy);
+        double turn = headingController.calculateFromError(headingError);
 
         double mag = Math.hypot(x, y);
         if (mag > constants.maxPower) {

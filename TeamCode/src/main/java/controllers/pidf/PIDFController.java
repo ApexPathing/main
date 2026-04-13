@@ -13,9 +13,6 @@ public class PIDFController extends Controller {
    private double kP, kI, kD, kF;
    private double integralSum = 0.0;
    private final double iLimit = 1.0;
-   private double currentPos = 0.0;
-   private double targetPos = 0.0;
-   private double lastError = 0.0;
 
    private ElapsedTime timer;
 
@@ -45,13 +42,6 @@ public class PIDFController extends Controller {
         return new PIDFCoefficients(kP, kI, kD, kF);
     }
 
-    public void setCurrentPos(double pos) {
-        currentPos = pos;
-    }
-    public void setTargetPos(double pos) {
-        targetPos = pos;
-    }
-
 
     @Override
     protected double computeOutput(double error, double lastError, double deltaTime) {
@@ -64,7 +54,6 @@ public class PIDFController extends Controller {
             if (integralSum > iLimit) integralSum = iLimit;
             if (integralSum < -iLimit) integralSum = -iLimit;
             double integral = kI * integralSum;
-
             // D term
             double derivative = kD * ((error - lastError) / deltaTime);
 

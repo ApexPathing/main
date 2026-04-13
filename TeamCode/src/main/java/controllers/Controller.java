@@ -29,15 +29,13 @@ public abstract class Controller {
         this.lastTimestamp = System.nanoTime();
     }
 
-    public synchronized double calculate(double currentPosition) {
+    public synchronized double calculateFromError(double error) {
         long currentNano = System.nanoTime();
         // Convert nanoseconds to seconds for standard unit gains
         double deltaTime = (currentNano - lastTimestamp) / 1_000_000_000.0;
 
         // Detect if loop is too fast (div by zero risk) or too slow (integral/derivative spike)
         timeAnomalyDetected = deltaTime < 1E-6 || deltaTime > 0.15;
-
-        double error = goal - currentPosition;
 
         // Initialize lastError on first run to prevent derivative kick from 0
         if (!hasRun) {
@@ -60,6 +58,17 @@ public abstract class Controller {
 
         // Constrain output to standard motor range [-1.0, 1.0]
         return Math.max(-1.0, Math.min(1.0, rawPower));
+    }
+
+    public synchronized double calculate(double currentPosition) {
+        long currentNano = System.nanoTime();
+        // Convert nanoseconds to seconds for standard unit gains
+        double deltaTime = (currentNano - lastTimestamp) / 1_000_000_000.0;
+
+        // Detect if loop is too fast (div by zero risk) or too slow (integral/derivative spike)
+        timeAnomalyDetected = deltaTime < 1E-6 || deltaTime > 0.15;
+
+        return calculateFromError(goal - currentPosition);
     }
 
     /**
