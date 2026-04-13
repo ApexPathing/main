@@ -66,7 +66,6 @@ public class Tank extends Drivetrain {
 
     @Override
     public void drive(double x, double y, double turn, double robotHeading) {
-        // TODO: Implement field-centric drive, then make the other moveWithVectors call this method with a heading of 0 for robot-centric control
         moveWithVectors(y, x, turn);
     }
 

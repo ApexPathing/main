@@ -32,10 +32,10 @@ public class QuinticSegment {
     private double totalLength = 0;
 
     /**
-     * @param start          start pose (x, y, heading in radians)
-     * @param end            end pose (x, y, heading in radians)
+     * @param start start pose (x, y, heading in radians)
+     * @param end end pose (x, y, heading in radians)
      * @param startCurvature curvature at start (0 = straight)
-     * @param endCurvature   curvature at end (0 = straight)
+     * @param endCurvature curvature at end (0 = straight)
      */
     public QuinticSegment(Pose start, Pose end, double startCurvature, double endCurvature) {
         x0 = start.getX();
