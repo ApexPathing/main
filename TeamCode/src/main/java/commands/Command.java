@@ -1,5 +1,8 @@
 package commands;
 
+/**
+ * @author Sohum Arora 22985 Paraducks
+ */
 public interface Command {
     default void initialize() {
 

@@ -6,6 +6,10 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.WeakHashMap;
 
+/**
+ * @author Sohum Arora 22985 Paraducks
+ */
+
 public abstract class CommandGroupBase implements Command {
 
     private static final Set<Command> groupedCommands =

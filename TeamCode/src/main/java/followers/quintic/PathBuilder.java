@@ -83,7 +83,7 @@ public class PathBuilder {
      * @param heading the heading at this waypoint in the builder's angle unit
      * @return this builder for chaining
      */
-    public PathBuilder addPoint(double x, double y, double heading) {
+    public PathBuilder addPose(double x, double y, double heading) {
         builder.addPose(poseBuilder.build(x, y, heading));
         return this;
     }
@@ -96,7 +96,7 @@ public class PathBuilder {
      * @param curvature the curvature hint at this waypoint
      * @return this builder for chaining
      */
-    public PathBuilder addPoint(double x, double y, double heading, double curvature) {
+    public PathBuilder addPose(double x, double y, double heading, double curvature) {
         builder.addPose(poseBuilder.build(x, y, heading), curvature);
         return this;
     }

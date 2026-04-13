@@ -2,6 +2,9 @@ package commands;
 
 import java.util.HashMap;
 import java.util.Map;
+/**
+ * @author Sohum Arora 22985 Paraducks
+ */
 
 public class ParallelCommandGroup extends CommandGroupBase{
     private final Map<Command, Boolean> commandsList = new HashMap<>();

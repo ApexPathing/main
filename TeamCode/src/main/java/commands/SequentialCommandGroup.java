@@ -2,6 +2,9 @@ package commands;
 
 import java.util.ArrayList;
 import java.util.List;
+/**
+ * @author Sohum Arora 22985 Paraducks
+ */
 
 public class SequentialCommandGroup extends CommandGroupBase {
     private final List<Command> commandsList = new ArrayList<>();

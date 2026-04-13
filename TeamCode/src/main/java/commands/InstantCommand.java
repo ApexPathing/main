@@ -1,6 +1,10 @@
 package commands;
 
+/**
+ * @author Sohum Arora 22985 Paraducks
+ */
 public class InstantCommand implements Command{
+
     private final Runnable toRun;
 
     public InstantCommand(Runnable toRun) {
