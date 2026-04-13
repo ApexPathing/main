@@ -14,7 +14,6 @@ public class MotorEx {
     public MotorMetaData data;
 
     public MotorEx(HardwareMap hardwareMap, MotorMetaData data) {
-        super();
         motor = hardwareMap.get(DcMotorEx.class, data.getName());
         setRunMode(data.getRunMode());
         setDirection(data.getDirection());
