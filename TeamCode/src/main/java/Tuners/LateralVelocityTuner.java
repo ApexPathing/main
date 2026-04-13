@@ -1,8 +1,6 @@
 package Tuners;
 
-import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
-import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 
 import org.firstinspires.ftc.teamcode.Constants;
 
@@ -14,11 +12,9 @@ import util.Distance;
 import util.Pose;
 
 /**
- * A tester for forward velocity of robot
  * @author Xander Haemel - 31616
  */
-@Autonomous
-public class ForwardVelocityTuner extends LinearOpMode {
+public class LateralVelocityTuner extends LinearOpMode {
     Pose startPose = new Pose(0, 0, 0, Distance.Units.INCHES, Angle.Units.DEGREES, false);
     //distance to travel
     public double distance = 40; //inches
@@ -39,7 +35,7 @@ public class ForwardVelocityTuner extends LinearOpMode {
                 telemetry.update();
             }else{
                 positionReached = false;
-                follower.drive(1, 0, 0);
+                follower.drive(0, 1, 0);
             }
             //main loop
             if(!positionReached){
@@ -59,5 +55,7 @@ public class ForwardVelocityTuner extends LinearOpMode {
             }
 
         }
+
+
     }
 }
