@@ -1,13 +1,15 @@
 package followers.constants;
 
+import controllers.pidf.PIDFCoefficients;
+
 /**
  * Point to point follower constants class
  * @author Dylan B. - 18597 RoboClovers - Delta
  */
 public class P2PFollowerConstants {
     // Tunable constants
-    public double translationalKp = 0.03;
-    public double headingKp = 0.5;
+    public PIDFCoefficients translationalPIDF;
+    public PIDFCoefficients headingPIDF;
 
     // Tolerances
     public double translationalTolerance = 1.0; // Inches
@@ -23,22 +25,22 @@ public class P2PFollowerConstants {
     public P2PFollowerConstants() {}
 
     /**
-     * Sets the translational proportional gain.
-     * @param translationalKp the translational Kp
+     * Sets the translational PIDF Controller coefficients
+     * @param coefficients the tuned PIDF values
      * @return this instance for chaining
      */
-    public P2PFollowerConstants setTranslationalKp(double translationalKp) {
-        this.translationalKp = translationalKp;
+    public P2PFollowerConstants setTranslationalCoefficients(PIDFCoefficients coefficients) {
+        this.translationalPIDF = coefficients;
         return this;
     }
 
     /**
      * Sets the heading proportional gain.
-     * @param headingKp the heading Kp
+     * @param coefficients the tuned PIDF values
      * @return this instance for chaining
      */
-    public P2PFollowerConstants setHeadingKp(double headingKp) {
-        this.headingKp = headingKp;
+    public P2PFollowerConstants setHeadingCoefficients(PIDFCoefficients coefficients) {
+        this.headingPIDF = coefficients;
         return this;
     }
 

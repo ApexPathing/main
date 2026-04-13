@@ -6,6 +6,7 @@ import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
+import controllers.pidf.PIDFCoefficients;
 import drivetrains.constants.MecanumConstants;
 import drivetrains.constants.TankConstants;
 import localizers.constants.PinpointConstants;
@@ -52,8 +53,8 @@ public class Constants {
             .setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
 
     public static P2PFollowerConstants followerConstants = new P2PFollowerConstants()
-            .setTranslationalKp(0.03) // TODO: Tuner
-            .setHeadingKp(0.5) // TODO: Tuner
+            .setTranslationalCoefficients(new PIDFCoefficients(1.0, 0.0, 0.0, 0.0)) // TODO: Tuner
+            .setHeadingCoefficients(new PIDFCoefficients(1.0, 0.0, 0.0, 0.0)) // TODO: Tuner
             .setTranslationalTolerance(1.0) // Inches
             .setHeadingTolerance(3.0) // Degrees
             .setMaxPower(0.5) // Power limits can be overwritten by the drivetrain's power limits, these are specifically for following

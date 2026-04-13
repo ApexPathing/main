@@ -5,12 +5,15 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
+/**
+ * A class to seamlessly combine MotorMetaData with the hardware.
+ * @author Atharv G - 13085 Bionic Dutch
+ */
 public class MotorEx {
     public DcMotorEx motor;
     public MotorMetaData data;
 
     public MotorEx(HardwareMap hardwareMap, MotorMetaData data) {
-        super();
         motor = hardwareMap.get(DcMotorEx.class, data.getName());
         setRunMode(data.getRunMode());
         setDirection(data.getDirection());
