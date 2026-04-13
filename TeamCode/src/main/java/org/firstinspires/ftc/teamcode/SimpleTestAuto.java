@@ -13,44 +13,38 @@ import util.PoseBuilder;
 
 @Autonomous(name = "SimpleTestAuto", group = "tests")
 public class SimpleTestAuto extends LinearOpMode {
-    public enum AutoState {
-        ROTATE, FORWARD, END
-    }
-    public AutoState autoState = AutoState.ROTATE;
+    private P2PFollower follower;
+    private int iterator = 0;
 
     // Poses
-    PoseBuilder pb = new PoseBuilder(Distance.Units.INCHES, Angle.Units.DEGREES, false);
-    Pose startPose = pb.build(0, 0, 0);
-    Pose turnedPose = pb.build(0, 0, 90);
-    Pose forwardPose = pb.build(24, 0, 90);
+    // pb is for peanut butter (～￣▽￣)～
+    private final PoseBuilder pb = new PoseBuilder(Distance.Units.INCHES, Angle.Units.DEGREES, false);
+    final Pose[] poses = {
+        pb.build(0, 0, 0), // startPose
+        pb.build(24, 0, 0), // test X movement
+        pb.build(24, 24, 0), // Test Y movement
+        pb.build(24, 24, 90), // Test rotation
+        pb.build(0, 24, 90), // Test rotation + x movement
+        pb.build(0, 0, 90) // Test rotation + y movement
+    };
+
 
     @Override
     public void runOpMode() throws InterruptedException {
         // !!!! NOTE: Do not directly use the drivetrain or localizer in the opmode, only use the follower !!!!
         Mecanum drivetrain = new Mecanum(hardwareMap, Constants.driveConstants);
-        Pinpoint localizer = new Pinpoint(hardwareMap, Constants.localizerConstants, startPose);
-        P2PFollower follower = new P2PFollower(Constants.followerConstants, drivetrain, localizer);
+        Pinpoint localizer = new Pinpoint(hardwareMap, Constants.localizerConstants, poses[0]);
+        follower = new P2PFollower(Constants.followerConstants, drivetrain, localizer);
 
         waitForStart();
         while (opModeIsActive()) {
             follower.update();
 
-            switch(autoState) {
-                case ROTATE:
-                    follower.setTargetPose(turnedPose);
-                    if (!follower.isBusy()) {
-                        autoState = AutoState.FORWARD;
-                    }
-                    break;
-                case FORWARD:
-                    follower.setTargetPose(forwardPose);
-                    if (!follower.isBusy()) {
-                        autoState = AutoState.END;
-                    }
-                    break;
-                case END:
-                    follower.stop();
-                    break;
+            if (!follower.isBusy() && iterator < poses.length - 1) {
+                iterator ++;
+                follower.setTargetPose(poses[iterator]);
+            } else {
+                follower.stop();
             }
 
             // Stop
@@ -58,7 +52,7 @@ public class SimpleTestAuto extends LinearOpMode {
                 requestOpModeStop();
             }
 
-            telemetry.addData("Auto State", autoState);
+            telemetry.addData("Auto State", iterator);
             telemetry.addData("Current Pose", follower.getPose().toString());
             telemetry.addData("Target Pose", follower.getTargetPose().toString());
             telemetry.addData("Velocity", follower.getVelocity().toString());
