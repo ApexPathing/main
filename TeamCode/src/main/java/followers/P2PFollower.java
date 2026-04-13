@@ -56,11 +56,12 @@ public class P2PFollower extends Follower {
         // Replaced comparisons with controller methods
         if (constants.translationalController.isAtTarget() && constants.headingController.isAtTarget()) {
             disable = true;
+            isBusy = false; // Reset busy state so OpModes can progress
             drivetrain.stop();
             return;
         }
 
-        Vector drive = constants.translationalController.calculate(location.toVec()).rotated(-location.getHeading());
+        Vector drive = constants.translationalController.calculate(translationError).rotated(-location.getHeading());
         double turn = constants.headingController.calculate(headingError);
 
         if (drive.getMagnitudeSquared() > constants.maxPower * constants.maxPower) {
@@ -70,6 +71,7 @@ public class P2PFollower extends Follower {
         // Note: minimum power provided by controllers
 
         turn = Range.clip(turn, -constants.maxPower, constants.maxPower);
-        drivetrain.drive(drive.getX(), drive.getY(), turn, 0); // Heading = 0 for robot centric drive
+        // Map Vector X to Drive (Y) and Vector Y to Strafe (X) for Mecanum drive
+        drivetrain.drive(drive.getY(), drive.getX(), turn, 0);
     }
 }

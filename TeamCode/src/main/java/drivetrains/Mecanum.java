@@ -68,7 +68,7 @@ public class Mecanum extends Drivetrain {
         }
 
         flMotor.motor.setPower(lfPower);
-        flMotor.motor.setPower(lrPower);
+        blMotor.motor.setPower(lrPower);
         frMotor.motor.setPower(rfPower);
         brMotor.motor.setPower(rrPower);
     }

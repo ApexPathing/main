@@ -86,7 +86,6 @@ public class P2PFollowerConstants {
      */
     public P2PFollowerConstants setTranslationalTolerance(double translationalTolerance) {
         this.translationalController.setTolerance(translationalTolerance);
-        this.translationalController.setDeadzone(translationalTolerance);
         return this;
     }
 
@@ -97,7 +96,6 @@ public class P2PFollowerConstants {
      */
     public P2PFollowerConstants setHeadingTolerance(double headingToleranceDegrees) {
         this.headingController.setTolerance(Math.toRadians(headingToleranceDegrees));
-        this.headingController.setDeadzone(Math.toRadians(headingToleranceDegrees));
         return this;
     }
 

@@ -33,9 +33,6 @@ public class PDLVectorController extends VectorController {
 
     @Override
     protected Vector computeOutput(Vector error, Vector lastError, double deltaTime) {
-        // Calculate squared distance to check against tolerance
-        double distSq = error.getX() * error.getX() + error.getY() * error.getY();
-
         // --- PROPORTIONAL & LOWER LIMIT (kL) TERM ---
         Vector pTerm = error.multiply(kP);
         Vector lTerm = error.normalize().multiply(kL);
