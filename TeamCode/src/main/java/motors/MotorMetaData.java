@@ -6,7 +6,7 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
 /**
  * A class to hold metadata about a motor, such as its name, direction, brake mode, and run mode.
- * @author Atharv - 13085 Bionic Dutch
+ * @author Atharv G - 13085 Bionic Dutch
  * @author Dylan B. - 18597 RoboClovers - Delta
  */
 public class MotorMetaData {
@@ -37,7 +37,8 @@ public class MotorMetaData {
      */
     public MotorMetaData(String name) {
         this(name, DcMotorSimple.Direction.FORWARD,
-                ZeroPowerBehavior.BRAKE, RunMode.RUN_WITHOUT_ENCODER);
+                ZeroPowerBehavior.BRAKE, RunMode.RUN_WITHOUT_ENCODER
+        );
     }
 
     /**
@@ -46,7 +47,8 @@ public class MotorMetaData {
      */
     public MotorMetaData() {
         this("motor", DcMotorSimple.Direction.FORWARD,
-                ZeroPowerBehavior.BRAKE, RunMode.RUN_WITHOUT_ENCODER);
+                ZeroPowerBehavior.BRAKE, RunMode.RUN_WITHOUT_ENCODER
+        );
     }
 
     /**
@@ -55,6 +57,7 @@ public class MotorMetaData {
     public String getName() {
         return name;
     }
+
     /**
      * @param name The name of the motor in the hardware map.
      */
@@ -68,6 +71,7 @@ public class MotorMetaData {
     public DcMotorSimple.Direction getDirection() {
         return direction;
     }
+
     /**
      * @param direction The direction of the motor (FORWARD or REVERSE).
      */
@@ -81,6 +85,7 @@ public class MotorMetaData {
     public ZeroPowerBehavior getBrakeMode() {
         return brakeMode;
     }
+
     /**
      * @param mode The zero power behavior of the motor (BRAKE or FLOAT).
      */
@@ -94,6 +99,7 @@ public class MotorMetaData {
     public RunMode getRunMode() {
         return runMode;
     }
+
     /**
      * @param mode The run mode of the motor (RUN_WITHOUT_ENCODER, RUN_USING_ENCODER, etc.).
      */

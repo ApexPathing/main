@@ -133,9 +133,9 @@ public class Pose {
     }
 
     /**
-    * Divide this pose (in the original units) by a scalar value
-    * @param scalar the scalar value to divide this pose by
-    */
+     * Divide this pose (in the original units) by a scalar value
+     * @param scalar the scalar value to divide this pose by
+     */
     public Pose divide(double scalar) {
         return new Pose(
                 this.getX() / scalar,
@@ -165,8 +165,8 @@ public class Pose {
     /** @return true if this pose is equal to another pose, false otherwise */
     public boolean equals(Pose other) {
         return this.getX() == other.getXComponent().get(this.getDistanceUnit()) &&
-               this.getY() == other.getYComponent().get(this.getDistanceUnit()) &&
-               this.getHeading() == other.getHeadingComponent().get(this.angleUnit);
+                this.getY() == other.getYComponent().get(this.getDistanceUnit()) &&
+                this.getHeading() == other.getHeadingComponent().get(this.angleUnit);
     }
 
     /**
@@ -179,8 +179,8 @@ public class Pose {
      */
     public boolean isNear(Pose other, double distTolerance, double angleTolerance) {
         return Math.abs(this.getX() - other.getXComponent().get(this.getDistanceUnit())) < distTolerance &&
-               Math.abs(this.getY() - other.getYComponent().get(this.getDistanceUnit())) < distTolerance &&
-               Math.abs(this.getHeading() - other.getHeadingComponent().get(this.angleUnit)) < angleTolerance;
+                Math.abs(this.getY() - other.getYComponent().get(this.getDistanceUnit())) < distTolerance &&
+                Math.abs(this.getHeading() - other.getHeadingComponent().get(this.angleUnit)) < angleTolerance;
     }
 
     /**
@@ -221,7 +221,7 @@ public class Pose {
                 this.getXComponent().getIn(),
                 this.getYComponent().getIn(),
                 AngleUnit.RADIANS,
-                this.getHeadingComponent().getDeg()
+                this.getHeadingComponent().getRad()
         );
     }
 

@@ -5,6 +5,7 @@ import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
+import controllers.pidf.PIDFCoefficients;
 import drivetrains.constants.MecanumConstants;
 import drivetrains.constants.TankConstants;
 import localizers.constants.PinpointConstants;
