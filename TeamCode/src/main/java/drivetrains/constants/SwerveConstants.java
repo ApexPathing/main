@@ -6,32 +6,34 @@ import com.qualcomm.robotcore.hardware.Servo;
 import motors.MotorMetaData;
 
 /**
+ * Swerve drivetrain constants class
  * @author Xander Haemel 31616
- * swerve constants file
  */
 public class SwerveConstants {
-    //motors
+    // Motors
     public MotorMetaData flData = new MotorMetaData("front_left_drive");
     public MotorMetaData blData = new MotorMetaData("back_left_drive");
     public MotorMetaData frData = new MotorMetaData("front_right_drive");
     public MotorMetaData brData = new MotorMetaData("back_right_drive");
-    //servos
+
+    // Servos
     public String flServoName = "flServo";
     public String blServoName = "blServo";
     public String frServoName = "frServo";
     public String brServoName = "brServo";
-    //encoders
+
+    // Encoders
     public String flEncoderName = "flEncoder";
     public String blEncoderName = "blEncoder";
     public String frEncoderName = "frEncoder";
     public String brEncoderName = "brEncoder";
 
-    //variable constants
-    public double ServoMaxPower = 1;//range 0-1
-    public double MotorMaxPower = 1; //range 0-1
-    public double MaxSpeed = 60; //inches per second
-    public double MotorCurrentLimit = 1000; //milliamps, per motor
-    public double ServoCurrentLimit = 1000; //milliamps per servo
+    // Power limits
+    public double servoMaxPower = 1; // [0, 1]
+    public double motorMaxPower = 1; // [0, 1]
+    public double maxSpeed = 60; // Inches per second
+    public double motorCurrentLimit = 1000; //milliamps, per motor
+    public double servoCurrentLimit = 1000; //milliamps per servo
 
     /**
      * default constructor

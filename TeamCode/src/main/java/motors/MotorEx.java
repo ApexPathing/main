@@ -14,7 +14,8 @@ public class MotorEx {
     public MotorMetaData data;
 
     public MotorEx(HardwareMap hardwareMap, MotorMetaData data) {
-        motor = hardwareMap.get(DcMotorEx.class, data.getName());
+        this.motor = hardwareMap.get(DcMotorEx.class, data.getName());
+        this.data = data;
         setRunMode(data.getRunMode());
         setDirection(data.getDirection());
         setBrakeMode(data.getBrakeMode());
