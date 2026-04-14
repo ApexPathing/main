@@ -13,7 +13,6 @@ import util.PoseBuilder;
 
 @Autonomous(name = "SimpleTestAuto", group = "tests")
 public class SimpleTestAuto extends LinearOpMode {
-    private P2PFollower follower;
     private int iterator = 0;
 
     // Poses
@@ -34,7 +33,7 @@ public class SimpleTestAuto extends LinearOpMode {
         // !!!! NOTE: Do not directly use the drivetrain or localizer in the opmode, only use the follower !!!!
         Mecanum drivetrain = new Mecanum(hardwareMap, Constants.driveConstants);
         Pinpoint localizer = new Pinpoint(hardwareMap, Constants.localizerConstants, poses[0]);
-        follower = new P2PFollower(Constants.followerConstants, drivetrain, localizer);
+        P2PFollower follower = new P2PFollower(Constants.followerConstants, drivetrain, localizer);
 
         waitForStart();
         while (opModeIsActive()) {
