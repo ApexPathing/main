@@ -27,6 +27,10 @@ public class MecanumDriveTest extends LinearOpMode {
         Pinpoint localizer = new Pinpoint(hardwareMap, Constants.localizerConstants, startPose);
         P2PFollower follower = new P2PFollower(Constants.followerConstants, drivetrain, localizer);
 
+        telemetry.addData("Status", "Initialized");
+        telemetry.update();
+        waitForStart();
+
         while (opModeIsActive()) {
             // Update localizer and grab current pose
             localizer.update();

@@ -36,7 +36,10 @@ public class SimpleTestAuto extends LinearOpMode {
         Pinpoint localizer = new Pinpoint(hardwareMap, Constants.localizerConstants, poses[0]);
         follower = new P2PFollower(Constants.followerConstants, drivetrain, localizer);
 
+        telemetry.addData("Status", "Initialized");
+        telemetry.update();
         waitForStart();
+
         while (opModeIsActive()) {
             follower.update();
 
