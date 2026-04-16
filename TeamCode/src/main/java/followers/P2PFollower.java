@@ -2,6 +2,8 @@ package followers;
 
 import com.qualcomm.robotcore.util.Range;
 
+import controllers.PDFLController;
+import controllers.VectorControllers.PDLVectorController;
 import drivetrains.Drivetrain;
 import localizers.Localizer;
 import followers.constants.P2PFollowerConstants;
@@ -18,8 +20,8 @@ public class P2PFollower extends Follower {
     private final P2PFollowerConstants constants;
     private boolean disable = true;
 
-    private final PIDFController translationalController;
-    private final PIDFController headingController;
+    private final PDLVectorController translationalController;
+    private final PDFLController headingController;
 
 
     /**
@@ -32,8 +34,8 @@ public class P2PFollower extends Follower {
         this.drivetrain = drivetrain;
         this.localizer = localizer;
 
-        this.translationalController = new PIDFController(constants.translationalPIDF);
-        this.headingController = new PIDFController(constants.headingPIDF);
+        this.translationalController = constants.translationalController;
+        this.headingController = constants.headingController;
     }
 
     /**

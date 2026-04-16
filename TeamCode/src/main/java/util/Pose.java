@@ -29,6 +29,18 @@ public class Pose {
     }
 
     /**
+     * Constructor for {@link Pose} class with manual x, y, and heading values in specified units without mirroring
+     * @param x the x component of the position in the specified unit
+     * @param y the y component of the position in the specified unit
+     * @param heading the heading of the pose as an angle value in the specified unit
+     * @param posUnit the {@link Distance.Units} of the x and y components of the position
+     * @param angleUnit the {@link Angle.Units} of the heading angle
+     */
+    public Pose(double x, double y, double heading, Distance.Units posUnit, Angle.Units angleUnit) {
+        this(x, y, heading, posUnit, angleUnit, false);
+    }
+
+    /**
      * Constructor for {@link Pose} class with manual x, y, and heading values in default units
      * @param x the x component of the position in inches
      * @param y the y component of the position in inches

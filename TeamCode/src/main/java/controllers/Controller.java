@@ -83,17 +83,6 @@ public abstract class Controller {
         return Math.max(-1.0, Math.min(1.0, rawPower));
     }
 
-    public synchronized double calculate(double currentPosition) {
-        long currentNano = System.nanoTime();
-        // Convert nanoseconds to seconds for standard unit gains
-        double deltaTime = (currentNano - lastTimestamp) / 1_000_000_000.0;
-
-        // Detect if loop is too fast (div by zero risk) or too slow (integral/derivative spike)
-        timeAnomalyDetected = deltaTime < 1E-6 || deltaTime > 0.15;
-
-        return calculateFromError(goal - currentPosition);
-    }
-
     /**
      * @param error Difference between goal and current position.
      * @param lastError Error from the previous loop.
