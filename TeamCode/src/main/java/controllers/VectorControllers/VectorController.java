@@ -11,23 +11,26 @@ import util.Vector;
  * Author: DrPixelCat24 (7842 alum)
  */
 public abstract class VectorController {
-    protected volatile Vector goal = new Vector();
     protected Vector lastError = new Vector();
     protected double motorDeadzone = 0.05;
     protected boolean timeAnomalyDetected = false;
     private long lastTimestamp = 0;
     private boolean hasRun = false;
+    private boolean isAtTarget = false;
+    private double tolerance;
 
     public VectorController() {
         this.lastTimestamp = System.nanoTime();
     }
 
-    public void setGoal(Vector newGoal) {
-        this.goal = newGoal;
-    }
-
     public void setDeadzone(double deadzone) {
         this.motorDeadzone = deadzone;
+    }
+    public boolean isAtTarget() {
+        return isAtTarget;
+    }
+    public void setTolerance(double tolerance) {
+        this.tolerance = tolerance * tolerance;
     }
 
     /**
@@ -35,6 +38,7 @@ public abstract class VectorController {
      * to prevent derivative kick and reset the timer.
      */
     public void reset() {
+        this.isAtTarget = false;
         this.hasRun = false;
         this.lastTimestamp = System.nanoTime();
     }
@@ -42,7 +46,9 @@ public abstract class VectorController {
     /**
      * The template method that handles standard vector controller boilerplate.
      */
-    public synchronized Vector calculate(Vector currentPosition) {
+    public Vector calculate(Vector error) {
+        isAtTarget = error.getMagnitudeSquared() < tolerance;
+
         long currentNano = System.nanoTime();
         double deltaTime = (currentNano - lastTimestamp) / 1_000_000_000.0;
 
@@ -52,8 +58,6 @@ public abstract class VectorController {
         if (deltaTime < 1E-6) {
             return new Vector();
         }
-
-        Vector error = goal.subtract(currentPosition);
 
         if (!hasRun) {
             lastError = error;

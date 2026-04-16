@@ -53,6 +53,8 @@ public class Pose {
     // region Getters
     public double getX() { return this.position.getX(); }
     public double getY() { return this.position.getY(); }
+
+    public Vector toVec() { return this.position; }
     public double getHeading() { return this.heading.get(this.angleUnit); }
 
     public Vector getPositionComponent() { return this.position; }

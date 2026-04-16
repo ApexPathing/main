@@ -11,20 +11,18 @@ import util.Vector;
  * Author: DrPixelCat24 (7842 alum)
  **/
 public class PDLVectorController extends VectorController {
-    private double kP, kD, kL, kL_tolSq;
+    private double kP, kD, kL;
 
     /**
      * @param kP Proportional term in the controller
      * @param kD Derivative term in the controller
      * @param kL Lower limit (minimum power) term. Prevents controller from failing due to friction.
-     * @param kLTol Tolerance for kL - if backlash is present it can cause jitters without this term.
      **/
-    public PDLVectorController(double kP, double kD, double kL, double kLTol) {
+    public PDLVectorController(double kP, double kD, double kL) {
         super();
         this.kP = kP;
         this.kD = kD;
         this.kL = kL;
-        this.kL_tolSq = kLTol * kLTol;
     }
 
     public void setPDLCoefficients(double kP, double kD, double kL) {
@@ -35,14 +33,6 @@ public class PDLVectorController extends VectorController {
 
     @Override
     protected Vector computeOutput(Vector error, Vector lastError, double deltaTime) {
-        // Calculate squared distance to check against tolerance
-        double distSq = error.getX() * error.getX() + error.getY() * error.getY();
-
-        // If we are within the backlash tolerance, cut power to prevent jitters
-        if (distSq <= kL_tolSq) {
-            return new Vector();
-        }
-
         // --- PROPORTIONAL & LOWER LIMIT (kL) TERM ---
         Vector pTerm = error.multiply(kP);
         Vector lTerm = error.normalize().multiply(kL);
