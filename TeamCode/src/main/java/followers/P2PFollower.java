@@ -18,11 +18,9 @@ import util.Vector;
  */
 public class P2PFollower extends Follower {
     private final P2PFollowerConstants constants;
-    private boolean disable = true;
 
     private final PDLVectorController translationalController;
     private final PDFLController headingController;
-
 
     /**
      * Constructor for the P2PFollower
@@ -43,9 +41,9 @@ public class P2PFollower extends Follower {
      * @param targetPose the new target pose
      */
     public void setTargetPose(Pose targetPose) {
-        disable = false;
-        constants.headingController.reset();
-        constants.translationalController.reset();
+        this.isBusy = false;
+        this.headingController.reset();
+        this.translationalController.reset();
         super.setTargetPose(targetPose); // Use the unexposed method from the Follower class
     }
 
@@ -53,34 +51,32 @@ public class P2PFollower extends Follower {
     public void update() {
         localizer.update();
         Pose location = localizer.getPose();
+
+        if (!isBusy) {
+            drivetrain.stop();
+            return;
+        }
+
         Vector translationError = targetPose.toVec().subtract(location.toVec());
         /* NOTE: Controller handles angleWrapping via headingController.useAsAngularController() in base */
         double headingError = targetPose.getHeading() - location.getHeading();
 
-        if (disable) {
-            drivetrain.stop();
-            return;
-        }
-
         // Replaced comparisons with controller methods
         if (constants.translationalController.isAtTarget() && constants.headingController.isAtTarget()) {
-            disable = true;
-            isBusy = false; // Reset busy state so OpModes can progress
+            isBusy = false;
             drivetrain.stop();
             return;
         }
 
-        Vector drive = constants.translationalController.calculate(translationError).rotated(-location.getHeading());
-        double turn = constants.headingController.calculate(headingError);
+        Vector drive = translationalController.calculate(translationError).rotated(-location.getHeading());
+        double turn = headingController.calculate(headingError);
 
+        // Note: minimum power provided by controllers
         if (drive.getMagnitudeSquared() > constants.maxPower * constants.maxPower) {
             drive = drive.normalize().multiply(constants.maxPower);
         }
-
-        // Note: minimum power provided by controllers
-
         turn = Range.clip(turn, -constants.maxPower, constants.maxPower);
-        // Map Vector X to Drive (Y) and Vector Y to Strafe (X) for Mecanum drive
-        drivetrain.drive(drive.getY(), drive.getX(), turn, 0);
+
+        drivetrain.drive(drive.getX(), drive.getY(), turn, 0);
     }
 }

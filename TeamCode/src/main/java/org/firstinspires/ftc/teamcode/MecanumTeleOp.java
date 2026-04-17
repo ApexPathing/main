@@ -6,8 +6,6 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import drivetrains.Mecanum;
 import followers.P2PFollower;
 import localizers.Pinpoint;
-import util.Angle;
-import util.Distance;
 import util.Pose;
 
 /**
@@ -16,15 +14,14 @@ import util.Pose;
  * @author Dylan B. - 18597 RoboClovers - Delta
  */
 @SuppressWarnings("unused")
-@TeleOp(name = "MecanumDrive Test", group = "Apex beta test")
-public class MecanumDriveTest extends LinearOpMode {
-    Pose startPose = new Pose(0, 0, 0, Distance.Units.INCHES, Angle.Units.DEGREES, false);
+@TeleOp(name = "Mecanum TeleOp", group = "Apex Pathing Tests")
+public class MecanumTeleOp extends LinearOpMode {
 
     @Override
     public void runOpMode() {
         // !!!! NOTE: Do not directly use the drivetrain or localizer in the opmode, only use the follower !!!!
         Mecanum drivetrain = new Mecanum(hardwareMap, Constants.driveConstants);
-        Pinpoint localizer = new Pinpoint(hardwareMap, Constants.localizerConstants, startPose);
+        Pinpoint localizer = new Pinpoint(hardwareMap, Constants.localizerConstants, Pose.zero());
         P2PFollower follower = new P2PFollower(Constants.followerConstants, drivetrain, localizer);
 
         telemetry.addData("Status", "Initialized");
@@ -36,13 +33,12 @@ public class MecanumDriveTest extends LinearOpMode {
             localizer.update();
             Pose currentPose = localizer.getPose();
 
-            // Read driver inputs (invert Y so forward stick = positive drive)
+            // Invert Y and turn inputs
             double x = gamepad1.left_stick_x;
             double y = -gamepad1.left_stick_y;
-            double turn = gamepad1.right_stick_x;
+            double turn = -gamepad1.right_stick_x;
 
-            // Start: emergency stop — cuts all motor power
-            if (gamepad1.start) {
+            if (gamepad1.left_trigger_pressed) { // Emergency stop
                 follower.stop();
                 telemetry.addLine("Follower stopped");
             } else {

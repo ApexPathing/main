@@ -59,6 +59,15 @@ public class Pose {
                 Distance.Units.INCHES, Angle.Units.RADIANS, mirror
         );
     }
+
+    /**
+     * Factory method to create a {@link Pose} at (0, 0, 0) in default units
+     * (inches and radians) with no mirroring
+     * @return a new {@link Pose} object representing the origin pose with 0 heading
+     */
+    public static Pose zero() {
+        return new Pose(0, 0, 0);
+    }
     // endregion
 
     // TODO: Javadocs
