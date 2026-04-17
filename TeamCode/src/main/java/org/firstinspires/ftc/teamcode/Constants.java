@@ -24,11 +24,12 @@ public class Constants {
             .setFrontRightMotorName("rightFront")
             .setBackRightMotorName("rightRear")
             .setFrontRightReversed(true)
-            .setFrontRightReversed(true)
+            .setBackRightReversed(true)
             .setBrakeMode(true)
             .setRobotCentric(true)
             .setMaxPower(0.5);
 
+    /** Example tank drive constants
     public static TankConstants tankDriveConstants = new TankConstants()
             .setFourMotorDrive(true)
             .setFrontLeftMotorName("leftFront")
@@ -36,10 +37,11 @@ public class Constants {
             .setFrontRightMotorName("rightFront")
             .setBackRightMotorName("rightRear")
             .setFrontRightReversed(true)
-            .setFrontRightReversed(true)
+            .setBackRightReversed(true)
             .setBrakeMode(true)
             .setRobotCentric(true)
             .setMaxPower(0.5);
+     **/
 
     public static PinpointConstants localizerConstants = new PinpointConstants()
             .setName("pinpoint")

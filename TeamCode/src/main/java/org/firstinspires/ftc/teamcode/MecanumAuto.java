@@ -11,30 +11,26 @@ import util.Distance;
 import util.Pose;
 import util.PoseBuilder;
 
-@Autonomous(name = "SimpleTestAuto", group = "tests")
-public class SimpleTestAuto extends LinearOpMode {
-    private P2PFollower follower;
+@Autonomous(name = "Mecanum Test Auto", group = "Apex Pathing Tests")
+public class MecanumAuto extends LinearOpMode {
     private int iterator = 0;
 
     // Poses
-    // pb is for peanut butter (～￣▽￣)～
     private final PoseBuilder pb = new PoseBuilder(Distance.Units.INCHES, Angle.Units.DEGREES, false);
     final Pose[] poses = {
-        pb.build(0, 0, 0), // startPose
-        pb.build(24, 0, 0), // test X movement
-        pb.build(24, 24, 0), // Test Y movement
-        pb.build(24, 24, 90), // Test rotation
-        pb.build(0, 24, 90), // Test rotation + x movement
-        pb.build(0, 0, 90) // Test rotation + y movement
+            pb.build(0, 0, 0), // startPose
+            pb.build(24, 0, 0), // X movement
+            //pb.build(24, 24, 0), // Y movement
+            //pb.build(24, 24, 90), // Heading movement
+            //pb.build(0, 0, 0) // All at once
     };
 
-
     @Override
-    public void runOpMode() throws InterruptedException {
+    public void runOpMode() {
         // !!!! NOTE: Do not directly use the drivetrain or localizer in the opmode, only use the follower !!!!
         Mecanum drivetrain = new Mecanum(hardwareMap, Constants.driveConstants);
         Pinpoint localizer = new Pinpoint(hardwareMap, Constants.localizerConstants, poses[0]);
-        follower = new P2PFollower(Constants.followerConstants, drivetrain, localizer);
+        P2PFollower follower = new P2PFollower(Constants.followerConstants, drivetrain, localizer);
 
         telemetry.addData("Status", "Initialized");
         telemetry.update();
@@ -43,11 +39,14 @@ public class SimpleTestAuto extends LinearOpMode {
         while (opModeIsActive()) {
             follower.update();
 
-            if (!follower.isBusy() && iterator < poses.length - 1) {
-                iterator ++;
-                follower.setTargetPose(poses[iterator]);
-            } else {
-                follower.stop();
+            if (!follower.isBusy()) {
+                if (iterator < poses.length - 1) {
+                    iterator++;
+                    follower.setTargetPose(poses[iterator]);
+                } else {
+                    // We've reached the final pose
+                    follower.stop();
+                }
             }
 
             // Stop
