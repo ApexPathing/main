@@ -20,7 +20,6 @@ public class HeadingTuner extends OpMode {
     private Drivetrain drivetrain;
     private Localizer localizer;
     double target = 0;
-    public static double headingTarget;
     public static double minPower;
     public static double deadzone;
     public static double proportionalGain;
