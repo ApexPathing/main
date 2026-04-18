@@ -38,8 +38,6 @@ public class MecanumAuto extends LinearOpMode {
         waitForStart();
 
         while (opModeIsActive()) {
-            follower.update();
-
             if (!follower.isBusy()) {
                 if (iterator < poses.length - 1) {
                     iterator++;
@@ -47,8 +45,11 @@ public class MecanumAuto extends LinearOpMode {
                 } else {
                     // We've reached the final pose
                     follower.stop();
+                    requestOpModeStop();
                 }
             }
+
+            follower.update();
 
             // Stop
             if (gamepad1.a) {
@@ -60,6 +61,8 @@ public class MecanumAuto extends LinearOpMode {
             telemetry.addData("Target Pose", follower.getTargetPose().toString());
             telemetry.addData("Velocity", follower.getVelocity().toString());
             telemetry.addData("Is Busy", follower.isBusy());
+            telemetry.addData("Translational at target", follower.translationalAtTarget());
+            telemetry.addData("Heading at target", follower.headingAtTarget());
             telemetry.update();
         }
     }

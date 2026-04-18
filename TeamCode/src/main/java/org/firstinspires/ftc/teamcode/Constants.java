@@ -67,10 +67,10 @@ public class Constants {
     public static P2PFollowerConstants followerConstants = new P2PFollowerConstants()
             .setTranslationalGain(0.05)
             .setTranslationalD(0)
-            .setHeadingGain(0.35)
-            .setHeadingD(0)
-            .setTranslationalTolerance(1.0) // Inches
+            .setHeadingGain(1)
+            .setHeadingD(0.05)
+            .setTranslationalTolerance(67) // Inches
             .setHeadingTolerance(3.0) // Degrees
             .setMaxPower(0.5) // Power limits can be overwritten by the drivetrain's power limits, these are specifically for following
-            .setMinPower(0.05); //TODO: tune FIRST (this is basically kS, so just increase until robot barely moves)
+            .setMinPower(0.04); //TODO: tune FIRST (this is basically kS, so just increase until robot barely moves)
 }
