@@ -68,8 +68,9 @@ public class P2PFollower extends Follower {
             return;
         }
 
-        Vector drive = translationalController.calculate(translationError).rotated(-location.getHeading());
-        double turn = headingController.calculate(headingError);
+        //Vector drive = translationalController.calculate(translationError).rotated(-location.getHeading());
+        Vector drive = new Vector(0, 0);
+        double turn = -headingController.calculate(headingError);
 
         // Note: minimum power provided by controllers
         if (drive.getMagnitudeSquared() > constants.maxPower * constants.maxPower) {

@@ -7,6 +7,7 @@ import commands.CommandScheduler;
 import commands.InstantCommand;
 import drivetrains.Mecanum;
 
+import localizers.OTOS;
 import localizers.Pinpoint;
 import org.firstinspires.ftc.teamcode.Constants;
 import util.Pose;
@@ -24,7 +25,7 @@ public class QuinticTestAuto extends LinearOpMode {
         Pose startPose = new Pose(0, 0, 0);
 
         Mecanum drivetrain = new Mecanum(hardwareMap, Constants.driveConstants);
-        Pinpoint localizer = new Pinpoint(hardwareMap, Constants.localizerConstants, startPose);
+        OTOS localizer = new OTOS(hardwareMap, Constants.localizerConstants, Pose.zero());
         QuinticFollower follower = new QuinticFollower(drivetrain, localizer);
 
         waitForStart();
