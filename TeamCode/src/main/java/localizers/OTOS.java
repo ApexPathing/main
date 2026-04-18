@@ -1,6 +1,7 @@
 package localizers;
 
 import com.qualcomm.hardware.sparkfun.SparkFunOTOS;
+import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
@@ -13,16 +14,15 @@ import util.Pose;
 public class OTOS extends Localizer {
     private final SparkFunOTOS otos;
 
-    public OTOS(SparkFunOTOS otos, OTOSConstants constants, Pose startPose) {
-        this.otos = otos;
-
-        otos.setLinearUnit(DistanceUnit.INCH);
-        otos.setAngularUnit(AngleUnit.RADIANS);
-        otos.setOffset(toSparkfunPose2D(constants.offset));
-        otos.setLinearScalar(constants.linearScalar);
-        otos.setAngularScalar(constants.headingScalar);
-        otos.calibrateImu();
-        otos.resetTracking();
+    public OTOS(HardwareMap hardwareMap, OTOSConstants constants, Pose startPose) {
+        this.otos = hardwareMap.get(SparkFunOTOS.class, constants.name);
+        this.otos.setLinearUnit(DistanceUnit.INCH);
+        this.otos.setAngularUnit(AngleUnit.RADIANS);
+        this.otos.setOffset(toSparkfunPose2D(constants.offset));
+        this.otos.setLinearScalar(constants.linearScalar);
+        this.otos.setAngularScalar(constants.headingScalar);
+        this.otos.calibrateImu();
+        this.otos.resetTracking();
         this.setPose(startPose);
     }
 

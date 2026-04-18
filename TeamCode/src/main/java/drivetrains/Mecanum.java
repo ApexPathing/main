@@ -75,11 +75,10 @@ public class Mecanum extends Drivetrain {
 
     @Override
     public void moveWithVectors(double drive, double strafe, double turn) {
-        // drive = Forward (+X), strafe = Left (+Y), turn = CCW (+theta)
-        double lfPower = drive - strafe - turn;
-        double lrPower = drive + strafe - turn;
-        double rfPower = drive + strafe + turn;
-        double rrPower = drive - strafe + turn;
+        double lfPower = drive + strafe + turn;
+        double lrPower = drive - strafe + turn;
+        double rfPower = drive -strafe - turn;
+        double rrPower = drive + strafe - turn;
 
         setPowers(lfPower, lrPower, rfPower, rrPower);
     }
@@ -97,7 +96,7 @@ public class Mecanum extends Drivetrain {
             adjY = deadzone(x * sin + y * cos);
         }
         adjTurn = deadzone(turn);
-        moveWithVectors(adjX, adjY, adjTurn);
+        moveWithVectors(adjY, adjX, adjTurn);
     }
 
     @Override
