@@ -141,6 +141,18 @@ public class Swerve extends Drivetrain{
 
     @Override
     public void debug(Telemetry telemetry) {
-        
+
+    }
+
+    /**
+     * call this every loop
+     */
+    public void update(){
+        fl.update();
+        fr.update();
+        rl.update();
+        rr.update();
+
+
     }
 }

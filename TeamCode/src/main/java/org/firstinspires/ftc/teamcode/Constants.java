@@ -6,6 +6,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
 import drivetrains.constants.MecanumConstants;
+import drivetrains.constants.SwerveConstants;
 import drivetrains.constants.TankConstants;
 import localizers.constants.OTOSConstants;
 import localizers.constants.PinpointConstants;
@@ -57,6 +58,21 @@ public class Constants {
             .setYPodDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD)
             .setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
     **/
+   /* public SwerveConstants swerveConstants = new SwerveConstants()
+            .setFrontLeftMotorName("frontLeftMotor")
+            .setBackLeftMotorName("backLeftMotor")
+            .setFrontRightMotorName("frontRightMotor")
+            .setBackRightMotorName("backRightMotor")
+            .setFrontLeftServoName("flServo")
+            .setFrontRightServoName("frServo")
+            .setBackLeftServoName("blServo")
+            .setBackRightServoName("brServo")
+            .setFrontLeftEncoderName("flEncoder")
+            .setFrontRightEncoderName("frEncoder")
+            .setBackLeftEncoderName("blEncoder")
+            .setBackRightEncoderName("brEncoder")
+            .setMotorMaxPower(1)
+            ;*/
 
     public static OTOSConstants localizerConstants = new OTOSConstants()
             .setName("otos")

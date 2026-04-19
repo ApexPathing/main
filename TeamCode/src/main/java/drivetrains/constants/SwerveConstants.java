@@ -3,6 +3,7 @@ package drivetrains.constants;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
 import hardware.MotorMetaData;
+import util.Distance;
 
 /**
  * Swerve drivetrain constants class
@@ -38,6 +39,8 @@ public class SwerveConstants {
     public double trackwidth = 12; //inches
     public double wheelbase = 12; //inches
     public double diagonalDistance = Math.sqrt(Math.pow(trackwidth,2) + Math.pow(wheelbase,2));
+    public double xOffset = 0;//inches
+    public double yOffset = 0;//inches
 
     /**
      * default constructor
@@ -194,6 +197,63 @@ public class SwerveConstants {
      */
     public SwerveConstants setServoCurrentLimit(int milliamps){
         this.ServoCurrentLimit = milliamps;
+        return this;
+    }
+
+    /**
+     * sets the front left encoder name
+     * @param name as a string
+     * @return for chaining
+     */
+    public SwerveConstants setFrontLeftEncoderName(String name){
+        this.flEncoderName = name;
+        return this;
+    }
+    /**
+     * sets the front right encoder name
+     * @param name as a string
+     * @return for chaining
+     */
+    public SwerveConstants setFrontRightEncoderName(String name){
+        this.frEncoderName = name;
+        return this;
+    }
+    /**
+     * sets the back left encoder name
+     * @param name as a string
+     * @return for chaining
+     */
+    public SwerveConstants setBackLeftEncoderName(String name){
+        this.blEncoderName = name;
+        return this;
+    }
+    /**
+     * sets the back right encoder name
+     * @param name as a string
+     * @return for chaining
+     */
+    public SwerveConstants setBackRightEncoderName(String name){
+        this.brEncoderName = name;
+        return this;
+    }
+
+    /**
+     * sets the x offset
+     * @param offset is the offset
+     * @return
+     */
+    public SwerveConstants setXOffset(double offset){
+        this.xOffset = offset;
+        return this;
+    }
+
+    /**
+     * sets the y offset
+     * @param offset is the offset
+     * @return this instance for chaining
+     */
+    public SwerveConstants setYOffset(double offset){
+        this.yOffset = offset;
         return this;
     }
 
