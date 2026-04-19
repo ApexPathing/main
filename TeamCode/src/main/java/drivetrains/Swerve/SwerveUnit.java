@@ -4,12 +4,11 @@ package drivetrains.Swerve;
  * @author Xander Haemel - 31616 404 not found
  * @author Sohum Arora 22985 Paraducks
  */
-public class SwerveUnitUpdated {
+public class SwerveUnit {
     private double motorPower;
     private double servoAngle;
-
-    public SwerveUnitUpdated(double newMotorPower, double newServoAngle) {
-        
+    public SwerveUnit(double motorPower, double servoAngle) {
+        setSwerveUnits(motorPower, servoAngle);
     }
 
     /**
@@ -34,4 +33,13 @@ public class SwerveUnitUpdated {
      * @param motorPower is the motor power
      */
     public void setMotorSpeed(double motorPower) {this.motorPower = motorPower;}
+
+    /**
+     * @param motorPower sets motor power
+     * @param servoAngle sets servo angle
+     */
+    public void setSwerveUnits(double motorPower, double servoAngle) {
+        setMotorSpeed(motorPower);
+        setServoAngle(servoAngle);
+    }
 }

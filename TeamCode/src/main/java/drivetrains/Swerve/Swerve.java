@@ -1,4 +1,4 @@
-package drivetrains;
+package drivetrains.Swerve;
 
 import androidx.annotation.NonNull;
 
@@ -7,10 +7,9 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
-import hardware.SwerveModule;
+import drivetrains.Drivetrain;
 import drivetrains.constants.SwerveConstants;
 import hardware.MotorEx;
-import util.SwerveUnit;
 
 /**
  * Swerve drive class.
@@ -114,7 +113,7 @@ public class Swerve extends Drivetrain {
             power *= -1;
             wrappedDelta -= Math.copySign(180, wrappedDelta);
         }
-        return new SwerveUnit(power, currentAngle + wrappedDelta);
+         return new SwerveUnit(power, currentAngle + wrappedDelta);
     }
 
     /** Call every loop iteration. */
@@ -140,14 +139,14 @@ public class Swerve extends Drivetrain {
     }
 
     @Override
-    public void debug(Telemetry telemetry) {
+    public void logData(Telemetry telemetry) {
         telemetry.addData("FL heading", fl.getPodHeading());
         telemetry.addData("FR heading", fr.getPodHeading());
         telemetry.addData("RL heading", rl.getPodHeading());
         telemetry.addData("RR heading", rr.getPodHeading());
-        telemetry.addData("FL power",   flMotor.getPower());
-        telemetry.addData("FR power",   frMotor.getPower());
-        telemetry.addData("BL power",   blMotor.getPower());
-        telemetry.addData("BR power",   brMotor.getPower());
+        telemetry.addData("FL power", flMotor.getPower());
+        telemetry.addData("FR power", frMotor.getPower());
+        telemetry.addData("BL power", blMotor.getPower());
+        telemetry.addData("BR power", brMotor.getPower());
     }
 }

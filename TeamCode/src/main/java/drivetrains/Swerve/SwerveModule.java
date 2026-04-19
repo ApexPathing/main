@@ -1,10 +1,10 @@
-package hardware;
+package drivetrains.Swerve;
 
 import com.qualcomm.robotcore.hardware.AnalogInput;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
-import util.SwerveUnit;
+import hardware.MotorEx;
 
 /**
  * Represents one swerve pod: a drive motor + CRServo steering + analog encoder feedback.

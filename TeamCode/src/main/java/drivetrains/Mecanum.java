@@ -105,7 +105,7 @@ public class Mecanum extends Drivetrain {
     }
 
     @Override
-    public void debug(Telemetry telemetry) {
+    public void logData(Telemetry telemetry) {
         telemetry.addData("Front Left Power", flMotor.motor.getPower());
         telemetry.addData("Front Right Power", frMotor.motor.getPower());
         telemetry.addData("Back left Power", blMotor.motor.getPower());
