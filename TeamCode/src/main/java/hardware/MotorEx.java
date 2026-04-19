@@ -8,6 +8,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 /**
  * A class to seamlessly combine MotorMetaData with the hardware.
  * @author Atharv G - 13085 Bionic Dutch
+ * @author Sohum Arora 22985 Paraducks
  */
 public class MotorEx {
     public DcMotorEx motor;
@@ -35,5 +36,12 @@ public class MotorEx {
     public void setBrakeMode(DcMotor.ZeroPowerBehavior mode) {
         motor.setZeroPowerBehavior(mode);
         data.setBrakeMode(mode);
+    }
+    public void setPower(double power) {
+        motor.setPower(power);
+    }
+
+    public double getPower() {
+        return motor.getPower();
     }
 }

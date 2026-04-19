@@ -106,12 +106,8 @@ public class AxonAndAbsEncoderData {
         return maximumVoltage;
     }
 
-    /**
+    /*
      * gets kI term
      * @return the raw term
      */
-
-
-
-
 }
