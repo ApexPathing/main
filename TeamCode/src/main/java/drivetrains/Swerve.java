@@ -10,9 +10,10 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import hardware.SwerveModule;
 import drivetrains.constants.SwerveConstants;
 import hardware.MotorEx;
-import util.XaddyUnit;
+import util.SwerveUnit;
 
 /**
+ * swerve drive class
  * @author Xander Haemel
  */
 public class Swerve extends Drivetrain{
@@ -23,7 +24,6 @@ public class Swerve extends Drivetrain{
     MotorEx blMotor;
     MotorEx frMotor;
     MotorEx brMotor;
-
 
     SwerveModule fl;
     SwerveModule rl;
@@ -51,23 +51,19 @@ public class Swerve extends Drivetrain{
         rr = new SwerveModule(hardwareMap, brMotor);
     }
 
-    /**
-     * set power based on inputs
-     * @param lfPower is left front power from 0.0 - 0.1
-     * @param lrPower is left rear power from 0.0 - 0.1
-     * @param rfPower is right front power from 0.0 - 0.1
-     * @param rrPower is right rear power from 0.0 - 0.1
-     */
-    private void setPower(double lfPower, double lrPower, double rfPower, double rrPower){
 
-    }
 
     @Override
     protected void setZeroPowerBehavior(DcMotor.ZeroPowerBehavior behavior) {
 
     }
 
-
+    /**
+     * moves the robot with vectors
+     * @param drive the forward/backward movement vector (positive for forward, negative for backward)
+     * @param strafe the left/right movement vector (positive for right, negative for left)
+     * @param turn the rotation vector (positive for clockwise, negative for counterclockwise)
+     */
     @Override
     public void moveWithVectors(double drive, double strafe, double turn){
         //make turn angle clockwise
@@ -88,28 +84,32 @@ public class Swerve extends Drivetrain{
         double rearRightSpeed = Math.sqrt(Math.pow(strafeRear,2) + Math.pow(forwardRight, 2));
 
         //optimize and calculate wheel angles rather than turning 180 degrees
-
-        XaddyUnit frontRight = optimizeWheelAngle(fr.getPodHeading(), Math.atan2(strafeFront, forwardRight)*180/Math.PI, frontRightSpeed);
-        XaddyUnit frontLeft  = optimizeWheelAngle(fl.getPodHeading(), Math.atan2(strafeFront, forwardLeft)*180/Math.PI,  frontLeftSpeed);
-        XaddyUnit rearLeft   = optimizeWheelAngle(rl.getPodHeading(), Math.atan2(strafeRear, forwardLeft)*180/Math.PI, rearLeftSpeed);
-        XaddyUnit rearRight  = optimizeWheelAngle(rr.getPodHeading(), Math.atan2(strafeRear,forwardRight)*180/Math.PI, rearRightSpeed);
+        SwerveUnit frontRight = optimizeWheelAngle(fr.getPodHeading(), Math.atan2(strafeFront, forwardRight)*180/Math.PI, frontRightSpeed);
+        SwerveUnit frontLeft  = optimizeWheelAngle(fl.getPodHeading(), Math.atan2(strafeFront, forwardLeft)*180/Math.PI,  frontLeftSpeed);
+        SwerveUnit rearLeft   = optimizeWheelAngle(rl.getPodHeading(), Math.atan2(strafeRear, forwardLeft)*180/Math.PI, rearLeftSpeed);
+        SwerveUnit rearRight  = optimizeWheelAngle(rr.getPodHeading(), Math.atan2(strafeRear,forwardRight)*180/Math.PI, rearRightSpeed);
 
         //scale powers to be =<1
-        double max = frontRight.getMotorPower();
-        if(frontLeft.getMotorPower()> max){
-            max = frontLeft.getMotorPower();
-        } if(rearLeft.getMotorPower() > max){
-            max = rearLeft.getMotorPower();
-        } if(rearRight.getMotorPower()> max){
-            max = rearRight.getMotorPower();
+        double max = Math.abs(frontRight.getMotorPower());
+        if(Math.abs(frontLeft.getMotorPower())> max){
+            max = Math.abs(frontLeft.getMotorPower());
+        } if(Math.abs(rearLeft.getMotorPower()) > max){
+            max = Math.abs(rearLeft.getMotorPower());
+        } if(Math.abs(rearRight.getMotorPower())> max){
+            max = Math.abs(rearRight.getMotorPower());
         }
         //scale down if powers are greater than 1
-       /* if(max > 1){
-            frontRight.setMotorSpeed(forwardRight./= max;
-            frontLeftSpeed  /= max;
-            rearLeftSpeed   /= max;
-            rearRightSpeed  /= max;
-        }*/ //todo fix power scaling
+        if(max > 1){
+            frontRight.setMotorSpeed(frontRight.getMotorPower() / max);
+            frontLeft.setMotorSpeed(frontLeft.getMotorPower() / max);
+            rearLeft.setMotorSpeed(rearLeft.getMotorPower() / max);
+            rearRight.setMotorSpeed(rearRight.getMotorPower() / max);
+        }
+        //setPowersAndAngles
+        fr.setPodAngleAndPower(frontRight);
+        fl.setPodAngleAndPower(frontLeft);
+        rl.setPodAngleAndPower(rearLeft);
+        rr.setPodAngleAndPower(rearRight);
     }
 
     /**
@@ -119,14 +119,14 @@ public class Swerve extends Drivetrain{
      * @param power the power of the swerve pod 0.0-1.0
      * @return the pod angle (degrees)
      */
-    private XaddyUnit optimizeWheelAngle(double currentAngle, double targetAngle, double power){
+    private SwerveUnit optimizeWheelAngle(double currentAngle, double targetAngle, double power){
         double delta = targetAngle- currentAngle;
         double wrappedDelta = delta - (360 * Math.round(delta /360.0));
         if(Math.abs(wrappedDelta) > 90){
             power *= -1;
             wrappedDelta -= Math.copySign(180, wrappedDelta);
         }
-        return new XaddyUnit(power, currentAngle + wrappedDelta);
+        return new SwerveUnit(power, currentAngle + wrappedDelta);
     }
 
     @Override
@@ -141,6 +141,6 @@ public class Swerve extends Drivetrain{
 
     @Override
     public void debug(Telemetry telemetry) {
-
+        
     }
 }

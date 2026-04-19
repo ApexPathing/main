@@ -4,6 +4,8 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 
+import util.SwerveUnit;
+
 /**
  * swerve module class
  * @author Xander Haemel - 31616  404 Not Found
@@ -29,10 +31,13 @@ public class SwerveModule {
      * runs the motor to a power
      * @param power is the power to run to (0.0 to 1.0)
      */
-    public void setDutyCycle(double power){
+    public void setPower(double power){
         motor.motor.setPower(power);
     }
-
+    public void setPodAngleAndPower(SwerveUnit x){
+        motor.motor.setPower(x.getMotorPower());
+        servoController.setTargetPosition(x.getServoAngle());
+    }
     /**
      * sets the pod to a new heading angle
      * @param angle is in degrees
