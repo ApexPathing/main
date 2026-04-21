@@ -8,7 +8,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 import drivetrains.constants.TankConstants;
-import motors.MotorEx;
+import hardware.MotorEx;
 
 /**
  * Tank Drivetrain controller class
@@ -85,7 +85,7 @@ public class Tank extends Drivetrain {
     }
 
     @Override
-    public void debug(Telemetry telemetry) {
+    public void logData(Telemetry telemetry) {
         telemetry.addData("Front Left Power", flMotor.motor.getPower());
         telemetry.addData("Front Right Power", frMotor.motor.getPower());
 

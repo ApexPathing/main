@@ -66,5 +66,5 @@ public abstract class Drivetrain {
     /**
      * Uses the telemetry object to display relevant drivetrain information such as motor powers and velocities.
      */
-    public abstract void debug(Telemetry telemetry);
+    public abstract void logData(Telemetry telemetry);
 }

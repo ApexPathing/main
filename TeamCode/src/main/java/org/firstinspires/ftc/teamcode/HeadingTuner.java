@@ -4,18 +4,17 @@ import com.bylazar.configurables.PanelsConfigurables;
 import com.bylazar.configurables.annotations.Configurable;
 import com.bylazar.telemetry.PanelsTelemetry;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import controllers.PDFLController;
 import drivetrains.Drivetrain;
 import drivetrains.Mecanum;
-import followers.Follower;
-import followers.P2PFollower;
 import localizers.Localizer;
-import localizers.Pinpoint;
-import localizers.constants.PinpointConstants;
+import localizers.OTOS;
 import util.Pose;
 
 @Configurable
+@TeleOp(name = "Heading Tuner", group = "Apex Pathing Tuning")
 public class HeadingTuner extends OpMode {
     private Drivetrain drivetrain;
     private Localizer localizer;
@@ -29,7 +28,7 @@ public class HeadingTuner extends OpMode {
     @Override
     public void init() {
         drivetrain = new Mecanum(hardwareMap, Constants.driveConstants);
-        localizer = new Pinpoint(hardwareMap, new PinpointConstants(), new Pose(0,0,0));
+        localizer = new OTOS(hardwareMap, Constants.localizerConstants, new Pose(0,0,0));
         controller = new PDFLController(proportionalGain, derivativeGain, 0.0, minPower);
         controller.setDeadzone(deadzone);
         controller.useAsAngularController();
@@ -39,12 +38,14 @@ public class HeadingTuner extends OpMode {
 
     @Override
     public void loop() {
+        localizer.update();
+
         if (gamepad1.a) {
             target = Math.PI;
-            drivetrain.moveWithVectors(0,0, controller.calculate(Math.PI - localizer.getPose().getHeading()));
+            drivetrain.moveWithVectors(0,0, -controller.calculate(Math.PI - localizer.getPose().getHeading()));
         } else if (gamepad1.b) {
             target = 0;
-            drivetrain.moveWithVectors(0,0, controller.calculate(0 - localizer.getPose().getHeading()));
+            drivetrain.moveWithVectors(0,0, -controller.calculate(0 - localizer.getPose().getHeading()));
         } else {
             drivetrain.stop();
         }

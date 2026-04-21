@@ -3,7 +3,7 @@ package drivetrains.constants;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
-import motors.MotorMetaData;
+import hardware.MotorMetaData;
 
 /**
  * Tank drivetrain constants class

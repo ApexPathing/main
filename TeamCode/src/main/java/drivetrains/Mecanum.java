@@ -8,7 +8,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 import drivetrains.constants.MecanumConstants;
-import motors.MotorEx;
+import hardware.MotorEx;
 
 /**
  * Mecanum Drivetrain controller class
@@ -105,7 +105,7 @@ public class Mecanum extends Drivetrain {
     }
 
     @Override
-    public void debug(Telemetry telemetry) {
+    public void logData(Telemetry telemetry) {
         telemetry.addData("Front Left Power", flMotor.motor.getPower());
         telemetry.addData("Front Right Power", frMotor.motor.getPower());
         telemetry.addData("Back left Power", blMotor.motor.getPower());
