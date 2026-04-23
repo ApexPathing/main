@@ -36,12 +36,10 @@ public class Swerve extends Drivetrain {
         this.br = constants.brModuleConstants.build(hardwareMap);
     }
     
-    @Override
     protected boolean isRobotCentric() {
         return constants.robotCentric;
     }
 
-    @Override
     public void moveWithVectors(double drive, double strafe, double turn){
         turn *= -1; // Clockwise turn angle
 
@@ -75,7 +73,6 @@ public class Swerve extends Drivetrain {
         this.fl.update(); this.bl.update(); this.fr.update(); this.br.update();
     }
 
-    @Override
     public void stop() {
         this.fl.stop(); this.bl.stop(); this.fr.stop(); this.br.stop(); // Note: stop() calls update()
     }
