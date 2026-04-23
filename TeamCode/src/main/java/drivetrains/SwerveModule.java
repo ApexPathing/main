@@ -7,6 +7,8 @@ import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
+import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
+
 import java.util.Locale;
 
 import drivetrains.constants.SwerveModuleConstants;
@@ -120,5 +122,13 @@ public class SwerveModule {
     public String toString() {
         return String.format(Locale.ENGLISH, "SwerveModule(angle=%.1f, power=%.1f)",
                 getAngle(), targetPower);
+    }
+
+    /**
+     * gets the amount the current is using
+     * @return this in Amps
+     */
+    public double getCurrent(){
+        return driveMotor.getCurrent(CurrentUnit.AMPS);
     }
 }

@@ -30,6 +30,7 @@ public class MecanumConstants extends DrivetrainConstants {
     public boolean useFeedForward = true; // Whether to use feedforward in the velocity controller TODO: USE THIS
     public boolean robotCentric = true; // Whether to use robot-centric controls (true) or field-centric controls (false) in TeleOp
 
+    public double currentLimit = 8; //amps
     /**
      * Constructor for the MecanumConstants class
      */
@@ -182,4 +183,16 @@ public class MecanumConstants extends DrivetrainConstants {
         this.robotCentric = robotCentric;
         return this;
     }
+
+    /**
+     * sets the current limit
+     * @param amps is the limit in Amps
+     * @return this instance for chaining
+     */
+    public MecanumConstants setCurrentLimit(double amps){
+        this.currentLimit = amps;
+        return this;
+    }
+
+
 }

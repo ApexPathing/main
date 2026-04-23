@@ -30,6 +30,8 @@ public class SwerveConstants extends DrivetrainConstants {
     public double maxPower = 1.0; // Max power to apply to any module's motor, from 0 to 1
     public boolean robotCentric = true; // Whether to use robot-centric controls (true) or field-centric controls (false) in TeleOp
 
+    private double totalMaxCurrent = 8; //amps
+
     /** Constructor for the SwerveConstants class */
     public SwerveConstants() {}
 
@@ -51,6 +53,9 @@ public class SwerveConstants extends DrivetrainConstants {
     /** @return the ratio between the trackwidth and diagonal distance. */
     public double getTrackWidthRatio() { return this.trackWidth.getIn() / this.diagonalDistance; }
 
+    /** @return the maximum current for the drivetrain
+     */
+    public double MaxCurrentThreshold(){return this.totalMaxCurrent; }
     /**
      * Sets the front left module constants.
      * @param constants the {@link SwerveModuleConstants} to use for the front left module
@@ -141,6 +146,16 @@ public class SwerveConstants extends DrivetrainConstants {
         this.blModuleConstants.steeringPGain = kP;
         this.frModuleConstants.steeringPGain = kP;
         this.brModuleConstants.steeringPGain = kP;
+        return this;
+    }
+
+    /**
+     * sets the maximum current limit for the drivetrain
+     * @param amperes is the current limit in amps
+     * @return this instance for chaining
+     */
+    public SwerveConstants setMaxCurrent(double amperes){
+        this.totalMaxCurrent = amperes;
         return this;
     }
 }
