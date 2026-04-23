@@ -9,11 +9,17 @@ import org.firstinspires.ftc.teamcode.Constants;
 
 import controllers.PDFLController;
 import drivetrains.Drivetrain;
-import drivetrains.Mecanum;
 import localizers.Localizer;
-import localizers.OTOS;
 import util.Pose;
 
+/**
+ * OpMode for tuning the heading controller with Panels. Hold A to turn the robot 180 degrees and
+ * hold B to turn it back to the starting heading. Adjust the proportional gain, derivative gain,
+ * minimum power, and deadzone in Panels.
+ *
+ * @author Joel - 7842 Browncoats Alumni
+ * @author Dylan B. - 18597 RoboClovers - Delta
+ */
 @Configurable
 @TeleOp(name = "Heading Tuner", group = "Apex Pathing Tuning")
 public class HeadingTuner extends OpMode {
@@ -28,8 +34,9 @@ public class HeadingTuner extends OpMode {
 
     @Override
     public void init() {
-        drivetrain = new Mecanum(hardwareMap, Constants.driveConstants);
-        localizer = new OTOS(hardwareMap, Constants.localizerConstants, new Pose(0,0,0));
+        Constants constants = new Constants();
+        drivetrain = constants.buildOnlyDrivetrain(hardwareMap);
+        localizer = constants.buildOnlyLocalizer(hardwareMap, Pose.zero());
         controller = new PDFLController(proportionalGain, derivativeGain, 0.0, minPower);
         controller.setDeadzone(deadzone);
         controller.useAsAngularController();

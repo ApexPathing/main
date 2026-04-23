@@ -2,15 +2,19 @@ package drivetrains.constants;
 
 import com.qualcomm.robotcore.hardware.DcMotor.ZeroPowerBehavior;
 import com.qualcomm.robotcore.hardware.DcMotorSimple.Direction;
+import com.qualcomm.robotcore.hardware.HardwareMap;
 
-import hardware.MotorMetaData;
+import drivetrains.Drivetrain;
+import drivetrains.Mecanum;
+import util.MotorMetaData;
 
 /**
  * Mecanum drivetrain constants class
+ *
  * @author Xander Haemel - 31616 404 Not Found
  * @author Dylan B. - 18597 RoboClovers - Delta
  */
-public class MecanumConstants {
+public class MecanumConstants extends DrivetrainConstants {
     // Motors
     public MotorMetaData flData = new MotorMetaData("front_left_drive");
     public MotorMetaData blData = new MotorMetaData("back_left_drive");
@@ -31,6 +35,11 @@ public class MecanumConstants {
      */
     public MecanumConstants() {}
 
+    @Override
+    public Drivetrain build(HardwareMap hardwareMap) {
+        return new Mecanum(hardwareMap, this);
+    }
+
     /**
      * Sets the left front motor name. Default: "front_left_drive"
      * @param name the name of the left front motor
@@ -40,6 +49,7 @@ public class MecanumConstants {
         this.flData.setName(name);
         return this;
     }
+
     /**
      * Sets the left rear motor name. Default: "back_left_drive"
      * @param name the name of the left rear motor
@@ -49,6 +59,7 @@ public class MecanumConstants {
         this.blData.setName(name);
         return this;
     }
+
     /**
      * Sets the right front motor name. Default: "front_right_drive"
      * @param name the name of the right front motor
@@ -58,6 +69,7 @@ public class MecanumConstants {
         this.frData.setName(name);
         return this;
     }
+
     /**
      * Sets the right rear motor name. Default: "back_right_drive"
      * @param name the name of the right rear motor
@@ -77,6 +89,7 @@ public class MecanumConstants {
         this.flData.setDirection(reversed ? Direction.REVERSE : Direction.FORWARD);
         return this;
     }
+
     /**
      * Default direction is FORWARD.
      * @param reversed whether the back left motor is reversed
@@ -86,6 +99,7 @@ public class MecanumConstants {
         this.blData.setDirection(reversed ? Direction.REVERSE : Direction.FORWARD);
         return this;
     }
+
     /**
      * Default direction is FORWARD.
      * @param reversed whether the front right motor is reversed
@@ -95,6 +109,7 @@ public class MecanumConstants {
         this.frData.setDirection(reversed ? Direction.REVERSE : Direction.FORWARD);
         return this;
     }
+
     /**
      * Default direction is FORWARD.
      * @param reversed whether the back right motor is reversed
@@ -114,6 +129,7 @@ public class MecanumConstants {
         this.xVelocity = xVelocity;
         return this;
     }
+
     /**
      * Sets the Y velocity value from tuning.
      * @param yVelocity the Y velocity in inches per second

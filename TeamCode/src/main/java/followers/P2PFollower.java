@@ -3,7 +3,7 @@ package followers;
 import com.qualcomm.robotcore.util.Range;
 
 import controllers.PDFLController;
-import controllers.VectorControllers.PDLVectorController;
+import controllers.vector.PDLVectorController;
 import drivetrains.Drivetrain;
 import localizers.Localizer;
 import followers.constants.P2PFollowerConstants;
@@ -28,10 +28,8 @@ public class P2PFollower extends Follower {
      * @param localizer the Pinpoint localizer to get pose estimates from
      */
     public P2PFollower(P2PFollowerConstants constants, Drivetrain drivetrain, Localizer localizer) {
+        super(drivetrain, localizer);
         this.constants = constants;
-        this.drivetrain = drivetrain;
-        this.localizer = localizer;
-
         this.translationalController = constants.translationalController;
         this.headingController = constants.headingController;
     }

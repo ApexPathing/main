@@ -2,16 +2,18 @@ package drivetrains;
 
 import androidx.annotation.NonNull;
 
-import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
+import java.util.Locale;
+
 import drivetrains.constants.TankConstants;
-import hardware.MotorEx;
 
 /**
  * Tank Drivetrain controller class
+ *
  * @author Xander Haemel - 31616 - 404 Not Found
  * @author Dylan B. - 18597 RoboClovers - Delta
  */
@@ -19,32 +21,37 @@ public class Tank extends Drivetrain {
     TankConstants constants;
 
     // Motors
-    MotorEx flMotor;
-    MotorEx blMotor; // Only used for 4 motor tank drive
-    MotorEx frMotor;
-    MotorEx brMotor; // Only used for 4 motor tank drive
+    DcMotorEx flMotor;
+    DcMotorEx blMotor; // Only used for 4 motor tank drive
+    DcMotorEx frMotor;
+    DcMotorEx brMotor; // Only used for 4 motor tank drive
 
     public Tank(HardwareMap hardwareMap, @NonNull TankConstants constants) {
         this.constants = constants;
 
-        flMotor = new MotorEx(hardwareMap, constants.flData);
-        frMotor = new MotorEx(hardwareMap, constants.frData);
+        flMotor = this.constants.flData.build(hardwareMap);
+        frMotor = this.constants.frData.build(hardwareMap);
 
         if (constants.fourMotor) {
-            blMotor = new MotorEx(hardwareMap, constants.blData);
-            brMotor = new MotorEx(hardwareMap, constants.brData);
+            blMotor = this.constants.blData.build(hardwareMap);
+            brMotor = this.constants.brData.build(hardwareMap);
         }
     }
 
     @Override
-    protected void setZeroPowerBehavior(DcMotor.ZeroPowerBehavior behavior) {
-        flMotor.setBrakeMode(behavior);
-        frMotor.setBrakeMode(behavior);
+    protected void setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior behavior) {
+        flMotor.setZeroPowerBehavior(behavior);
+        frMotor.setZeroPowerBehavior(behavior);
 
         if (constants.fourMotor) {
-            blMotor.setBrakeMode(behavior);
-            brMotor.setBrakeMode(behavior);
+            blMotor.setZeroPowerBehavior(behavior);
+            brMotor.setZeroPowerBehavior(behavior);
         }
+    }
+
+    @Override
+    protected boolean isRobotCentric() {
+        return this.constants.robotCentric;
     }
 
     @Override
@@ -70,12 +77,12 @@ public class Tank extends Drivetrain {
     }
 
     public void setPowers(double leftPower, double rightPower) {
-        flMotor.motor.setPower(leftPower);
-        frMotor.motor.setPower(rightPower);
+        flMotor.setPower(leftPower);
+        frMotor.setPower(rightPower);
 
         if (constants.fourMotor) {
-            blMotor.motor.setPower(leftPower);
-            brMotor.motor.setPower(rightPower);
+            blMotor.setPower(leftPower);
+            brMotor.setPower(rightPower);
         }
     }
 
@@ -85,13 +92,27 @@ public class Tank extends Drivetrain {
     }
 
     @Override
-    public void logData(Telemetry telemetry) {
-        telemetry.addData("Front Left Power", flMotor.motor.getPower());
-        telemetry.addData("Front Right Power", frMotor.motor.getPower());
+    public void debug(Telemetry telemetry) {
+        telemetry.addData("Front Left Power", flMotor.getPower());
+        telemetry.addData("Front Right Power", frMotor.getPower());
 
         if (constants.fourMotor) {
-            telemetry.addData("Back left Power", blMotor.motor.getPower());
-            telemetry.addData("Back Right Power", brMotor.motor.getPower());
+            telemetry.addData("Back left Power", blMotor.getPower());
+            telemetry.addData("Back Right Power", brMotor.getPower());
+        }
+    }
+    
+    @NonNull
+    @Override
+    public String toString() {
+        if (constants.fourMotor) {
+            return String.format(Locale.ENGLISH,
+                    "Tank(fourMotor=true, fl=%.1f, bl=%.1f, fr=%.1f, br=%.1f)", 
+                    flMotor.getPower(), blMotor.getPower(), frMotor.getPower(), brMotor.getPower());
+        } else {
+            return String.format(Locale.ENGLISH,
+                    "Tank(fourMotor=false, fl=%.1f, fr=%.1f)", 
+                    flMotor.getPower(), frMotor.getPower());
         }
     }
 }

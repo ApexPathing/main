@@ -1,21 +1,23 @@
 package drivetrains;
 
-import com.qualcomm.robotcore.hardware.DcMotor;
+import androidx.annotation.NonNull;
+
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 /**
  * Abstract class implemented by all drivetrain classes
+ *
  * @author ohum Arora - 22985 Paraducks
  * @author Dylan B. - 18597 RoboClovers - Delta
  */
-@SuppressWarnings("unused")
 public abstract class Drivetrain {
     /**
      * Sets the zero power behavior for all drivetrain motors
      * @param behavior the zero power behavior to set for all drivetrain motors
      */
-    protected abstract void setZeroPowerBehavior(DcMotor.ZeroPowerBehavior behavior);
+    protected abstract void setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior behavior);
 
     /**
      * Applies a deadzone to the input value. If the absolute value of the input is less than 0.05,
@@ -33,11 +35,16 @@ public abstract class Drivetrain {
      */
     public void setBrakeMode(boolean brake) {
         if (brake) {
-            setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+            setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
         } else {
-            setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+            setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.FLOAT);
         }
     }
+
+    /**
+     * @return whether the drivetrain should use robot-centric controls (true) or field-centric controls (false)
+     */
+    protected abstract boolean isRobotCentric();
 
     /**
      * Moves the robot using the provided drive, strafe, and turn vectors.
@@ -49,22 +56,53 @@ public abstract class Drivetrain {
     public abstract void moveWithVectors(double drive, double strafe, double turn);
 
     /**
-     * Drives the robot using the provided joystick inputs and robot heading. The joystick inputs are adjusted
-     * for field-centric or robot-centric control based on the constants, and a deadzone is applied to prevent drift.
+     * Drives the robot with provided joystick inputs and the robot's current heading. This method
+     * is meant for field-centric control. If you are using robot-centric control, the robotHeading
+     * parameter will be ignored, you can use the other drive method that doesn't require the
+     * robot's heading.
      * @param x the left/right joystick input (positive for right, negative for left)
      * @param y the forward/backward joystick input (positive for forward, negative for backward)
      * @param turn the rotation joystick input (positive for clockwise, negative for counterclockwise)
      * @param robotHeading the current heading of the robot in radians, not used for robot centric control
      */
-    public abstract void drive(double x, double y, double turn, double robotHeading);
+    public void drive(double x, double y, double turn, double robotHeading) {
+        double adjX, adjY, adjTurn;
+        if (isRobotCentric()) {
+            adjX = deadzone(x);
+            adjY = deadzone(y);
+        } else {
+            double cos = Math.cos(-robotHeading);
+            double sin = Math.sin(-robotHeading);
+            adjX = deadzone(x * cos - y * sin);
+            adjY = deadzone(x * sin + y * cos);
+        }
+        adjTurn = deadzone(turn);
+        moveWithVectors(adjY, adjX, adjTurn);
+    }
+
+    /**
+     * Drives the robot with provided joystick inputs. This method is meant for robotic-centric
+     * control. If you are using field-centric control, you have to use the other drive method that
+     * requires the robot's current heading to be passed in as a parameter.
+     * @param x the left/right joystick input (positive for right, negative for left)
+     * @param y the forward/backward joystick input (positive for forward, negative for backward)
+     * @param turn the rotation joystick input (positive for clockwise, negative for counterclockwise)
+     */
+    public void drive(double x, double y, double turn) { drive(x, y, turn, 0); }
 
     /**
      * Stop all drivetrain actuators
      */
     public abstract void stop();
 
-    /**
-     * Uses the telemetry object to display relevant drivetrain information such as motor powers and velocities.
-     */
-    public abstract void logData(Telemetry telemetry);
+    public void debug(Telemetry telemetry) {
+        // Override in drivetrain implementations to add debug telemetry
+        telemetry.addData("Drivetrain", "No debug implemented for this drivetrain type");
+    }
+
+    @NonNull
+    @Override
+    public String toString() {
+        return "The drivetrain type didn't implement toString()!";
+    }
 }

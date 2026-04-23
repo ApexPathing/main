@@ -1,34 +1,29 @@
-package followers.quintic;
+package org.firstinspires.ftc.teamcode.tests;
 
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
+import org.firstinspires.ftc.teamcode.Constants;
+
 import commands.CommandScheduler;
 import commands.InstantCommand;
-import drivetrains.Mecanum;
 
-import localizers.OTOS;
-import localizers.Pinpoint;
-import org.firstinspires.ftc.teamcode.Constants;
+import followers.quintic.PathBuilder;
+import followers.quintic.QuinticFollower;
 import util.Pose;
 
 /**
- * Test auto for quintic
+ * Test auto for quintic splines
+ *
  * @author Sohum Arora 22985 Paraducks
  */
-
-@Autonomous(name = "Quintic Test Auto", group = "Apex Test")
+@Autonomous(name = "Apex Quintic Test Auto", group = "Apex Pathing Tests")
 public class QuinticTestAuto extends LinearOpMode {
 
     @Override
     public void runOpMode() {
-        Pose startPose = new Pose(0, 0, 0);
-
-        Mecanum drivetrain = new Mecanum(hardwareMap, Constants.driveConstants);
-        OTOS localizer = new OTOS(hardwareMap, Constants.localizerConstants, Pose.zero());
-        QuinticFollower follower = new QuinticFollower(drivetrain, localizer);
-
-        waitForStart();
+        // NOTE: This won't work until we make a quintic constants class and add it to the Constants builder
+        QuinticFollower follower = (QuinticFollower) new Constants().build(hardwareMap, Pose.zero());
 
         CommandScheduler.getInstance().schedule(
                 new InstantCommand(()->
@@ -40,8 +35,12 @@ public class QuinticTestAuto extends LinearOpMode {
                         .build()
                 ));
 
+        telemetry.addData("Status", "Initialized");
+        telemetry.update();
+        waitForStart();
+
         while (opModeIsActive()) {
-            localizer.update();
+            follower.update();
             CommandScheduler.getInstance().run();
         }
     }

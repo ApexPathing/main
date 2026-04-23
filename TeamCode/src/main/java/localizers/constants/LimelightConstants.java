@@ -1,10 +1,15 @@
 package localizers.constants;
 
+import com.qualcomm.robotcore.hardware.HardwareMap;
+
+import localizers.Limelight;
+import util.Pose;
+
 /**
  * Limelight localizer constants class
  * @author Dylan B. - 18597 RoboClovers - Delta
  */
-public class LimelightConstants {
+public class LimelightConstants extends LocalizerConstants {
     // Hardware
     public String name = "limelight";
     public int pipeline = 0;
@@ -12,13 +17,17 @@ public class LimelightConstants {
 
     /**
      * Constructor for the PinpointConstants class
-     * Default constants are derived from the SensorGoBildaPinpoint SDK sample with untuned values
      */
     public LimelightConstants() {}
 
+    @Override
+    public Limelight build(HardwareMap hardwareMap) {
+        return new Limelight(hardwareMap, this);
+    }
+
     /**
-     * Sets the pinpoint hardware name.
-     * @param name the hardware map name of the pinpoint
+     * Sets the Limelight hardware name.
+     * @param name the hardware map name of the Limelight
      * @return this instance for chaining
      */
     public LimelightConstants setName(String name) {

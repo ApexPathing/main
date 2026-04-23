@@ -2,16 +2,17 @@ package drivetrains.constants;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.HardwareMap;
 
-import hardware.MotorMetaData;
+import drivetrains.Tank;
+import util.MotorMetaData;
 
 /**
  * Tank drivetrain constants class
  * @author Xander Haemel - 31616- 404 Not Found
  * @author Dylan B. - 18597 RoboClovers - Delta
  */
-
-@SuppressWarnings("unused")public class TankConstants {
+public class TankConstants extends DrivetrainConstants {
     // Motors
     public MotorMetaData flData = new MotorMetaData("front_left_drive");
     public MotorMetaData blData = new MotorMetaData("back_left_drive");
@@ -29,11 +30,15 @@ import hardware.MotorMetaData;
     public boolean feedForward = true; // Whether to use feedforward in the velocity controller TODO: USE THIS
     public boolean robotCentric = true; // Whether to use robot-centric controls (true) or field-centric controls (false) in TeleOp
 
-
     /**
      * Constructor for the TankConstants class
      */
     public TankConstants() {}
+
+    @Override
+    public Tank build(HardwareMap hardwareMap) {
+        return new Tank(hardwareMap, this);
+    }
 
     /**
      * Sets the left front motor name. Default: "front_left_drive"

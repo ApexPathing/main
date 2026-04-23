@@ -2,8 +2,7 @@ package org.firstinspires.ftc.teamcode.tuning.auto;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.navigation.Rotation;
@@ -13,12 +12,19 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-import hardware.MotorEx;
-import hardware.MotorMetaData;
 import localizers.Localizer;
-import localizers.OTOS;
+import util.MotorMetaData;
 import util.Pose;
 
+
+/**
+ * OpMode for automatically determining the direction and position of each motor on a mecanum drivetrain.
+ * The robot will run each motor individually while measuring the resulting movement with the localizer,
+ * then use that data to determine which motor is which and whether any motors are wired backwards.
+ *
+ * @author Joel - 7842 Browncoats Alumni
+ * @author Dylan B. - 18597 RoboClovers - Delta
+ */
 @TeleOp(name = "Auto Motor Direction + Assignment", group = "Apex Pathing Tuning")
 public class AutoMotorDirectionAndAssignment extends LinearOpMode {
 
@@ -31,134 +37,35 @@ public class AutoMotorDirectionAndAssignment extends LinearOpMode {
     );
 
     // --- Hardware & State ---
-    private MotorEx m0, m1, m2, m3;
-    private MotorEx[] motorArray;
+    private DcMotorEx m0, m1, m2, m3;
+    private DcMotorEx[] motorArray;
     private Localizer localizer;
     private TuningState state = TuningState.POSITIVE_POWER;
 
-    // region Init
-
-    private void initialize() {
-        //TODO: Make one user-defined localizer for tuning OpModes
-        localizer = new OTOS(hardwareMap, Constants.localizerConstants, new Pose(0, 0, 0));
-
-        //TODO: Replace with either user-defined names or automatic XML reader
-        m0 = new MotorEx(hardwareMap, new MotorMetaData("m0", DcMotorSimple.Direction.FORWARD, DcMotor.ZeroPowerBehavior.BRAKE, DcMotor.RunMode.RUN_WITHOUT_ENCODER));
-        m1 = new MotorEx(hardwareMap, new MotorMetaData("m1", DcMotorSimple.Direction.FORWARD, DcMotor.ZeroPowerBehavior.BRAKE, DcMotor.RunMode.RUN_WITHOUT_ENCODER));
-        m2 = new MotorEx(hardwareMap, new MotorMetaData("m2", DcMotorSimple.Direction.FORWARD, DcMotor.ZeroPowerBehavior.BRAKE, DcMotor.RunMode.RUN_WITHOUT_ENCODER));
-        m3 = new MotorEx(hardwareMap, new MotorMetaData("m3", DcMotorSimple.Direction.FORWARD, DcMotor.ZeroPowerBehavior.BRAKE, DcMotor.RunMode.RUN_WITHOUT_ENCODER));
-
-        motorArray = new MotorEx[]{m0, m1, m2, m3};
-    }
-
-    // endregion
-// region Main Loop
-
+    // region Main Loop
     @Override
-    public void runOpMode() throws InterruptedException {
-        while (opModeInInit()) {
-            initialize();
-        }
+    public void runOpMode() {
+        localizer = new Constants().buildOnlyLocalizer(hardwareMap, Pose.zero());
 
-        Map<WheelPos, MotorEx> assignedMotors = new java.util.EnumMap<>(WheelPos.class);
+        // TODO: Replace with either user-defined names or automatic XML reader
+        m0 = new MotorMetaData("m0").build(hardwareMap);
+        m1 = new MotorMetaData("m1").build(hardwareMap);
+        m2 = new MotorMetaData("m2").build(hardwareMap);
+        m3 = new MotorMetaData("m3").build(hardwareMap);
+
+        motorArray = new DcMotorEx[]{m0, m1, m2, m3};
+
+        Map<WheelPos, DcMotorEx> assignedMotors = new java.util.EnumMap<>(WheelPos.class);
         String[] telemetrySummary = new String[motorArray.length];
         EnhancedTimer timer = new EnhancedTimer();
-
         int currentMotorIndex = 0;
 
-        if (opModeIsActive()) {
-            while (opModeIsActive() && currentMotorIndex < motorArray.length) {
-                MotorEx motor = motorArray[currentMotorIndex];
+        telemetry.addData("Status", "Initialized");
+        telemetry.update();
+        waitForStart();
 
-                // Update localizer at the start of every loop
-                localizer.update();
-
-                switch (state) {
-                    case POSITIVE_POWER:
-                        // Reset pose and timer once, then move to a waiting state
-                        localizer.setPose(new Pose(0, 0, 0));
-                        motor.setPower(0.6);
-                        timer.setTarget(750);
-                        state = TuningState.WAIT_POSITIVE;
-                        break;
-
-                    case WAIT_POSITIVE:
-                        if (timer.isFinished()) {
-                            state = TuningState.CALCULATE;
-                        }
-                        break;
-
-                    case CALCULATE:
-                        // Measure the results
-                        MovementDirection direction = MovementDirection.fromAngle(localizer.getPose().getPositionComponent().getTheta());
-                        Rotation rotation = (localizer.getPose().getHeading() > 0) ? Rotation.CCW : Rotation.CW;
-
-                        // Identify the wheel based on behavior
-                        WheelTendencies detected = new WheelTendencies(direction, rotation);
-                        WheelPos pos = MOTOR_LUT.get(detected);
-                        boolean needsReversing = false;
-
-                        // Fallback: Check if the motor is wired backwards
-                        if (pos == null) {
-                            pos = MOTOR_LUT.get(detected.getOpposite());
-                            if (pos != null) {
-                                needsReversing = true;
-                            }
-                        }
-
-                        // Assign and report
-                        if (pos != null) {
-                            if (needsReversing) {
-                                motor.setDirection(DcMotor.Direction.REVERSE);
-                            }
-                            assignedMotors.put(pos, motor);
-                            telemetrySummary[currentMotorIndex] = "Motor m" + currentMotorIndex + " is " + pos.name() + (needsReversing ? " (REVERSED)" : " (FORWARD)");
-                        } else {
-                            telemetrySummary[currentMotorIndex] = "Motor m" + currentMotorIndex + " ERROR: No match found.";
-                        }
-
-                        // Cut power and prepare to wait for deceleration
-                        motor.setPower(0);
-                        state = TuningState.FIRST_DECELERATE;
-                        break;
-
-                    case FIRST_DECELERATE:
-                        if (localizer.getVelocity().getPositionComponent().getMagnitudeSquared() < 0.5) {
-                            state = TuningState.NEGATIVE_POWER;
-                        }
-                        break;
-
-                    case NEGATIVE_POWER:
-                        // Apply reverse power and move to a waiting state
-                        motor.setPower(-0.6);
-                        timer.setTarget(750);
-                        state = TuningState.WAIT_NEGATIVE;
-                        break;
-
-                    case WAIT_NEGATIVE:
-                        if (timer.isFinished()) {
-                            motor.setPower(0.0);
-                            state = TuningState.SECOND_DECELERATE;
-                        }
-                        break;
-
-                    case SECOND_DECELERATE:
-                        if (localizer.getVelocity().getPositionComponent().getMagnitudeSquared() < 0.5) {
-                            // We finished this motor! Increment the index and reset the state.
-                            currentMotorIndex++;
-                            state = TuningState.POSITIVE_POWER;
-                        }
-                        break;
-                }
-
-                // Show live tuning progress on the driver station
-                telemetry.addData("Identifying Motor", "m" + currentMotorIndex + " / " + motorArray.length);
-                telemetry.addData("Current State", state);
-                telemetry.update();
-            }
-
-            // Display the final assignments in a loop
-            while (opModeIsActive()) {
+        while (opModeIsActive()) {
+            if (currentMotorIndex < motorArray.length) {
                 telemetry.addLine("--- Tuning Complete ---");
                 for (String result : telemetrySummary) {
                     if (result != null) {
@@ -166,15 +73,102 @@ public class AutoMotorDirectionAndAssignment extends LinearOpMode {
                     }
                 }
                 telemetry.update();
+                // TODO: Overwrite the motor in the XML file with the metadata
+                continue; // Skip the rest of the loop once we're done tuning all motors
             }
-            //TODO: Overwrite the motor in the XML file with the metadata
+
+            DcMotorEx motor = motorArray[currentMotorIndex];
+
+            // Update localizer at the start of every loop
+            localizer.update();
+
+            switch (state) {
+                case POSITIVE_POWER:
+                    // Reset pose and timer once, then move to a waiting state
+                    localizer.setPose(new Pose(0, 0, 0));
+                    motor.setPower(0.6);
+                    timer.setTarget(750);
+                    state = TuningState.WAIT_POSITIVE;
+                    break;
+
+                case WAIT_POSITIVE:
+                    if (timer.isFinished()) {
+                        state = TuningState.CALCULATE;
+                    }
+                    break;
+
+                case CALCULATE:
+                    // Measure the results
+                    MovementDirection direction = MovementDirection.fromAngle(localizer.getPose().getPositionComponent().getTheta());
+                    Rotation rotation = (localizer.getPose().getHeading() > 0) ? Rotation.CCW : Rotation.CW;
+
+                    // Identify the wheel based on behavior
+                    WheelTendencies detected = new WheelTendencies(direction, rotation);
+                    WheelPos pos = MOTOR_LUT.get(detected);
+                    boolean needsReversing = false;
+
+                    // Fallback: Check if the motor is wired backwards
+                    if (pos == null) {
+                        pos = MOTOR_LUT.get(detected.getOpposite());
+                        if (pos != null) {
+                            needsReversing = true;
+                        }
+                    }
+
+                    // Assign and report
+                    if (pos != null) {
+                        if (needsReversing) {
+                            motor.setDirection(DcMotorEx.Direction.REVERSE);
+                        }
+                        assignedMotors.put(pos, motor);
+                        telemetrySummary[currentMotorIndex] = "Motor m" + currentMotorIndex + " is " + pos.name() + (needsReversing ? " (REVERSED)" : " (FORWARD)");
+                    } else {
+                        telemetrySummary[currentMotorIndex] = "Motor m" + currentMotorIndex + " ERROR: No match found.";
+                    }
+
+                    // Cut power and prepare to wait for deceleration
+                    motor.setPower(0);
+                    state = TuningState.FIRST_DECELERATE;
+                    break;
+
+                case FIRST_DECELERATE:
+                    if (localizer.getVelocity().getPositionComponent().getMagnitudeSquared() < 0.5) {
+                        state = TuningState.NEGATIVE_POWER;
+                    }
+                    break;
+
+                case NEGATIVE_POWER:
+                    // Apply reverse power and move to a waiting state
+                    motor.setPower(-0.6);
+                    timer.setTarget(750);
+                    state = TuningState.WAIT_NEGATIVE;
+                    break;
+
+                case WAIT_NEGATIVE:
+                    if (timer.isFinished()) {
+                        motor.setPower(0.0);
+                        state = TuningState.SECOND_DECELERATE;
+                    }
+                    break;
+
+                case SECOND_DECELERATE:
+                    if (localizer.getVelocity().getPositionComponent().getMagnitudeSquared() < 0.5) {
+                        // We finished this motor! Increment the index and reset the state.
+                        currentMotorIndex++;
+                        state = TuningState.POSITIVE_POWER;
+                    }
+                    break;
+            }
+
+            // Show live tuning progress on the driver station
+            telemetry.addData("Identifying Motor", "m" + currentMotorIndex + " / " + motorArray.length);
+            telemetry.addData("Current State", state);
+            telemetry.update();
         }
     }
-
     // endregion
 
     // region Enums and Helper Classes
-
     public enum MovementDirection {
         NORTH_EAST(-Math.PI / 4.0),
         SOUTH_EAST(-3.0 * Math.PI / 4.0),
@@ -269,6 +263,5 @@ public class AutoMotorDirectionAndAssignment extends LinearOpMode {
             return Objects.hash(direction, rotation);
         }
     }
-
     // endregion
 }
