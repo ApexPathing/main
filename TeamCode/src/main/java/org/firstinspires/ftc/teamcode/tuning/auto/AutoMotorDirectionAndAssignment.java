@@ -30,8 +30,6 @@ public class AutoMotorDirectionAndAssignment extends LinearOpMode {
             new WheelTendencies(MovementDirection.NORTH_EAST, Rotation.CCW), WheelPos.BACK_RIGHT
     );
 
-    // --- Hardware & State ---
-    private MotorEx m0, m1, m2, m3;
     private MotorEx[] motorArray;
     private Localizer localizer;
     private TuningState state = TuningState.POSITIVE_POWER;
@@ -42,17 +40,16 @@ public class AutoMotorDirectionAndAssignment extends LinearOpMode {
         //TODO: Make one user-defined localizer for tuning OpModes
         localizer = new OTOS(hardwareMap, Constants.localizerConstants, new Pose(0, 0, 0));
 
-        //TODO: Replace with either user-defined names or automatic XML reader
-        m0 = new MotorEx(hardwareMap, new MotorMetaData("m0", DcMotorSimple.Direction.FORWARD, DcMotor.ZeroPowerBehavior.BRAKE, DcMotor.RunMode.RUN_WITHOUT_ENCODER));
-        m1 = new MotorEx(hardwareMap, new MotorMetaData("m1", DcMotorSimple.Direction.FORWARD, DcMotor.ZeroPowerBehavior.BRAKE, DcMotor.RunMode.RUN_WITHOUT_ENCODER));
-        m2 = new MotorEx(hardwareMap, new MotorMetaData("m2", DcMotorSimple.Direction.FORWARD, DcMotor.ZeroPowerBehavior.BRAKE, DcMotor.RunMode.RUN_WITHOUT_ENCODER));
-        m3 = new MotorEx(hardwareMap, new MotorMetaData("m3", DcMotorSimple.Direction.FORWARD, DcMotor.ZeroPowerBehavior.BRAKE, DcMotor.RunMode.RUN_WITHOUT_ENCODER));
+        MotorEx m0 = new MotorEx(hardwareMap, Constants.driveConstants.getFlData());
+        MotorEx m1 = new MotorEx(hardwareMap, Constants.driveConstants.getFrData());
+        MotorEx m2 = new MotorEx(hardwareMap, Constants.driveConstants.getBlData());
+        MotorEx m3 = new MotorEx(hardwareMap, Constants.driveConstants.getBrData());
 
         motorArray = new MotorEx[]{m0, m1, m2, m3};
     }
 
     // endregion
-// region Main Loop
+    // region Main Loop
 
     @Override
     public void runOpMode() throws InterruptedException {
