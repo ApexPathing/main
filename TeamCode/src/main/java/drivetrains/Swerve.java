@@ -80,7 +80,6 @@ public class Swerve extends Drivetrain {
         this.fl.stop(); this.bl.stop(); this.fr.stop(); this.br.stop(); // Note: stop() calls update()
     }
 
-    @Override
     public void debug(Telemetry telemetry) {
         telemetry.addData("Front Left Module", fl.toString());
         telemetry.addData("Back Left Module", bl.toString());
