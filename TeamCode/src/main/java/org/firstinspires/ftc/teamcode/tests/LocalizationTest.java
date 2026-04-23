@@ -15,8 +15,8 @@ import util.Pose;
  * @author Dylan B. - 18597 RoboClovers - Delta
  */
 @SuppressWarnings("unused")
-@TeleOp(name = "Apex TeleOp Test", group = "Apex Pathing Tests")
-public class TeleOpTest extends LinearOpMode {
+@TeleOp(name = "Apex LocalizationTest", group = "Apex Pathing Tests")
+public class LocalizationTest extends LinearOpMode {
 
     @Override
     public void runOpMode() {
