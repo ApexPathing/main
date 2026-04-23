@@ -39,10 +39,10 @@ public class Swerve extends Drivetrain {
 
     @Override
     protected void setZeroPowerBehavior(DcMotor.ZeroPowerBehavior behavior) {
-        fl.setZeroPowerBehavior(behavior);
-        bl.setZeroPowerBehavior(behavior);
-        fr.setZeroPowerBehavior(behavior);
-        br.setZeroPowerBehavior(behavior);
+        this.fl.setZeroPowerBehavior(behavior);
+        this.bl.setZeroPowerBehavior(behavior);
+        this.fr.setZeroPowerBehavior(behavior);
+        this.br.setZeroPowerBehavior(behavior);
     }
     
     @Override
@@ -52,13 +52,14 @@ public class Swerve extends Drivetrain {
 
     @Override
     public void moveWithVectors(double drive, double strafe, double turn){
-        turn *= -1; // Clockwise turn angle
+        turn *= -1; // Make the turn angle clockwise, as it's normally Counter Clockwise
 
         // Swerve kinematics calculations
         double strafeRear = strafe - turn * this.constants.getWheelbaseRatio();
         double strafeFront = strafe + turn * this.constants.getWheelbaseRatio();
         double forwardRight = drive - turn * this.constants.getTrackWidthRatio();
         double forwardLeft = drive + turn * this.constants.getTrackWidthRatio();
+        //calculate the motor powers
         double flPower = Math.sqrt(Math.pow(strafeFront, 2) + Math.pow(forwardLeft, 2));
         double blPower = Math.sqrt(Math.pow(strafeRear, 2) + Math.pow(forwardLeft, 2));
         double frPower = Math.sqrt(Math.pow(strafeFront, 2) + Math.pow(forwardRight, 2));
@@ -70,6 +71,7 @@ public class Swerve extends Drivetrain {
         max = Math.max(max, Math.abs(frPower));
         max = Math.max(max, Math.abs(brPower));
         if (max > constants.maxPower) {
+            //set new powers after normalization
             flPower = (flPower / max) * constants.maxPower;
             blPower = (blPower / max) * constants.maxPower;
             frPower = (frPower / max) * constants.maxPower;
@@ -81,11 +83,13 @@ public class Swerve extends Drivetrain {
         this.bl.setTargets(Math.toDegrees(Math.atan2(strafeRear, forwardLeft)), blPower);
         this.fr.setTargets(Math.toDegrees(Math.atan2(strafeFront, forwardRight)), frPower);
         this.br.setTargets(Math.toDegrees(Math.atan2(strafeRear, forwardRight)), brPower);
+        //apply update
         this.fl.update(); this.bl.update(); this.fr.update(); this.br.update();
     }
 
     @Override
     public void stop() {
+        //stop method, cutting power from every swerve module
         this.fl.stop(); this.bl.stop(); this.fr.stop(); this.br.stop(); // Note: stop() calls update()
     }
 

@@ -87,6 +87,29 @@ public class SwerveModule {
     }
 
     /**
+     * sets the target angle of the module, while optimizing the angle
+     * @param targetAngle is the desired pod heading in degrees [0, 360)
+     */
+    public void setOptimizedTargetAngle(double targetAngle){
+        double delta = targetAngle - getAngle();
+        double wrappedDelta = delta - (360 * Math.round(delta / 360.0));
+        if (Math.abs(wrappedDelta) > 90) {
+            targetPower *= -1;
+            wrappedDelta -= Math.copySign(180, wrappedDelta);
+        }
+
+        this.setUnoptimizedTargetAngle(getAngle() + wrappedDelta);
+    }
+
+    /**
+     * Sets the drive power only
+     * @param targetPower is the desired targetPower of the wheel
+     */
+    public void setOptimizedTargetPower(double targetPower){
+        this.setDrivePower(targetPower);
+    }
+
+    /**
      * Sets the target angle and power for this module without optimizing the angle.
      * This will cause the module to always rotate in the direction of the target angle,
      * even if it means rotating more than 90 degrees.
@@ -103,6 +126,7 @@ public class SwerveModule {
      */
     public void update() {
         double error = targetAngle - getAngle();
+        //don't set anything new unless the angle or power has changed
         if (error != lastSteerError) {
             lastSteerError = error; // Save unwrapped error
             error -= (360.0 * Math.round(error / 360.0)); // Wrap to [-180, 180]
@@ -120,6 +144,11 @@ public class SwerveModule {
      */
     public void stop() { this.setDrivePower(0); this.update(); }
 
+
+
+    /**
+     * use in telemetry and other places where we need a string with the swerve module results or data
+     */
     @NonNull
     @Override
     public String toString() {
