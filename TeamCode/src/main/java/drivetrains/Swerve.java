@@ -52,6 +52,7 @@ public class Swerve extends Drivetrain {
         double blPower = Math.sqrt(Math.pow(strafeRear, 2) + Math.pow(forwardLeft, 2));
         double frPower = Math.sqrt(Math.pow(strafeFront, 2) + Math.pow(forwardRight, 2));
         double brPower = Math.sqrt(Math.pow(strafeRear, 2) + Math.pow(forwardRight, 2));
+
         // Normalize powers from -maxPower to maxPower if any exceed the max
         double max = Math.max(0, Math.abs(flPower));
         max = Math.max(max, Math.abs(blPower));
@@ -63,15 +64,18 @@ public class Swerve extends Drivetrain {
             frPower = (frPower / max) * constants.maxPower;
             brPower = (brPower / max) * constants.maxPower;
         }
-        //current limiting
-        double currentRatio = getTotalCurrent()/constants.MaxCurrentThreshold();
-        //normalizer current
-        if(getTotalCurrent() > constants.MaxCurrentThreshold()){
-            flPower /= currentRatio;
-            frPower /= currentRatio;
-            blPower /= currentRatio;
-            brPower /= currentRatio;
+
+        // Normalize motor powers to not exceed the max current (if enabled)
+        if (constants.maxCurrent < 0) {
+            if (getTotalCurrent() > constants.maxCurrent) {
+                double currentRatio = getTotalCurrent() / constants.maxCurrent;
+                flPower /= currentRatio;
+                frPower /= currentRatio;
+                blPower /= currentRatio;
+                brPower /= currentRatio;
+            }
         }
+
         // Set pod target angles and powers, update to apply
         this.fl.setTargets(Math.toDegrees(Math.atan2(strafeFront, forwardLeft)), flPower);
         this.bl.setTargets(Math.toDegrees(Math.atan2(strafeRear, forwardLeft)), blPower);
@@ -82,6 +86,13 @@ public class Swerve extends Drivetrain {
 
     public void stop() {
         this.fl.stop(); this.bl.stop(); this.fr.stop(); this.br.stop(); // Note: stop() calls update()
+    }
+
+    /**
+     * @return the total motor current of the drivetrain in amps
+     */
+    private double getTotalCurrent(){
+        return fl.getCurrent() + fr.getCurrent() + bl.getCurrent() + br.getCurrent();
     }
 
     public void debug(Telemetry telemetry) {
@@ -96,13 +107,5 @@ public class Swerve extends Drivetrain {
     public String toString() {
         return String.format(Locale.ENGLISH, "Swerve(fl=%s, bl=%s, fr=%s, br=%s)",
                 fl.toString(), bl.toString(), fr.toString(), br.toString());
-    }
-
-    /**
-     * gets the total current of the drivetrain
-     * @return the current in Amps
-     */
-    private double getTotalCurrent(){
-        return fl.getCurrent() + fr.getCurrent() + bl.getCurrent() + br.getCurrent();
     }
 }

@@ -21,16 +21,12 @@ public class MecanumConstants extends DrivetrainConstants {
     public MotorMetaData frData = new MotorMetaData("front_right_drive");
     public MotorMetaData brData = new MotorMetaData("back_right_drive");
 
-    // Tuned values TODO: USE THESE
-    public double xVelocity = 60; // Inches per second
-    public double yVelocity = 60; // Inches per second
-
     // Miscellaneous constants
     public double maxPower = 1.0; // 0 to 1, max power to apply to the motors
-    public boolean useFeedForward = true; // Whether to use feedforward in the velocity controller TODO: USE THIS
+    public double maxCurrent = -1.0; // Max total motor current in amps, negative for no limit
     public boolean robotCentric = true; // Whether to use robot-centric controls (true) or field-centric controls (false) in TeleOp
 
-    public double currentLimit = 8; //amps
+
     /**
      * Constructor for the MecanumConstants class
      */
@@ -122,22 +118,15 @@ public class MecanumConstants extends DrivetrainConstants {
     }
 
     /**
-     * Sets the X velocity value from tuning.
-     * @param xVelocity the X velocity in inches per second
+     * Sets whether to use braking mode. Default: true (brake mode).
+     * @param brakeMode true for brake mode, false for float mode
      * @return this instance for chaining
      */
-    public MecanumConstants setXVelocity(double xVelocity) {
-        this.xVelocity = xVelocity;
-        return this;
-    }
-
-    /**
-     * Sets the Y velocity value from tuning.
-     * @param yVelocity the Y velocity in inches per second
-     * @return this instance for chaining
-     */
-    public MecanumConstants setYVelocity(double yVelocity) {
-        this.yVelocity = yVelocity;
+    public MecanumConstants setBrakeMode(boolean brakeMode) {
+        this.flData.setBrakeMode(brakeMode ? ZeroPowerBehavior.BRAKE : ZeroPowerBehavior.FLOAT);
+        this.blData.setBrakeMode(brakeMode ? ZeroPowerBehavior.BRAKE : ZeroPowerBehavior.FLOAT);
+        this.frData.setBrakeMode(brakeMode ? ZeroPowerBehavior.BRAKE : ZeroPowerBehavior.FLOAT);
+        this.brData.setBrakeMode(brakeMode ? ZeroPowerBehavior.BRAKE : ZeroPowerBehavior.FLOAT);
         return this;
     }
 
@@ -152,25 +141,12 @@ public class MecanumConstants extends DrivetrainConstants {
     }
 
     /**
-     * Sets whether to use braking mode. Default: true (brake mode).
-     * @param brakeMode true for brake mode, false for float mode
+     * Sets the maximum total motor current allowed in amps. Set to a negative value for no limit.
+     * @param amps is the current limit in amps
      * @return this instance for chaining
      */
-    public MecanumConstants setBrakeMode(boolean brakeMode) {
-        this.flData.setBrakeMode(brakeMode ? ZeroPowerBehavior.BRAKE : ZeroPowerBehavior.FLOAT);
-        this.blData.setBrakeMode(brakeMode ? ZeroPowerBehavior.BRAKE : ZeroPowerBehavior.FLOAT);
-        this.frData.setBrakeMode(brakeMode ? ZeroPowerBehavior.BRAKE : ZeroPowerBehavior.FLOAT);
-        this.brData.setBrakeMode(brakeMode ? ZeroPowerBehavior.BRAKE : ZeroPowerBehavior.FLOAT);
-        return this;
-    }
-
-    /**
-     * Sets whether to use feedforward in the velocity controller.
-     * @param useFeedForward true to use feedforward, false otherwise
-     * @return this instance for chaining
-     */
-    public MecanumConstants setUseFeedForward(boolean useFeedForward) {
-        this.useFeedForward = useFeedForward;
+    public MecanumConstants setMaxCurrent(double amps){
+        this.maxCurrent = amps;
         return this;
     }
 
@@ -183,16 +159,4 @@ public class MecanumConstants extends DrivetrainConstants {
         this.robotCentric = robotCentric;
         return this;
     }
-
-    /**
-     * sets the current limit
-     * @param amps is the limit in Amps
-     * @return this instance for chaining
-     */
-    public MecanumConstants setCurrentLimit(double amps){
-        this.currentLimit = amps;
-        return this;
-    }
-
-
 }

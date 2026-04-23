@@ -6,6 +6,7 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 
 import java.util.Locale;
 
@@ -72,6 +73,15 @@ public class Tank extends Drivetrain {
             rightPower = (rightPower / max) * constants.maxPower;
         }
 
+        // Normalize motor powers to not exceed the max current (if enabled)
+        if (constants.maxCurrent < 0) {
+            if (getTotalCurrent() > constants.maxCurrent) {
+                double currentRatio = getTotalCurrent() / constants.maxCurrent;
+                leftPower /= currentRatio;
+                rightPower /= currentRatio;
+            }
+        }
+
         flMotor.setPower(leftPower);
         frMotor.setPower(rightPower);
         if (constants.fourMotor) {
@@ -81,6 +91,16 @@ public class Tank extends Drivetrain {
     }
 
     public void stop() { setPowers(0, 0); }
+
+    /**
+     * @return the total motor current of the drivetrain in amps
+     */
+    private double getTotalCurrent(){
+        return flMotor.getCurrent(CurrentUnit.AMPS) + frMotor.getCurrent(CurrentUnit.AMPS) +
+                (constants.fourMotor ?
+                        blMotor.getCurrent(CurrentUnit.AMPS) + brMotor.getCurrent(CurrentUnit.AMPS) : 0
+                );
+    }
 
     public void debug(Telemetry telemetry) {
         telemetry.addData("Front Left Power", flMotor.getPower());

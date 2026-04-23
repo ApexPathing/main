@@ -19,14 +19,10 @@ public class TankConstants extends DrivetrainConstants {
     public MotorMetaData frData = new MotorMetaData("front_right_drive");
     public MotorMetaData brData = new MotorMetaData("back_right_drive");
 
-    // Tunable constants TODO: USE THESE
-    public final double forwardVelocity = 60; // Inches per second, 60 ips default
-    public final double headingVelocity = 6.82; // Radians per second, 1rps (2pi rad) default
-
     // Miscellaneous constants
     public double maxPower = 1.0; // 0 to 1, max power to apply to the motors
+    public double maxCurrent = -1.0; // Max total motor current in amps, negative for no limit
     public boolean fourMotor = true; // Four motor tank (true) or two motor tank (false)
-    public boolean feedForward = true; // Whether to use feedforward in the velocity controller TODO: USE THIS
     public boolean robotCentric = true; // Whether to use robot-centric controls (true) or field-centric controls (false) in TeleOp
 
     /**
@@ -120,26 +116,6 @@ public class TankConstants extends DrivetrainConstants {
     }
 
     /**
-     * Sets the maximum power.
-     * @param maxPower the max power (0 to 1) to apply to the motors
-     * @return this instance for chaining
-     */
-    public TankConstants setMaxPower(double maxPower) {
-        this.maxPower = Math.max(0.0, Math.min(maxPower, 1.0)); // Ensure maxPower is between 0 and 1
-        return this;
-    }
-
-    /**
-     * Sets whether to use four motor (true) or two motor tank drive (false). Default: true
-     * @param fourMotor whether to use four motor tank drive
-     * @return this instance for chaining
-     */
-    public TankConstants setFourMotorDrive(boolean fourMotor) {
-        this.fourMotor = fourMotor;
-        return this;
-    }
-
-    /**
      * Sets whether to use brake mode. Default: true (brake mode).
      * @param brakeMode true for brake mode, false for float mode
      * @return this instance for chaining
@@ -153,12 +129,32 @@ public class TankConstants extends DrivetrainConstants {
     }
 
     /**
-     * Sets whether to use feedforward in the velocity controller.
-     * @param useFeedForward true to use feedforward, false otherwise
+     * Sets the maximum power.
+     * @param maxPower the max power (0 to 1) to apply to the motors
      * @return this instance for chaining
      */
-    public TankConstants setUseFeedForward(boolean useFeedForward) {
-        this.feedForward = useFeedForward;
+    public TankConstants setMaxPower(double maxPower) {
+        this.maxPower = Math.max(0.0, Math.min(maxPower, 1.0)); // Ensure maxPower is between 0 and 1
+        return this;
+    }
+
+    /**
+     * Sets the maximum total motor current allowed in amps. Set to a negative value for no limit.
+     * @param amps is the current limit in amps
+     * @return this instance for chaining
+     */
+    public TankConstants setMaxCurrent(double amps){
+        this.maxCurrent = amps;
+        return this;
+    }
+
+    /**
+     * Sets whether to use four motor (true) or two motor tank drive (false). Default: true
+     * @param fourMotor whether to use four motor tank drive
+     * @return this instance for chaining
+     */
+    public TankConstants setFourMotorDrive(boolean fourMotor) {
+        this.fourMotor = fourMotor;
         return this;
     }
 
