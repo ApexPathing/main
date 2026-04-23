@@ -5,16 +5,26 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 
 import org.firstinspires.ftc.teamcode.Constants;
 
-@TeleOp(name = "Wheel Direction Debugger", group = "Apex Pathing Tuning")
+import drivetrains.constants.MecanumConstants;
+
+/**
+ * Simple OpMode for testing the direction of each wheel on a mecanum drivetrain. Pressing A, B, X,
+ * or Y will run the corresponding wheel at 30% power, allowing you to verify that the wheels are
+ * set up correctly and spinning in the correct direction.
+ *
+ * @author Joel - 7842 Browncoats Alumni
+ */
+@TeleOp(name = "Wheel Direction Debugger", group = "Apex Pathing Tests")
 public class WheelDirectionDebugger extends OpMode {
     DcMotor fl, fr, bl, br;
 
     @Override
     public void init() {
-        fl = hardwareMap.get(DcMotor.class, Constants.driveConstants.flData.getName());
-        fr = hardwareMap.get(DcMotor.class, Constants.driveConstants.frData.getName());
-        bl = hardwareMap.get(DcMotor.class, Constants.driveConstants.blData.getName());
-        br = hardwareMap.get(DcMotor.class, Constants.driveConstants.brData.getName());
+        MecanumConstants driveConstants = (MecanumConstants) new Constants().drivetrainConstants;
+        fl = hardwareMap.get(DcMotor.class, driveConstants.flData.getName());
+        fr = hardwareMap.get(DcMotor.class, driveConstants.frData.getName());
+        bl = hardwareMap.get(DcMotor.class, driveConstants.blData.getName());
+        br = hardwareMap.get(DcMotor.class, driveConstants.brData.getName());
     }
 
     @Override

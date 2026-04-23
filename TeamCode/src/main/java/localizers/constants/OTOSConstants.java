@@ -1,10 +1,17 @@
 package localizers.constants;
 
+import com.qualcomm.robotcore.hardware.HardwareMap;
+
+import localizers.OTOS;
 import util.Angle;
 import util.Distance;
 import util.Pose;
 
-public class OTOSConstants {
+/**
+ * OTOS localizer constants class
+ * @author Dylan B. - 18597 RoboClovers - Delta
+ */
+public class OTOSConstants extends LocalizerConstants {
     // Hardware
     public String name = "sensor_otos";
 
@@ -19,6 +26,11 @@ public class OTOSConstants {
      * Constructor for the OTOSConstants class
      */
     public OTOSConstants() {}
+
+    @Override
+    public OTOS build(HardwareMap hardwareMap) {
+        return new OTOS(hardwareMap, this);
+    }
 
     /**
      * Sets the OTOS hardware name.

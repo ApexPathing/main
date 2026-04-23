@@ -6,6 +6,14 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 
+import java.util.Locale;
+
+/**
+ * Class representing a 2D pose with vector (x, y) and heading component. Provides methods for pose
+ * arithmetic, comparison, and utility functions such as mirroring and conversion to FTC SDK Pose2D.
+ *
+ * @author Dylan B. - 18597 RoboClovers - Delta
+ */
 public class Pose {
     private final Vector position;
     private Angle heading;
@@ -249,9 +257,9 @@ public class Pose {
     @Override
     @NonNull
     public String toString() {
-        return String.format(
-                "Pose(x=%s %s, y=%s %s, heading=%s %s)",
-                getX(), position.getUnit(), getY(), position.getUnit(), getHeading(), angleUnit
+        return String.format(Locale.ENGLISH,
+                "X=%.1f, Y=%.1f %s, Heading=%.1f %s",
+                getX(), getY(), position.getUnit(), getHeading(), angleUnit
         );
     }
     // endregion

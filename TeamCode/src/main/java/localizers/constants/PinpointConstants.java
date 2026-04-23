@@ -1,15 +1,18 @@
 package localizers.constants;
 
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+
+import localizers.Pinpoint;
 
 /**
  * Pinpoint localizer constants class
  * @author Dylan B. - 18597 RoboClovers - Delta
  */
-public class PinpointConstants {
+public class PinpointConstants extends LocalizerConstants {
     // Hardware
     public String name = "pinpoint";
 
@@ -37,6 +40,11 @@ public class PinpointConstants {
      */
     public PinpointConstants() {}
 
+    @Override
+    public Pinpoint build (HardwareMap hardwareMap) {
+        return new Pinpoint(hardwareMap, this);
+    }
+
     /**
      * Sets the pinpoint hardware name.
      * @param name the hardware map name of the pinpoint
@@ -56,6 +64,7 @@ public class PinpointConstants {
         this.distanceUnit = distanceUnit;
         return this;
     }
+
     /**
      * Sets the angle unit used by the pinpoint.
      * @param angleUnit the angle unit
@@ -75,6 +84,7 @@ public class PinpointConstants {
         this.xOffset = xOffset;
         return this;
     }
+
     /**
      * Sets the Y offset of the pods.
      * @param yOffset the Y offset in distanceUnit
@@ -94,6 +104,7 @@ public class PinpointConstants {
         this.xPodDirection = xPodDirection;
         return this;
     }
+
     /**
      * Sets the Y pod encoder direction.
      * @param yPodDirection the direction of the Y pod
@@ -113,6 +124,7 @@ public class PinpointConstants {
         this.encoderResolution = encoderResolution;
         return this;
     }
+
     /**
      * Sets a custom encoder resolution, overriding the model selection if is not 0.
      * @param customEncoderResolution the custom resolution in ticks per mm

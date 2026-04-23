@@ -48,12 +48,13 @@ public class Vector {
         this(new Distance(), new Distance()); 
     }
 
-    /** * Factory method to create a {@link Vector} from a {@link Pose} 
+    /**
+     * Factory method to create a {@link Vector} from a {@link Pose}
      * @param pose The Pose to extract vector coordinates from
      * @return A new Vector representing the Pose's position
      */
-    public static Vector fromPose(Pose pose) { 
-        return new Vector(pose.getX(), pose.getY()); 
+    public static Vector fromPose(Pose pose) {
+        return new Vector(pose.getXComponent().getIn(), pose.getYComponent().getIn());
     }
     
     // endregion

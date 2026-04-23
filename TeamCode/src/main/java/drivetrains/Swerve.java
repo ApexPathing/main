@@ -7,152 +7,100 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
-import hardware.SwerveModule;
 import drivetrains.constants.SwerveConstants;
-import hardware.MotorEx;
-import util.SwerveUnit;
+
+import java.util.Locale;
 
 /**
- * swerve drive class
- * @author Xander Haemel
+ * Swerve drivetrain controller class
+ *
+ * @author Xander Haemel - 31616 404 Not Found
+ * @author Dylan B. - 18597 RoboClovers - Delta
  */
-public class Swerve extends Drivetrain{
+public class Swerve extends Drivetrain {
     SwerveConstants constants;
-
-    // Motors
-    MotorEx flMotor;
-    MotorEx blMotor;
-    MotorEx frMotor;
-    MotorEx brMotor;
-
     SwerveModule fl;
-    SwerveModule rl;
+    SwerveModule bl;
     SwerveModule fr;
-    SwerveModule rr;
-
-
+    SwerveModule br;
 
     /**
-     * default constructor
-     * @param hardwareMap is the hardwaremap
-     * @param constants: swerveconstants, containing the configuration for your drivetrain
+     * Creates a swerve drivetrain
+     * @param hardwareMap the hardware map to use for module initialization
+     * @param constants {@link SwerveConstants} object containing all tunable values and motor names/directions
      */
-    public Swerve(HardwareMap hardwareMap, @NonNull SwerveConstants constants){
+    public Swerve(HardwareMap hardwareMap, SwerveConstants constants){
         this.constants = constants;
-        //motors
-        flMotor = new MotorEx(hardwareMap, constants.flData);
-        frMotor = new MotorEx(hardwareMap, constants.frData);
-        blMotor = new MotorEx(hardwareMap, constants.blData);
-        brMotor = new MotorEx(hardwareMap, constants.brData);
-        //new swerve modules
-        fl = new SwerveModule(hardwareMap, flMotor);
-        rl = new SwerveModule(hardwareMap, blMotor);
-        fr = new SwerveModule(hardwareMap, frMotor);
-        rr = new SwerveModule(hardwareMap, brMotor);
+        this.fl = constants.flModuleConstants.build(hardwareMap);
+        this.bl = constants.blModuleConstants.build(hardwareMap);
+        this.fr = constants.frModuleConstants.build(hardwareMap);
+        this.br = constants.brModuleConstants.build(hardwareMap);
     }
-
-
 
     @Override
     protected void setZeroPowerBehavior(DcMotor.ZeroPowerBehavior behavior) {
-
+        fl.setZeroPowerBehavior(behavior);
+        bl.setZeroPowerBehavior(behavior);
+        fr.setZeroPowerBehavior(behavior);
+        br.setZeroPowerBehavior(behavior);
     }
-
-    /**
-     * moves the robot with vectors
-     * @param drive the forward/backward movement vector (positive for forward, negative for backward)
-     * @param strafe the left/right movement vector (positive for right, negative for left)
-     * @param turn the rotation vector (positive for clockwise, negative for counterclockwise)
-     */
+    
     @Override
-    public void moveWithVectors(double drive, double strafe, double turn){
-        //make turn angle clockwise
-        turn /= -1;
-        //used for the sideways motion of both rear wheels
-        double strafeRear = strafe - turn * (constants.wheelbase/constants.diagonalDistance);
-        //used for the sideways motion of both front wheels
-        double strafeFront  = strafe + turn * (constants.wheelbase/constants.diagonalDistance);
-        //used for the forward motion of the right wheels
-        double forwardRight = drive  - turn * (constants.trackwidth/constants.diagonalDistance);
-        //used for the forward motion of the left wheels
-        double forwardLeft  = drive  + turn * (constants.trackwidth/constants.diagonalDistance);
-
-        //now we calculate wheel speeds based on these variables
-        double frontRightSpeed = Math.sqrt(Math.pow(strafeFront,2) + Math.pow(forwardRight, 2));
-        double frontLeftSpeed = Math.sqrt(Math.pow(strafeFront,2) + Math.pow(forwardLeft, 2));
-        double rearLeftSpeed = Math.sqrt(Math.pow(strafeRear,2) + Math.pow(forwardLeft, 2));
-        double rearRightSpeed = Math.sqrt(Math.pow(strafeRear,2) + Math.pow(forwardRight, 2));
-
-        //optimize and calculate wheel angles rather than turning 180 degrees
-        SwerveUnit frontRight = optimizeWheelAngle(fr.getPodHeading(), Math.atan2(strafeFront, forwardRight)*180/Math.PI, frontRightSpeed);
-        SwerveUnit frontLeft  = optimizeWheelAngle(fl.getPodHeading(), Math.atan2(strafeFront, forwardLeft)*180/Math.PI,  frontLeftSpeed);
-        SwerveUnit rearLeft   = optimizeWheelAngle(rl.getPodHeading(), Math.atan2(strafeRear, forwardLeft)*180/Math.PI, rearLeftSpeed);
-        SwerveUnit rearRight  = optimizeWheelAngle(rr.getPodHeading(), Math.atan2(strafeRear,forwardRight)*180/Math.PI, rearRightSpeed);
-
-        //scale powers to be =<1
-        double max = Math.abs(frontRight.getMotorPower());
-        if(Math.abs(frontLeft.getMotorPower())> max){
-            max = Math.abs(frontLeft.getMotorPower());
-        } if(Math.abs(rearLeft.getMotorPower()) > max){
-            max = Math.abs(rearLeft.getMotorPower());
-        } if(Math.abs(rearRight.getMotorPower())> max){
-            max = Math.abs(rearRight.getMotorPower());
-        }
-        //scale down if powers are greater than 1
-        if(max > 1){
-            frontRight.setMotorSpeed(frontRight.getMotorPower() / max);
-            frontLeft.setMotorSpeed(frontLeft.getMotorPower() / max);
-            rearLeft.setMotorSpeed(rearLeft.getMotorPower() / max);
-            rearRight.setMotorSpeed(rearRight.getMotorPower() / max);
-        }
-        //setPowersAndAngles
-        fr.setPodAngleAndPower(frontRight);
-        fl.setPodAngleAndPower(frontLeft);
-        rl.setPodAngleAndPower(rearLeft);
-        rr.setPodAngleAndPower(rearRight);
-    }
-
-    /**
-     * optimizes wheel angle by flipping the motor direction when possible
-     * @param currentAngle is the angle of the current pod (degrees)
-     * @param targetAngle is the target angle for the pod (degrees)
-     * @param power the power of the swerve pod 0.0-1.0
-     * @return the pod angle (degrees)
-     */
-    private SwerveUnit optimizeWheelAngle(double currentAngle, double targetAngle, double power){
-        double delta = targetAngle- currentAngle;
-        double wrappedDelta = delta - (360 * Math.round(delta /360.0));
-        if(Math.abs(wrappedDelta) > 90){
-            power *= -1;
-            wrappedDelta -= Math.copySign(180, wrappedDelta);
-        }
-        return new SwerveUnit(power, currentAngle + wrappedDelta);
+    protected boolean isRobotCentric() {
+        return constants.robotCentric;
     }
 
     @Override
-    public void drive(double x, double y, double turn, double robotHeading) {
+    public void moveWithVectors(double drive, double strafe, double turn){
+        turn *= -1; // Clockwise turn angle
 
+        // Swerve kinematics calculations
+        double strafeRear = strafe - turn * this.constants.getWheelbaseRatio();
+        double strafeFront = strafe + turn * this.constants.getWheelbaseRatio();
+        double forwardRight = drive - turn * this.constants.getTrackWidthRatio();
+        double forwardLeft = drive + turn * this.constants.getTrackWidthRatio();
+        double flPower = Math.sqrt(Math.pow(strafeFront, 2) + Math.pow(forwardLeft, 2));
+        double blPower = Math.sqrt(Math.pow(strafeRear, 2) + Math.pow(forwardLeft, 2));
+        double frPower = Math.sqrt(Math.pow(strafeFront, 2) + Math.pow(forwardRight, 2));
+        double brPower = Math.sqrt(Math.pow(strafeRear, 2) + Math.pow(forwardRight, 2));
+
+        // Normalize powers from -maxPower to maxPower if any exceed the max
+        double max = Math.max(0, Math.abs(flPower));
+        max = Math.max(max, Math.abs(blPower));
+        max = Math.max(max, Math.abs(frPower));
+        max = Math.max(max, Math.abs(brPower));
+        if (max > constants.maxPower) {
+            flPower = (flPower / max) * constants.maxPower;
+            blPower = (blPower / max) * constants.maxPower;
+            frPower = (frPower / max) * constants.maxPower;
+            brPower = (brPower / max) * constants.maxPower;
+        }
+
+        // Set pod target angles and powers, update to apply
+        this.fl.setTargets(Math.toDegrees(Math.atan2(strafeFront, forwardLeft)), flPower);
+        this.bl.setTargets(Math.toDegrees(Math.atan2(strafeRear, forwardLeft)), blPower);
+        this.fr.setTargets(Math.toDegrees(Math.atan2(strafeFront, forwardRight)), frPower);
+        this.br.setTargets(Math.toDegrees(Math.atan2(strafeRear, forwardRight)), brPower);
+        this.fl.update(); this.bl.update(); this.fr.update(); this.br.update();
     }
 
     @Override
     public void stop() {
-
+        this.fl.stop(); this.bl.stop(); this.fr.stop(); this.br.stop(); // Note: stop() calls update()
     }
 
     @Override
     public void debug(Telemetry telemetry) {
-
+        telemetry.addData("Front Left Module", fl.toString());
+        telemetry.addData("Back Left Module", bl.toString());
+        telemetry.addData("Front Right Module", fr.toString());
+        telemetry.addData("Back Right Module", br.toString());
     }
 
-    /**
-     * call this every loop
-     */
-    public void update(){
-        fl.update();
-        fr.update();
-        rl.update();
-        rr.update();
-
-
+    @NonNull
+    @Override
+    public String toString() {
+        return String.format(Locale.ENGLISH, "Swerve(fl=%s, bl=%s, fr=%s, br=%s)",
+                fl.toString(), bl.toString(), fr.toString(), br.toString());
     }
 }

@@ -81,7 +81,7 @@ public class Angle {
     public Angle divide(Angle other) { return new Angle(this.baseAngle / other.baseAngle); }
 
     /** Mirror the angle across the y-axis in place */
-    public void mirror() { this.baseAngle = Math.PI - this.baseAngle; }
+    public void mirror() { this.baseAngle = normalize(Math.PI - this.baseAngle); }
     // endregion
 
     // region Utility methods

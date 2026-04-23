@@ -1,4 +1,4 @@
-package controllers.VectorControllers;
+package controllers.vector;
 
 import util.Vector;
 

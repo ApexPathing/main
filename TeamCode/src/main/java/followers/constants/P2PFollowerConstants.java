@@ -1,20 +1,21 @@
 package followers.constants;
 
 import controllers.PDFLController;
-import controllers.VectorControllers.PDLVectorController;
+import controllers.vector.PDLVectorController;
+import drivetrains.Drivetrain;
+import followers.P2PFollower;
+import localizers.Localizer;
 
 /**
  * Point to point follower constants class
  * @author Dylan B. - 18597 RoboClovers - Delta
  */
-public class P2PFollowerConstants {
+public class P2PFollowerConstants extends FollowerConstants {
     // Tunable constants
     public double translationalGain = 0.03;
     public double translationalD = 0.0;
     public double headingGain = 0.5;
     public double headingD = 0.0;
-
-    // Tolerances
 
     // Power limits while following (note that these may be overridden by the drivetrain's power limits)
     public double maxPower = 1.0;
@@ -31,6 +32,11 @@ public class P2PFollowerConstants {
         this.translationalController = new PDLVectorController(translationalGain, translationalD, minPower);
         this.headingController = new PDFLController(headingGain, headingD, 0.0, minPower);
         headingController.useAsAngularController();
+    }
+
+    @Override
+    public P2PFollower build(Drivetrain drivetrain, Localizer localizer) {
+        return new P2PFollower(this, drivetrain, localizer);
     }
 
     // region Setters

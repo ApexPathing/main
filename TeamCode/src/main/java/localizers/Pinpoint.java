@@ -13,13 +13,14 @@ import util.Pose;
 
 /**
  * Localizer for the goBILDA Pinpoint Odometry Computer using the GoBildaPinpointDriver class.
+ *
  * @author Sohum Arora 22985
  * @author Dylan B. 18597 RoboClovers - Delta
  */
 public class Pinpoint extends Localizer {
     private final GoBildaPinpointDriver pinpoint;
 
-    public Pinpoint(HardwareMap hardwareMap, PinpointConstants constants, Pose startPose) {
+    public Pinpoint(HardwareMap hardwareMap, PinpointConstants constants) {
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, constants.name);
         pinpoint.setOffsets(constants.xOffset, constants.yOffset, constants.distanceUnit); // Offsets
         if (constants.customEncoderResolution != 0) { // Encoder resolution
@@ -32,7 +33,6 @@ public class Pinpoint extends Localizer {
             pinpoint.setYawScalar(constants.yawScalar);
         }
         pinpoint.resetPosAndIMU(); // Reset IMU
-        this.setPose(startPose); // Set starting position
     }
 
     @Override

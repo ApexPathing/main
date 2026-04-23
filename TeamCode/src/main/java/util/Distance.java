@@ -24,7 +24,7 @@ public class Distance {
 
     // region Constants (unit to inch conversion factors)
     private static final double M_TO_INCH = 1000.0 / 25.4;
-    private static final double CM_TO_INCH = 10.0 / 2.54;
+    private static final double CM_TO_INCH = 10.0 / 25.4;
     private static final double MM_TO_INCH = 1.0 / 25.4;
     private static final double FT_TO_INCH = 12.0;
     private static final double YD_TO_INCH = 36.0;
@@ -126,6 +126,9 @@ public class Distance {
 
     /** @return a new {@link Distance} that is the absolute value of this distance */
     public Distance abs() { return new Distance(Math.abs(this.baseDistance)); }
+
+    /** @return the hypotenuse of this distance and another distance, treating them as legs of a right triangle */
+    public Distance hypotenuse(Distance other) { return new Distance(Math.hypot(this.baseDistance, other.baseDistance)); }
 
     /** Mirror the distance across the origin (negate the distance) in place */
     public void mirror() { this.baseDistance = -this.baseDistance; }

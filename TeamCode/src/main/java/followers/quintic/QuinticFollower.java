@@ -56,9 +56,9 @@ public class QuinticFollower extends Follower {
     private double PrevHeadingError = 0;
     private final ElapsedTime Timer = new ElapsedTime();
     private double PrevTime = 0;
+
     public QuinticFollower(Drivetrain drivetrain, Localizer localizer) {
-        this.drivetrain = drivetrain;
-        this.localizer  = localizer;
+        super(drivetrain, localizer);
     }
 
     /**

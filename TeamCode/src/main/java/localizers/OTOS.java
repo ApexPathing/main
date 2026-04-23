@@ -11,10 +11,16 @@ import util.Angle;
 import util.Distance;
 import util.Pose;
 
+/**
+ * Localizer for the SparkFun OTOS (Odometry Tracking and Orientation System) using the SparkFunOTOS
+ * class.
+ *
+ * @author Dylan B. 18597 RoboClovers - Delta
+ */
 public class OTOS extends Localizer {
     private final SparkFunOTOS otos;
 
-    public OTOS(HardwareMap hardwareMap, OTOSConstants constants, Pose startPose) {
+    public OTOS(HardwareMap hardwareMap, OTOSConstants constants) {
         this.otos = hardwareMap.get(SparkFunOTOS.class, constants.name);
         this.otos.setLinearUnit(DistanceUnit.INCH);
         this.otos.setAngularUnit(AngleUnit.RADIANS);
@@ -23,7 +29,6 @@ public class OTOS extends Localizer {
         this.otos.setAngularScalar(constants.headingScalar);
         this.otos.calibrateImu();
         this.otos.resetTracking();
-        this.setPose(startPose);
     }
 
     private SparkFunOTOS.Pose2D toSparkfunPose2D(Pose pose) {
