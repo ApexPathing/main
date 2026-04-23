@@ -41,15 +41,6 @@ public class Mecanum extends Drivetrain {
         brMotor = this.constants.brData.build(hardwareMap);
     }
 
-    @Override
-    protected void setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior behavior) {
-        flMotor.setZeroPowerBehavior(behavior);
-        blMotor.setZeroPowerBehavior(behavior);
-        frMotor.setZeroPowerBehavior(behavior);
-        brMotor.setZeroPowerBehavior(behavior);
-    }
-
-    @Override
     protected boolean isRobotCentric() { return constants.robotCentric; }
 
     /**
@@ -78,7 +69,6 @@ public class Mecanum extends Drivetrain {
         brMotor.setPower(brPower);
     }
 
-    @Override
     public void moveWithVectors(double drive, double strafe, double turn) {
         double flPower = drive + strafe + turn;
         double blPower = drive - strafe + turn;
@@ -88,12 +78,10 @@ public class Mecanum extends Drivetrain {
         setPowers(flPower, blPower, frPower, brPower);
     }
 
-    @Override
     public void stop() {
         setPowers(0, 0, 0, 0);
     }
 
-    @Override
     public void debug(Telemetry telemetry) {
         telemetry.addData("Front Left Power", flMotor.getPower());
         telemetry.addData("Front Right Power", frMotor.getPower());

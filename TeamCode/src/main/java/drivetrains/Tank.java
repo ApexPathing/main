@@ -38,60 +38,50 @@ public class Tank extends Drivetrain {
         }
     }
 
-    @Override
-    protected void setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior behavior) {
-        flMotor.setZeroPowerBehavior(behavior);
-        frMotor.setZeroPowerBehavior(behavior);
-
-        if (constants.fourMotor) {
-            blMotor.setZeroPowerBehavior(behavior);
-            brMotor.setZeroPowerBehavior(behavior);
-        }
-    }
-
-    @Override
     protected boolean isRobotCentric() {
         return this.constants.robotCentric;
     }
 
-    @Override
     public void moveWithVectors(double drive, double strafe, double turn) {
-        // Interpreting the values
-        double leftSidePower = drive + turn;
-        double rightSidePower = drive - turn;
+        // Tank isn't holonomic, ignore the strafe vector
+        double leftPower = drive + turn;
+        double rightPower = drive - turn;
 
-        // Normalizing the above values to ensure we are passing valid values to the motors
-        double max = Math.max(Math.abs(leftSidePower), Math.abs(rightSidePower));
-        if (max > 1.0) {
-            leftSidePower /= max;
-            rightSidePower /= max;
+        // Normalize powers if any exceed the max power
+        double max = Math.max(Math.abs(leftPower), Math.abs(rightPower));
+        if (max > constants.maxPower) {
+            leftPower = (leftPower / max) * constants.maxPower;
+            rightPower = (rightPower / max) * constants.maxPower;
         }
 
-        // Finally, simply passing those velocities to the motors, which will take them
-        setPowers(leftSidePower, rightSidePower);
+        // Apply to motors
+        setPowers(leftPower, rightPower);
     }
 
-    @Override
-    public void drive(double x, double y, double turn, double robotHeading) {
-        moveWithVectors(y, x, turn);
-    }
+    /**
+     * Sets the power for each side of the robot, normalizing the powers if any exceed the maximum
+     * allowed power.
+     * @param leftPower the power to set for the left motors
+     * @param rightPower the power to set for the right motors
+     */
+    private void setPowers(double leftPower, double rightPower) {
+        // Normalize powers from -maxPower to maxPower if any exceed the max
+        double max = Math.max(Math.abs(leftPower), Math.abs(rightPower));
+        if (max > constants.maxPower) {
+            leftPower = (leftPower / max) * constants.maxPower;
+            rightPower = (rightPower / max) * constants.maxPower;
+        }
 
-    public void setPowers(double leftPower, double rightPower) {
         flMotor.setPower(leftPower);
         frMotor.setPower(rightPower);
-
         if (constants.fourMotor) {
             blMotor.setPower(leftPower);
             brMotor.setPower(rightPower);
         }
     }
 
-    @Override
-    public void stop() {
-        setPowers(0, 0);
-    }
+    public void stop() { setPowers(0, 0); }
 
-    @Override
     public void debug(Telemetry telemetry) {
         telemetry.addData("Front Left Power", flMotor.getPower());
         telemetry.addData("Front Right Power", frMotor.getPower());

@@ -2,8 +2,6 @@ package drivetrains;
 
 import androidx.annotation.NonNull;
 
-import com.qualcomm.robotcore.hardware.DcMotorEx;
-
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 /**
@@ -14,12 +12,6 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
  */
 public abstract class Drivetrain {
     /**
-     * Sets the zero power behavior for all drivetrain motors
-     * @param behavior the zero power behavior to set for all drivetrain motors
-     */
-    protected abstract void setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior behavior);
-
-    /**
      * Applies a deadzone to the input value. If the absolute value of the input is less than 0.05,
      * it returns 0. Otherwise, it returns the original value.
      * @param value the input value to apply the deadzone to
@@ -27,18 +19,6 @@ public abstract class Drivetrain {
      */
     protected static double deadzone(double value) {
         return Math.abs(value) < 0.05 ? 0.0 : value;
-    }
-
-    /**
-     * Update the brake mode for all drivetrain motors
-     * @param brake true for brake mode, false for float mode
-     */
-    public void setBrakeMode(boolean brake) {
-        if (brake) {
-            setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
-        } else {
-            setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.FLOAT);
-        }
     }
 
     /**
@@ -95,10 +75,7 @@ public abstract class Drivetrain {
      */
     public abstract void stop();
 
-    public void debug(Telemetry telemetry) {
-        // Override in drivetrain implementations to add debug telemetry
-        telemetry.addData("Drivetrain", "No debug implemented for this drivetrain type");
-    }
+    public abstract void debug(Telemetry telemetry);
 
     @NonNull
     @Override

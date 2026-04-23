@@ -44,11 +44,6 @@ public class SwerveModule {
         this.encoder = hardwareMap.get(AnalogInput.class, this.constants.encoderName);
     }
 
-    /** @param behavior the zero power behavior of the drive motor. */
-    public void setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior behavior) {
-        driveMotor.setZeroPowerBehavior(behavior);
-    }
-
     /**
      * @return current drive motor power, from -1 to 1
      */

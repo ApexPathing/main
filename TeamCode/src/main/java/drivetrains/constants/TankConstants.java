@@ -26,7 +26,6 @@ public class TankConstants extends DrivetrainConstants {
     // Miscellaneous constants
     public double maxPower = 1.0; // 0 to 1, max power to apply to the motors
     public boolean fourMotor = true; // Four motor tank (true) or two motor tank (false)
-    public boolean brakeMode = false; // Brake mode (true) or coast mode (false) for the motors
     public boolean feedForward = true; // Whether to use feedforward in the velocity controller TODO: USE THIS
     public boolean robotCentric = true; // Whether to use robot-centric controls (true) or field-centric controls (false) in TeleOp
 
@@ -49,6 +48,7 @@ public class TankConstants extends DrivetrainConstants {
         this.flData.setName(name);
         return this;
     }
+
     /**
      * Sets the left rear motor name. Default: "back_left_drive"
      * @param name the name of the left rear motor
@@ -58,6 +58,7 @@ public class TankConstants extends DrivetrainConstants {
         this.blData.setName(name);
         return this;
     }
+
     /**
      * Sets the right front motor name. Default: "front_right_drive"
      * @param name the name of the right front motor
@@ -67,6 +68,7 @@ public class TankConstants extends DrivetrainConstants {
         this.frData.setName(name);
         return this;
     }
+
     /**
      * Sets the right rear motor name. Default: "back_right_drive"
      * @param name the name of the right rear motor
@@ -86,6 +88,7 @@ public class TankConstants extends DrivetrainConstants {
         this.flData.setDirection(reversed ? DcMotorSimple.Direction.REVERSE : DcMotorSimple.Direction.FORWARD);
         return this;
     }
+
     /**
      * Default direction is FORWARD.
      * @param reversed whether the back left motor is reversed
@@ -95,6 +98,7 @@ public class TankConstants extends DrivetrainConstants {
         this.blData.setDirection(reversed ? DcMotorSimple.Direction.REVERSE : DcMotorSimple.Direction.FORWARD);
         return this;
     }
+
     /**
      * Default direction is FORWARD.
      * @param reversed whether the front right motor is reversed
@@ -104,6 +108,7 @@ public class TankConstants extends DrivetrainConstants {
         this.frData.setDirection(reversed ? DcMotorSimple.Direction.REVERSE : DcMotorSimple.Direction.FORWARD);
         return this;
     }
+
     /**
      * Default direction is FORWARD.
      * @param reversed whether the back right motor is reversed

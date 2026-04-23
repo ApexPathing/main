@@ -2,7 +2,6 @@ package drivetrains;
 
 import androidx.annotation.NonNull;
 
-import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
@@ -29,20 +28,12 @@ public class Swerve extends Drivetrain {
      * @param hardwareMap the hardware map to use for module initialization
      * @param constants {@link SwerveConstants} object containing all tunable values and motor names/directions
      */
-    public Swerve(HardwareMap hardwareMap, SwerveConstants constants){
+    public Swerve(HardwareMap hardwareMap, @NonNull  SwerveConstants constants){
         this.constants = constants;
         this.fl = constants.flModuleConstants.build(hardwareMap);
         this.bl = constants.blModuleConstants.build(hardwareMap);
         this.fr = constants.frModuleConstants.build(hardwareMap);
         this.br = constants.brModuleConstants.build(hardwareMap);
-    }
-
-    @Override
-    protected void setZeroPowerBehavior(DcMotor.ZeroPowerBehavior behavior) {
-        fl.setZeroPowerBehavior(behavior);
-        bl.setZeroPowerBehavior(behavior);
-        fr.setZeroPowerBehavior(behavior);
-        br.setZeroPowerBehavior(behavior);
     }
     
     @Override
