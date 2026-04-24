@@ -2,8 +2,7 @@ package followers;
 
 import com.qualcomm.robotcore.util.Range;
 
-import controllers.PDFLController;
-import controllers.vector.PDLVectorController;
+import controllers.PDLController;
 import drivetrains.Drivetrain;
 import localizers.Localizer;
 import followers.constants.P2PFollowerConstants;
@@ -19,8 +18,9 @@ import util.Vector;
 public class P2PFollower extends Follower {
     private final P2PFollowerConstants constants;
 
-    private final PDLVectorController translationalController;
-    private final PDFLController headingController;
+    private final PDLController axialController;
+    private final PDLController strafeController;
+    private final PDLController headingController;
 
     /**
      * Constructor for the P2PFollower
@@ -30,7 +30,8 @@ public class P2PFollower extends Follower {
     public P2PFollower(P2PFollowerConstants constants, Drivetrain drivetrain, Localizer localizer) {
         super(drivetrain, localizer);
         this.constants = constants;
-        this.translationalController = constants.translationalController;
+        this.axialController = constants.axialController;
+        this.strafeController = constants.strafeController;
         this.headingController = constants.headingController;
     }
 
@@ -39,51 +40,44 @@ public class P2PFollower extends Follower {
      * @param targetPose the new target pose
      */
     public void setTargetPose(Pose targetPose) {
-        this.isBusy = false;
+        this.axialController.reset();
+        this.strafeController.reset();
         this.headingController.reset();
-        this.translationalController.reset();
         super.setTargetPose(targetPose); // Use the unexposed method from the Follower class
     }
 
-    public boolean translationalAtTarget() {
-        return constants.translationalController.isAtTarget();
-    }
+    public boolean axialAtTarget() { return constants.axialController.isAtTarget(); }
 
-    public boolean headingAtTarget() {
-        return constants.headingController.isAtTarget();
-    }
+    public boolean strafeAtTarget() { return constants.strafeController.isAtTarget(); }
+
+    public boolean headingAtTarget() { return constants.headingController.isAtTarget(); }
 
     @Override
-    public void update() {
+    public void update() {;
         localizer.update();
-        Pose location = localizer.getPose();
 
         if (!isBusy) {
-            drivetrain.stop();
-            return;
+            return; // No need to calculate anything if we're not busy
         }
 
-        Vector translationError = targetPose.toVec().subtract(location.toVec());
-        /* NOTE: Controller handles angleWrapping via headingController.useAsAngularController() in base */
-        double headingError = targetPose.getHeading() - location.getHeading();
+        Pose pose = localizer.getPose();
+        Vector translationError = targetPose.toVec().subtract(pose.toVec());
+        double headingError = targetPose.getHeading() - pose.getHeading(); // Controller handles wrapping
 
-        // Replaced comparisons with controller methods
-        if (constants.translationalController.isAtTarget() && constants.headingController.isAtTarget()) {
+        if (axialController.isAtTarget() && strafeController.isAtTarget() && headingController.isAtTarget()) {
             isBusy = false;
             drivetrain.stop();
             return;
         }
 
-        //Vector drive = translationalController.calculate(translationError).rotated(-location.getHeading());
-        Vector drive = new Vector(0, 0);
+        double axial = axialController.calculate(translationError.getY());
+        double strafe = strafeController.calculate(translationError.getX());
         double turn = -headingController.calculate(headingError);
 
-        // Note: minimum power provided by controllers
-        if (drive.getMagnitudeSquared() > constants.maxPower * constants.maxPower) {
-            drive = drive.normalize().multiply(constants.maxPower);
-        }
-        turn = Range.clip(turn, -constants.maxPower, constants.maxPower);
+        axial = Range.clip(axial, -constants.maxTranslationalPower, constants.maxTranslationalPower);
+        strafe = Range.clip(strafe, -constants.maxTranslationalPower, constants.maxTranslationalPower);
+        turn = Range.clip(turn, -constants.maxRotationalPower, constants.maxRotationalPower);
 
-        drivetrain.drive(drive.getX(), drive.getY(), turn, 0);
+        drivetrain.drive(axial, strafe, turn);
     }
 }

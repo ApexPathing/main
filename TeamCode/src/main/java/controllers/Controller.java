@@ -2,6 +2,9 @@ package controllers;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
+import util.Angle;
+import util.Distance;
+
 public abstract class Controller {
     protected double lastError = 0.0;
     protected double motorDeadzone = 0.05;
@@ -28,8 +31,18 @@ public abstract class Controller {
         this.angularController = false;
     }
 
-    public void setTolerance(double tolerance) {
-        this.tolerance = tolerance;
+    public void setTolerance(Angle tolerance) {
+        if (!angularController) {
+            throw new IllegalStateException("Cannot set angular tolerance on a linear controller");
+        }
+        this.tolerance = tolerance.getRad();
+    }
+
+    public void setTolerance(Distance tolerance) {
+        if (angularController) {
+            throw new IllegalStateException("Cannot set linear tolerance on an angular controller");
+        }
+        this.tolerance = tolerance.getIn();
     }
 
     public boolean isAtTarget() {

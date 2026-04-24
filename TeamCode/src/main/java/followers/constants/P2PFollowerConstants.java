@@ -1,10 +1,11 @@
 package followers.constants;
 
-import controllers.PDFLController;
-import controllers.vector.PDLVectorController;
+import controllers.PDLController;
 import drivetrains.Drivetrain;
 import followers.P2PFollower;
 import localizers.Localizer;
+import util.Angle;
+import util.Distance;
 
 /**
  * Point to point follower constants class
@@ -12,120 +13,109 @@ import localizers.Localizer;
  */
 public class P2PFollowerConstants extends FollowerConstants {
     // Tunable constants
-    public double translationalGain = 0.03;
-    public double translationalD = 0.0;
-    public double headingGain = 0.5;
-    public double headingD = 0.0;
-
-    // Power limits while following (note that these may be overridden by the drivetrain's power limits)
-    public double maxPower = 1.0;
-    public double minPower = 0.05;
+    public PDLController.Coefficients axialCoeffs = new PDLController.Coefficients();
+    public PDLController.Coefficients strafeCoeffs = new PDLController.Coefficients();
+    public PDLController.Coefficients headingCoeffs = new PDLController.Coefficients();
 
     // Controllers
-    public final PDLVectorController translationalController;
-    public final PDFLController headingController;
+    public PDLController axialController;
+    public PDLController strafeController;
+    public PDLController headingController;
+
+    // Power limits
+    public double maxTranslationalPower = 1.0;
+    public double maxRotationalPower = 1.0;
 
     /**
      * Constructor for the P2PFollowerConstants class
      */
     public P2PFollowerConstants() {
-        this.translationalController = new PDLVectorController(translationalGain, translationalD, minPower);
-        this.headingController = new PDFLController(headingGain, headingD, 0.0, minPower);
-        headingController.useAsAngularController();
+        this.axialController = new PDLController(axialCoeffs);
+        this.strafeController = new PDLController(strafeCoeffs);
+        this.headingController = new PDLController(headingCoeffs);
+        this.headingController.useAsAngularController();
     }
 
     @Override
     public P2PFollower build(Drivetrain drivetrain, Localizer localizer) {
+        this.axialController.setPDLCoefficients(axialCoeffs);
+        this.strafeController.setPDLCoefficients(strafeCoeffs);
+        this.headingController.setPDLCoefficients(headingCoeffs);
         return new P2PFollower(this, drivetrain, localizer);
     }
 
     // region Setters
-
     /**
-     * Sets the translational proportional gain.
-     * @param translationalGain the translational Kp
+     * Sets the PDL coefficients for the axial controller.
+     * @param coeffs the new axial {@link PDLController.Coefficients}
      * @return this instance for chaining
      */
-    public P2PFollowerConstants setTranslationalGain(double translationalGain) {
-        this.translationalGain = translationalGain;
-        this.translationalController.setPDLCoefficients(translationalGain, translationalD, minPower);
+    public P2PFollowerConstants setAxialCoeffs(PDLController.Coefficients coeffs) {
+        this.axialCoeffs = coeffs;
         return this;
     }
 
     /**
-     * Sets the translational derivative gain to mitigate overshoot
-     * @param translationalD the derivative gain for translational movement
+     * Sets the PDL coefficients for the strafe controller.
+     * @param coeffs the new strafe {@link PDLController.Coefficients}
      * @return this instance for chaining
      */
-    public P2PFollowerConstants setTranslationalD(double translationalD) {
-        this.translationalD = translationalD;
-        this.translationalController.setPDLCoefficients(translationalGain, translationalD, minPower);
+    public P2PFollowerConstants setStrafeCoeffs(PDLController.Coefficients coeffs) {
+        this.strafeCoeffs = coeffs;
         return this;
     }
 
     /**
-     * Sets the heading proportional gain.
-     * @param headingGain the heading Kp
+     * Sets the PDL coefficients for the heading controller.
+     * @param coeffs the new heading {@link PDLController.Coefficients}
      * @return this instance for chaining
      */
-    public P2PFollowerConstants setHeadingGain(double headingGain) {
-        this.headingGain = headingGain;
-        this.headingController.setPDFLCoefficients(headingGain, headingD, 0.0, minPower);
+    public P2PFollowerConstants setHeadingCoeffs(PDLController.Coefficients coeffs) {
+        this.headingCoeffs = coeffs;
         return this;
     }
 
     /**
-     * Sets the heading derivative gain to mitigate heading overshoot
-     * @param headingD the heading derivative gain
-     * @return this instance for chaining
-     */
-    public P2PFollowerConstants setHeadingD(double headingD) {
-        this.headingD = headingD;
-        this.headingController.setPDFLCoefficients(headingGain, headingD, 0.0, minPower);
-        return this;
-    }
-
-    /**
-     * Sets the translational tolerance.
+     * Sets the translational error tolerance for the robot to be considered "at the target".
      * @param translationalTolerance the tolerance in inches
      * @return this instance for chaining
      */
-    public P2PFollowerConstants setTranslationalTolerance(double translationalTolerance) {
-        this.translationalController.setTolerance(translationalTolerance);
+    public P2PFollowerConstants setTranslationalTolerance(Distance translationalTolerance) {
+        this.axialController.setTolerance(translationalTolerance);
+        this.strafeController.setTolerance(translationalTolerance);
         return this;
     }
 
     /**
-     * Sets the heading tolerance.
-     * @param headingToleranceDegrees the tolerance in degrees
+     * Sets the heading error tolerance for the robot to be considered "at the target".
+     * @param headingTolerance the tolerance in degrees
      * @return this instance for chaining
      */
-    public P2PFollowerConstants setHeadingTolerance(double headingToleranceDegrees) {
-        this.headingController.setTolerance(Math.toRadians(headingToleranceDegrees));
+    public P2PFollowerConstants setHeadingTolerance(Angle headingTolerance) {
+        this.headingController.setTolerance(headingTolerance);
         return this;
     }
 
     /**
-     * Sets the maximum power.
-     * @param maxPower the maximum power limit
+     * Sets the maximum translational power that the follower can output.
+     * Note that drivetrain power limits take precedence over this and this only affects following
+     * @param maxTranslationalPower the maximum translational power (0 to 1)
      * @return this instance for chaining
      */
-    public P2PFollowerConstants setMaxPower(double maxPower) {
-        this.maxPower = maxPower;
+    public P2PFollowerConstants setMaxTranslationalPower(double maxTranslationalPower) {
+        this.maxTranslationalPower = maxTranslationalPower;
         return this;
     }
 
     /**
-     * Sets the minimum power.
-     * @param minPower the minimum power limit
+     * Sets the maximum rotational power that the follower can output.
+     * Note that drivetrain power limits take precedence over this and this only affects following
+     * @param maxRotationalPower the maximum rotational power (0 to 1)
      * @return this instance for chaining
      */
-    public P2PFollowerConstants setMinPower(double minPower) {
-        this.minPower = minPower;
-        this.headingController.setPDFLCoefficients(headingGain, headingD, 0.0, minPower);
-        this.translationalController.setPDLCoefficients(translationalGain, translationalD, minPower);
+    public P2PFollowerConstants setMaxRotationalPower(double maxRotationalPower) {
+        this.maxRotationalPower = maxRotationalPower;
         return this;
     }
-
     // endregion
 }

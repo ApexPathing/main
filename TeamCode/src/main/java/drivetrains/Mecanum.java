@@ -99,7 +99,7 @@ public class Mecanum extends Drivetrain {
      */
     private double getTotalCurrent(){
         return flMotor.getCurrent(CurrentUnit.AMPS) + frMotor.getCurrent(CurrentUnit.AMPS) +
-                blMotor.getCurrent(CurrentUnit.AMPS)+ brMotor.getCurrent(CurrentUnit.AMPS);
+               blMotor.getCurrent(CurrentUnit.AMPS) + brMotor.getCurrent(CurrentUnit.AMPS);
     }
 
     public void debug(Telemetry telemetry) {

@@ -26,10 +26,7 @@ public class MecanumConstants extends DrivetrainConstants {
     public double maxCurrent = -1.0; // Max total motor current in amps, negative for no limit
     public boolean robotCentric = true; // Whether to use robot-centric controls (true) or field-centric controls (false) in TeleOp
 
-
-    /**
-     * Constructor for the MecanumConstants class
-     */
+    /** Constructor for the MecanumConstants class */
     public MecanumConstants() {}
 
     @Override
