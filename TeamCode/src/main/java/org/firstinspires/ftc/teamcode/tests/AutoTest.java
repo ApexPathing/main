@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.tests;
 
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.Constants;
 
@@ -14,11 +15,15 @@ import util.PoseBuilder;
 /**
  * Test OpMode for using Apex Pathing in Autonomous mode.
  * Edit the poses array to test different types of movement individually or together.
+ *
  * @author Dylan B. - 18597 RoboClovers - Delta
  */
 @Autonomous(name = "Apex Autonomous Test", group = "Apex Pathing Tests")
 public class AutoTest extends LinearOpMode {
     private int iterator = 0;
+
+    private final ElapsedTime waitTimer = new ElapsedTime();
+    private boolean timerStarted = true; // Start with true so it doesn't wait to move to the first pose
 
     // Poses
     private final PoseBuilder pb = new PoseBuilder(Distance.Units.INCHES, Angle.Units.DEGREES, false);
@@ -44,11 +49,20 @@ public class AutoTest extends LinearOpMode {
 
             if (!follower.isBusy()) {
                 if (iterator < poses.length - 1) {
-                    iterator++;
-                    follower.setTargetPose(poses[iterator]);
+                    // Wait before moving on for the robot to settle
+                    if (!timerStarted) {
+                        waitTimer.reset();
+                        timerStarted = true;
+                    } else if (waitTimer.milliseconds() >= 1000) {
+                        timerStarted = false;
+                        iterator++;
+                        follower.setTargetPose(poses[iterator]);
+                    } else {
+                        continue; // Wait until the timer has elapsed
+                    }
                 } else {
                     // We've reached the final pose
-                    follower.stop();
+                    follower.stop(); // Hold position
                     telemetry.addData("Status", "Done");
                 }
             }
@@ -62,7 +76,8 @@ public class AutoTest extends LinearOpMode {
             telemetry.addData("Target Pose", follower.getTargetPose().toString());
             telemetry.addData("Velocity", follower.getVelocity().toString());
             telemetry.addData("Is Busy", follower.isBusy());
-            telemetry.addData("Translational at target", follower.translationalAtTarget());
+            telemetry.addData("Axial at target", follower.axialAtTarget());
+            telemetry.addData("Strafe at target", follower.strafeAtTarget());
             telemetry.addData("Heading at target", follower.headingAtTarget());
             telemetry.update();
         }
