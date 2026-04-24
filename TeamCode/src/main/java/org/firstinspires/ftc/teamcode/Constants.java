@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
+import controllers.PDLController;
 import core.ApexBuilder;
 import drivetrains.constants.DrivetrainConstants;
 import drivetrains.constants.MecanumConstants;
@@ -37,7 +38,7 @@ public class Constants extends ApexBuilder {
 
     @Override
     public LocalizerConstants setLocalizerConstants() { // Any LocalizerConstants
-        return new OTOSConstants()
+        return new OTOSConstants() // Tuned for Dylan + Mikey strafer chassis with OTOS, don't change these
                 .setName("otos")
                 .setOffset(new Pose(227, -16, 0, Distance.Units.MILLIMETERS, Angle.Units.DEGREES))
                 .setLinearScalar(1.05)
@@ -47,14 +48,13 @@ public class Constants extends ApexBuilder {
     @Override
     public FollowerConstants setFollowerConstants() { // Any FollowerConstants
         return new P2PFollowerConstants()
-                .setTranslationalGain(0.05)
-                .setTranslationalD(0)
-                .setHeadingGain(1)
-                .setHeadingD(0.05)
-                .setTranslationalTolerance(67) // Inches
-                .setHeadingTolerance(3.0) // Degrees
-                .setMaxPower(0.5) // Specifically for following, not drivetrain max power
-                .setMinPower(0.04);
+                .setAxialCoeffs(new PDLController.Coefficients(0.0, 0.0, 0.0))
+                .setStrafeCoeffs(new PDLController.Coefficients(0.0, 0.0, 0.0))
+                .setHeadingCoeffs(new PDLController.Coefficients(0.0, 0.0, 0.0))
+                .setHeadingTolerance(Angle.fromDeg(3.0))
+                .setTranslationalTolerance(Distance.fromIn(2.0))
+                .setMaxTranslationalPower(0.7)
+                .setMaxRotationalPower(0.7);
     }
 }
 
@@ -103,8 +103,8 @@ new SwerveConstants()
                         .setMotorReversed(true)
         )
         .setMaxPower(1.0)
-        .setTrackWidth(Distance.fromMm(300))
-        .setWheelbase(Distance.fromMm(300))
+        .setTrackWidth(Distance.fromMm(0))
+        .setWheelbase(Distance.fromMm(0))
         .setRobotCentric(true);
 */
 
@@ -113,8 +113,8 @@ new PinpointConstants()
         .setName("pinpoint")
         .setDistanceUnit(DistanceUnit.INCH)
         .setAngleUnit(AngleUnit.DEGREES)
-        .setXOffset(-3.31) // In distanceUnit
-        .setYOffset(-6.61) // In distanceUnit
+        .setXOffset(0.0) // In distanceUnit
+        .setYOffset(0.0) // In distanceUnit
         .setXPodDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD)
         .setYPodDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD)
         .setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);

@@ -25,9 +25,7 @@ public class TankConstants extends DrivetrainConstants {
     public boolean fourMotor = true; // Four motor tank (true) or two motor tank (false)
     public boolean robotCentric = true; // Whether to use robot-centric controls (true) or field-centric controls (false) in TeleOp
 
-    /**
-     * Constructor for the TankConstants class
-     */
+    /** Constructor for the TankConstants class */
     public TankConstants() {}
 
     @Override
