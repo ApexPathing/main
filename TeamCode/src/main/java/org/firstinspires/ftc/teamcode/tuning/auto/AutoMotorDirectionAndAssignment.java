@@ -12,8 +12,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import drivetrains.constants.MecanumConstants;
 import localizers.Localizer;
-import util.MotorMetaData;
 import util.Pose;
 
 
@@ -36,22 +36,33 @@ public class AutoMotorDirectionAndAssignment extends LinearOpMode {
             new WheelTendencies(MovementDirection.NORTH_EAST, Rotation.CCW), WheelPos.BACK_RIGHT
     );
 
+    private Constants constants;
+
     // --- Hardware & State ---
     private DcMotorEx m0, m1, m2, m3;
     private DcMotorEx[] motorArray;
+    private String[] motorNames;
     private Localizer localizer;
     private TuningState state = TuningState.POSITIVE_POWER;
 
     // region Main Loop
     @Override
     public void runOpMode() {
-        localizer = new Constants().buildOnlyLocalizer(hardwareMap, Pose.zero());
+        constants = new Constants();
+        localizer = constants.buildOnlyLocalizer(hardwareMap, Pose.zero());
 
-        // TODO: Replace with either user-defined names or automatic XML reader
-        m0 = new MotorMetaData("m0").build(hardwareMap);
-        m1 = new MotorMetaData("m1").build(hardwareMap);
-        m2 = new MotorMetaData("m2").build(hardwareMap);
-        m3 = new MotorMetaData("m3").build(hardwareMap);
+        MecanumConstants driveConstants = (MecanumConstants) constants.drivetrainConstants;
+        motorNames = new String[]{
+                driveConstants.getFlData().getName(),
+                driveConstants.getFrData().getName(),
+                driveConstants.getBlData().getName(),
+                driveConstants.getBrData().getName()
+        };
+
+        m0 = hardwareMap.get(DcMotorEx.class, motorNames[0]);
+        m1 = hardwareMap.get(DcMotorEx.class, motorNames[1]);
+        m2 = hardwareMap.get(DcMotorEx.class, motorNames[2]);
+        m3 = hardwareMap.get(DcMotorEx.class, motorNames[3]);
 
         motorArray = new DcMotorEx[]{m0, m1, m2, m3};
 
@@ -65,7 +76,8 @@ public class AutoMotorDirectionAndAssignment extends LinearOpMode {
         waitForStart();
 
         while (opModeIsActive()) {
-            if (currentMotorIndex < motorArray.length) {
+            // FIX: Changed < to >= so it only skips the state machine AFTER all motors are tested
+            if (currentMotorIndex >= motorArray.length) {
                 telemetry.addLine("--- Tuning Complete ---");
                 for (String result : telemetrySummary) {
                     if (result != null) {
@@ -78,6 +90,7 @@ public class AutoMotorDirectionAndAssignment extends LinearOpMode {
             }
 
             DcMotorEx motor = motorArray[currentMotorIndex];
+            String motorName = motorNames[currentMotorIndex];
 
             // Update localizer at the start of every loop
             localizer.update();
@@ -121,9 +134,9 @@ public class AutoMotorDirectionAndAssignment extends LinearOpMode {
                             motor.setDirection(DcMotorEx.Direction.REVERSE);
                         }
                         assignedMotors.put(pos, motor);
-                        telemetrySummary[currentMotorIndex] = "Motor m" + currentMotorIndex + " is " + pos.name() + (needsReversing ? " (REVERSED)" : " (FORWARD)");
+                        telemetrySummary[currentMotorIndex] = "Motor " + motorName + " is " + pos.name() + (needsReversing ? " (REVERSED)" : " (FORWARD)");
                     } else {
-                        telemetrySummary[currentMotorIndex] = "Motor m" + currentMotorIndex + " ERROR: No match found.";
+                        telemetrySummary[currentMotorIndex] = "Motor " + motorName + " ERROR: No match found.";
                     }
 
                     // Cut power and prepare to wait for deceleration
@@ -161,7 +174,7 @@ public class AutoMotorDirectionAndAssignment extends LinearOpMode {
             }
 
             // Show live tuning progress on the driver station
-            telemetry.addData("Identifying Motor", "m" + currentMotorIndex + " / " + motorArray.length);
+            telemetry.addData("Identifying Motor", motorName + " (" + (currentMotorIndex + 1) + " / " + motorArray.length + ")");
             telemetry.addData("Current State", state);
             telemetry.update();
         }

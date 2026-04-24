@@ -156,4 +156,32 @@ public class MecanumConstants extends DrivetrainConstants {
         this.robotCentric = robotCentric;
         return this;
     }
+
+    /**
+     * @return The user-defined MotorMetaData for the front left drive wheel.
+     */
+    public MotorMetaData getFlData() {
+        return flData;
+    }
+
+    /**
+     * @return The user-defined MotorMetaData for the back left drive wheel.
+     */
+    public MotorMetaData getBlData() {
+        return blData;
+    }
+
+    /**
+     * @return The user-defined MotorMetaData for the front right drive wheel.
+     */
+    public MotorMetaData getFrData() {
+        return frData;
+    }
+
+    /**
+     * @return The user-defined MotorMetaData for the back right drive wheel.
+     */
+    public MotorMetaData getBrData() {
+        return blData;
+    }
 }
