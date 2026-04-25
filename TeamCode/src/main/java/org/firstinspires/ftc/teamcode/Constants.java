@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
-import controllers.PDLController;
+import controllers.PDFLController.PDFLCoefficients;
 import core.ApexBuilder;
 import drivetrains.constants.DrivetrainConstants;
 import drivetrains.constants.MecanumConstants;
@@ -48,9 +48,9 @@ public class Constants extends ApexBuilder {
     @Override
     public FollowerConstants setFollowerConstants() { // Any FollowerConstants
         return new P2PFollowerConstants()
-                .setAxialCoeffs(new PDLController.Coefficients(0.0, 0.0, 0.0))
-                .setStrafeCoeffs(new PDLController.Coefficients(0.0, 0.0, 0.0))
-                .setHeadingCoeffs(new PDLController.Coefficients(0.0, 0.0, 0.0))
+                .setAxialCoeffs(new PDFLCoefficients(0.0, 0.0, 0.0))
+                .setStrafeCoeffs(new PDFLCoefficients(0.0, 0.0, 0.0))
+                .setHeadingCoeffs(new PDFLCoefficients(0.0, 0.0, 0.0))
                 .setHeadingTolerance(Angle.fromDeg(3.0))
                 .setTranslationalTolerance(Distance.fromIn(2.0))
                 .setMaxTranslationalPower(0.7)

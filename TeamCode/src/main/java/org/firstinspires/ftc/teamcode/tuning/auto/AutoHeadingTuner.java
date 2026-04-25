@@ -10,12 +10,13 @@ import org.firstinspires.ftc.teamcode.Constants;
 
 import java.util.concurrent.TimeUnit;
 
+import controllers.PDFLController.PDFLCoefficients;
 import controllers.PDFLController;
 import drivetrains.Drivetrain;
 import localizers.Localizer;
 import util.Pose;
 
-@TeleOp(name = "Auto Heading Tuner")
+@TeleOp(name = "Auto Heading Tuner", group = "Apex Pathing Tuning")
 public class AutoHeadingTuner extends LinearOpMode {
     private Drivetrain drivetrain;
     private Localizer localizer;
@@ -35,9 +36,11 @@ public class AutoHeadingTuner extends LinearOpMode {
             Constants constants = new Constants();
             drivetrain = constants.buildOnlyDrivetrain(hardwareMap);
             localizer = constants.buildOnlyLocalizer(hardwareMap, Pose.zero());
-            controller = new PDFLController(proportionalGain, derivativeGain, 0.0, minPower);
+
+            controller = new PDFLController(new PDFLCoefficients(proportionalGain, derivativeGain, minPower));
             controller.setDeadzone(deadzone);
             controller.useAsAngularController();
+
             timer = new ElapsedTime();
             telemetry = PanelsTelemetry.INSTANCE.getFtcTelemetry();
 
@@ -56,9 +59,8 @@ public class AutoHeadingTuner extends LinearOpMode {
 
         double maxGuess = 0.2;
         double minGuess = 0.0;
-        final double initialGuess = (maxGuess + minGuess) / 2.0;
 
-        double guess = initialGuess;
+        double guess = (maxGuess + minGuess) / 2.0; // Set an initial guess
         double lastGuess = -1.0;
         double maxDetectedAngularVelocity = 9999;
         boolean hasMoved;
@@ -72,7 +74,7 @@ public class AutoHeadingTuner extends LinearOpMode {
             telemetry.addData("Current Power Guess", guess);
             telemetry.update();
 
-            controller.setPDFLCoefficients(0, 0, 0, guess);
+            controller.setCoefficients(new PDFLCoefficients(0, 0, guess));
 
             // Calculate the shortest-path distance to both targets
             double distToZero = Math.abs(AngleUnit.normalizeRadians(localizer.getPose().getHeading() - 0));
@@ -162,7 +164,7 @@ public class AutoHeadingTuner extends LinearOpMode {
         double kP = 1.2 / (L * maxAccel);
         double kD = 0.6 / maxAccel;
 
-        controller.setPDFLCoefficients(kP, kD, 0.0, kS);
+        controller.setCoefficients(new PDFLCoefficients(kP, kD, kS));
 
         // endregion
         // region final verification
@@ -209,7 +211,5 @@ public class AutoHeadingTuner extends LinearOpMode {
         drivetrain.moveWithVectors(0, 0, -controller.calculate(error));
     }
 
-    private void update() {
-        localizer.update();
-    }
+    private void update() { localizer.update(); }
 }

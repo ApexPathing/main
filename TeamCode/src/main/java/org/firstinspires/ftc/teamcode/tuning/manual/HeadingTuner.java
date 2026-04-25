@@ -8,7 +8,8 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.teamcode.Constants;
 
-import controllers.PDLController;
+import controllers.PDFLController.PDFLCoefficients;
+import controllers.PDFLController;
 import drivetrains.Drivetrain;
 import localizers.Localizer;
 import util.Pose;
@@ -26,7 +27,7 @@ import util.Pose;
 public class HeadingTuner extends OpMode {
     private Drivetrain drivetrain;
     private Localizer localizer;
-    private PDLController controller;
+    private PDFLController controller;
     private JoinedTelemetry fullTelem;
 
     double target = 0;
@@ -42,7 +43,7 @@ public class HeadingTuner extends OpMode {
         localizer = constants.buildOnlyLocalizer(hardwareMap, Pose.zero());
         fullTelem = new JoinedTelemetry(PanelsTelemetry.INSTANCE.getFtcTelemetry(), telemetry);
 
-        controller = new PDLController(proportionalGain, derivativeGain, minPower);
+        controller = new PDFLController(new PDFLCoefficients(proportionalGain, derivativeGain, minPower));
         controller.setDeadzone(deadzone);
         controller.useAsAngularController();
 
@@ -72,8 +73,8 @@ public class HeadingTuner extends OpMode {
             drivetrain.stop();
         }
 
+        controller.setCoefficients(new PDFLCoefficients(proportionalGain, derivativeGain, minPower));
         controller.setDeadzone(deadzone);
-        controller.setPDLCoefficients(proportionalGain, derivativeGain, minPower);
 
         fullTelem.addData("Target: ", target);
         fullTelem.addData("Position: ", localizer.getPose().getHeading());

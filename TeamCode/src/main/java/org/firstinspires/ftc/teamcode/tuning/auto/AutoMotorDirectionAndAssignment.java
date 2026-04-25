@@ -16,7 +16,6 @@ import drivetrains.constants.MecanumConstants;
 import localizers.Localizer;
 import util.Pose;
 
-
 /**
  * OpMode for automatically determining the direction and position of each motor on a mecanum drivetrain.
  * The robot will run each motor individually while measuring the resulting movement with the localizer,

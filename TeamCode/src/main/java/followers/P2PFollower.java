@@ -2,7 +2,7 @@ package followers;
 
 import com.qualcomm.robotcore.util.Range;
 
-import controllers.PDLController;
+import controllers.PDFLController;
 import drivetrains.Drivetrain;
 import localizers.Localizer;
 import followers.constants.P2PFollowerConstants;
@@ -18,9 +18,9 @@ import util.Vector;
 public class P2PFollower extends Follower {
     private final P2PFollowerConstants constants;
 
-    private final PDLController axialController;
-    private final PDLController strafeController;
-    private final PDLController headingController;
+    private final PDFLController axialController;
+    private final PDFLController strafeController;
+    private final PDFLController headingController;
 
     /**
      * Constructor for the P2PFollower
