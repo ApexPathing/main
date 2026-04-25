@@ -11,6 +11,7 @@ import org.firstinspires.ftc.teamcode.Constants;
 import controllers.PDFLController.PDFLCoefficients;
 import controllers.PDFLController;
 import drivetrains.Drivetrain;
+import followers.constants.P2PFollowerConstants;
 import localizers.Localizer;
 import util.Pose;
 
@@ -28,9 +29,11 @@ public class AxialTuner extends OpMode {
     private Drivetrain drivetrain;
     private Localizer localizer;
     private PDFLController controller;
+    private PDFLController headingController;
     private JoinedTelemetry fullTelem;
 
     double target = 0;
+    public static boolean maintainHeading; // Use the heading controller
     public static double deadzone;
     public static double proportionalGain; // kP
     public static double derivativeGain; // kD
@@ -38,13 +41,22 @@ public class AxialTuner extends OpMode {
 
     @Override
     public void init() {
+        // Build constants, drivetrain, localizer, and telemetry
         Constants constants = new Constants();
         drivetrain = constants.buildOnlyDrivetrain(hardwareMap);
         localizer = constants.buildOnlyLocalizer(hardwareMap, Pose.zero());
         fullTelem = new JoinedTelemetry(PanelsTelemetry.INSTANCE.getFtcTelemetry(), telemetry);
 
-        controller = new PDFLController(new PDFLCoefficients(proportionalGain, derivativeGain, minPower));
-        controller.setDeadzone(deadzone);
+        // These controllers use the coefficients from the constants class
+        P2PFollowerConstants followerConstants = (P2PFollowerConstants) constants.setFollowerConstants();
+
+        // Extract the controllers, coefficients, and deadzone from the constants class
+        headingController = followerConstants.headingController;
+        controller = followerConstants.axialController;
+        proportionalGain = controller.getCoefficients().kP;
+        derivativeGain = controller.getCoefficients().kD;
+        minPower = controller.getCoefficients().kL;
+        deadzone = controller.getDeadzone();
 
         fullTelem.addLine(
                 "Hold X to move forward 24 inches, B to move backward 6 inches, and A to rotate back to start position."
@@ -54,13 +66,25 @@ public class AxialTuner extends OpMode {
 
     private void moveToTarget(double target) {
         this.target = target;
+
+        double turn = 0;
+        if (maintainHeading) {
+            double headingError = 0 - this.localizer.getPose().getHeading(); // Target heading is 0 degrees
+            turn = headingController.calculate(headingError);
+        } else {
+            headingController.reset(); // Prevent derivative kick when not maintaining heading
+        }
+
         double error = target - this.localizer.getPose().getX();
-        this.drivetrain.moveWithVectors(this.controller.calculate(error), 0, 0);
+        this.drivetrain.moveWithVectors(this.controller.calculate(error), 0, turn);
     }
 
     @Override
     public void loop() {
         localizer.update();
+
+        controller.setCoefficients(new PDFLCoefficients(proportionalGain, derivativeGain, minPower));
+        controller.setDeadzone(deadzone);
 
         if (gamepad1.x) { // Move 24 inches forward when X is held
             moveToTarget(24);
@@ -69,11 +93,11 @@ public class AxialTuner extends OpMode {
         } else if (gamepad1.a) { // Move back to 0 when A is held
             moveToTarget(0);
         } else {
+            // Prevent derivative kick
+            controller.reset();
+            headingController.reset();
             drivetrain.stop();
         }
-
-        controller.setCoefficients(new PDFLCoefficients(proportionalGain, derivativeGain, minPower));
-        controller.setDeadzone(deadzone);
 
         fullTelem.addData("Target: ", target);
         fullTelem.addData("Position: ", localizer.getPose().getX());

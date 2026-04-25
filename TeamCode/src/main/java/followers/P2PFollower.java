@@ -70,13 +70,10 @@ public class P2PFollower extends Follower {
             return;
         }
 
+        // Note: powers are clipped to max powers defined in constants
         double axial = axialController.calculate(translationError.getY());
         double strafe = strafeController.calculate(translationError.getX());
         double turn = -headingController.calculate(headingError);
-
-        axial = Range.clip(axial, -constants.maxTranslationalPower, constants.maxTranslationalPower);
-        strafe = Range.clip(strafe, -constants.maxTranslationalPower, constants.maxTranslationalPower);
-        turn = Range.clip(turn, -constants.maxRotationalPower, constants.maxRotationalPower);
 
         drivetrain.drive(axial, strafe, turn);
     }

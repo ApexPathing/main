@@ -46,19 +46,22 @@ public class PDFLController extends Controller {
     }
     // endregion
 
-    // region Constructors
+    // region Constructors and getters/setters
     /**
      * Creates a PDFLController.
      * @param coefficients the {@link PDFLCoefficients} to use for the controller
      */
     public PDFLController(PDFLCoefficients coefficients) { this.setCoefficients(coefficients); }
-    // endregion
 
-    // region Coefficient setters
     /**
      * @param PDFLCoefficients the {@link PDFLCoefficients} to use for the controller
      */
     public void setCoefficients(PDFLCoefficients PDFLCoefficients) { this.coeffs = PDFLCoefficients; }
+
+    /**
+     * @return the current {@link PDFLCoefficients} being used by the controller
+     */
+    public PDFLCoefficients getCoefficients() { return this.coeffs; }
     // endregion
 
     @Override

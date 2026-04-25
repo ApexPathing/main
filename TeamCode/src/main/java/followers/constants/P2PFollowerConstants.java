@@ -23,10 +23,6 @@ public class P2PFollowerConstants extends FollowerConstants {
     public PDFLController strafeController;
     public PDFLController headingController;
 
-    // Power limits
-    public double maxTranslationalPower = 1.0;
-    public double maxRotationalPower = 1.0;
-
     /**
      * Constructor for the P2PFollowerConstants class
      */
@@ -39,9 +35,6 @@ public class P2PFollowerConstants extends FollowerConstants {
 
     @Override
     public P2PFollower build(Drivetrain drivetrain, Localizer localizer) {
-        this.axialController.setCoefficients(axialCoeffs);
-        this.strafeController.setCoefficients(strafeCoeffs);
-        this.headingController.setCoefficients(headingCoeffs);
         return new P2PFollower(this, drivetrain, localizer);
     }
 
@@ -53,6 +46,7 @@ public class P2PFollowerConstants extends FollowerConstants {
      */
     public P2PFollowerConstants setAxialCoeffs(PDFLCoefficients coeffs) {
         this.axialCoeffs = coeffs;
+        this.axialController.setCoefficients(coeffs);
         return this;
     }
 
@@ -63,6 +57,7 @@ public class P2PFollowerConstants extends FollowerConstants {
      */
     public P2PFollowerConstants setStrafeCoeffs(PDFLCoefficients coeffs) {
         this.strafeCoeffs = coeffs;
+        this.strafeController.setCoefficients(coeffs);
         return this;
     }
 
@@ -73,6 +68,7 @@ public class P2PFollowerConstants extends FollowerConstants {
      */
     public P2PFollowerConstants setHeadingCoeffs(PDFLCoefficients coeffs) {
         this.headingCoeffs = coeffs;
+        this.headingController.setCoefficients(coeffs);
         return this;
     }
 
@@ -104,18 +100,46 @@ public class P2PFollowerConstants extends FollowerConstants {
      * @return this instance for chaining
      */
     public P2PFollowerConstants setMaxTranslationalPower(double maxTranslationalPower) {
-        this.maxTranslationalPower = maxTranslationalPower;
+        this.axialController.setMaxPower(maxTranslationalPower);
+        this.strafeController.setMaxPower(maxTranslationalPower);
         return this;
     }
 
     /**
      * Sets the maximum rotational power that the follower can output.
      * Note that drivetrain power limits take precedence over this and this only affects following
-     * @param maxRotationalPower the maximum rotational power (0 to 1)
+     * @param maxTurnPower the maximum rotational power (0 to 1)
      * @return this instance for chaining
      */
-    public P2PFollowerConstants setMaxRotationalPower(double maxRotationalPower) {
-        this.maxRotationalPower = maxRotationalPower;
+    public P2PFollowerConstants setMaxTurnPower(double maxTurnPower) {
+        this.headingController.setMaxPower(maxTurnPower);
+        return this;
+    }
+
+    /**
+     * Sets the deadzone for the axial controller. The controller will output 0 if the error is
+     * within the range of [-deadzone, deadzone].
+     */
+    public P2PFollowerConstants setAxialDeadzone(double axialDeadzone) {
+        this.axialController.setDeadzone(axialDeadzone);
+        return this;
+    }
+
+    /**
+     * Sets the deadzone for the strafe controller. The controller will output 0 if the error is
+     * within the range of [-deadzone, deadzone].
+     */
+    public P2PFollowerConstants setStrafeDeadzone(double strafeDeadzone) {
+        this.strafeController.setDeadzone(strafeDeadzone);
+        return this;
+    }
+
+    /**
+     * Sets the deadzone for the heading controller. The controller will output 0 if the error is
+     * within the range of [-deadzone, deadzone].
+     */
+    public P2PFollowerConstants setHeadingDeadzone(double headingDeadzone) {
+        this.headingController.setDeadzone(headingDeadzone);
         return this;
     }
     // endregion

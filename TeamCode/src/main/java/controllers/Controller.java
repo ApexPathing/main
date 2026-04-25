@@ -14,6 +14,7 @@ public abstract class Controller {
     private boolean angularController = false;
     private boolean isAtTarget = false;
     private double tolerance;
+    private double maxPower = 1.0;
 
     public Controller() {
         this.lastTimestamp = System.nanoTime();
@@ -44,6 +45,10 @@ public abstract class Controller {
         }
         this.tolerance = tolerance.getIn();
     }
+
+    public void setMaxPower(double maxPower) { this.maxPower = maxPower; }
+
+    public double getDeadzone() { return motorDeadzone; }
 
     public boolean isAtTarget() {
         return isAtTarget;
@@ -92,8 +97,8 @@ public abstract class Controller {
             return 0;
         }
 
-        // Constrain output to standard motor range [-1.0, 1.0]
-        return Math.max(-1.0, Math.min(1.0, rawPower));
+        // Constrain output to range [-maxPower, maxPower]
+        return Math.max(-this.maxPower, Math.min(this.maxPower, rawPower));
     }
 
     /**
