@@ -1,7 +1,5 @@
 package followers;
 
-import com.qualcomm.robotcore.util.Range;
-
 import controllers.PDFLController;
 import drivetrains.Drivetrain;
 import localizers.Localizer;
@@ -53,7 +51,7 @@ public class P2PFollower extends Follower {
     public boolean headingAtTarget() { return constants.headingController.isAtTarget(); }
 
     @Override
-    public void update() {;
+    public void update() {
         localizer.update();
 
         if (!isBusy) {
@@ -71,10 +69,12 @@ public class P2PFollower extends Follower {
         }
 
         // Note: powers are clipped to max powers defined in constants
-        double axial = axialController.calculate(translationError.getY());
-        double strafe = strafeController.calculate(translationError.getX());
+        Vector translational = new Vector(
+                axialController.calculate(translationError.getX()),
+                strafeController.calculate(translationError.getY())
+        ).rotated(-pose.getHeading()); // Rotate to the robot's frame of reference
         double turn = -headingController.calculate(headingError);
 
-        drivetrain.drive(axial, strafe, turn);
+        drivetrain.drive(translational.getX(), translational.getY(), turn);
     }
 }
