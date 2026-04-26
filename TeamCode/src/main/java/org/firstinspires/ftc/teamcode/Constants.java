@@ -54,7 +54,7 @@ public class Constants extends ApexBuilder {
                 .setHeadingTolerance(Angle.fromDeg(3.0))
                 .setTranslationalTolerance(Distance.fromIn(2.0))
                 .setMaxTranslationalPower(0.7)
-                .setMaxRotationalPower(0.7);
+                .setMaxTurnPower(0.7);
     }
 }
 
