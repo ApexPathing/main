@@ -22,6 +22,7 @@ import util.Pose;
  *
  * @author Joel - 7842 Browncoats Alumni
  * @author Dylan B. - 18597 RoboClovers - Delta
+ * @author Sohum Arora - 22985 Paraducks
  */
 @Configurable
 @TeleOp(name = "Strafe Tuner", group = "Apex Pathing Tuning")
@@ -38,6 +39,12 @@ public class StrafeTuner extends OpMode {
     public static double proportionalGain; // kP
     public static double derivativeGain; // kD
     public static double minPower; // kL
+    private boolean wasAtTarget = false;
+
+    private boolean isAtTarget() {
+        double error = Math.abs(target - localizer.getPose().getY());
+        return error < deadzone;
+    }
 
     @Override
     public void init() {
@@ -97,10 +104,21 @@ public class StrafeTuner extends OpMode {
             controller.reset();
             headingController.reset();
             drivetrain.stop();
+            wasAtTarget = false;
+        }
+
+        if (isAtTarget() && !wasAtTarget) { // Gamepad rumble and Led green when at target
+            gamepad1.rumble(0.8, 0.8, 200);
+            gamepad1.setLedColor(0, 1, 0, 300);
+            wasAtTarget = true;
+        } else if (!isAtTarget()) { // Led red when not at target
+            wasAtTarget = false;
+            gamepad1.setLedColor(1, 0, 0, 100);
         }
 
         fullTelem.addData("Target: ", target);
         fullTelem.addData("Position: ", localizer.getPose().getY());
+        fullTelem.addData("At Target: ", wasAtTarget);
         fullTelem.update();
     }
 }
