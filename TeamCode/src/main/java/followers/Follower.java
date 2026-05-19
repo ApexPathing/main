@@ -2,6 +2,8 @@ package followers;
 
 import drivetrains.Drivetrain;
 import localizers.Localizer;
+import util.Angle;
+import util.Distance;
 import util.Pose;
 
 /**
@@ -17,6 +19,28 @@ public abstract class Follower {
     protected boolean isBusy;
 
     protected Pose targetPose;
+
+    /**
+     * Constructor for the Follower class
+     * Every Follower should take FollowerConstants, a Drivetrain, and a Localizer as parameters
+     * Here is an example constructor for a P2PFollower, the same structure should be used for all.
+     *
+     * <pre>
+     * {@code
+     * public P2PFollower(P2PFollowerConstants constants, Drivetrain drivetrain, Localizer localizer) {
+     *     super(drivetrain, localizer);
+     *     this.constants = constants;
+     * }
+     * }
+     * </pre>
+     *
+     * @param drivetrain the drivetrain to control
+     * @param localizer the localizer to get pose estimates from
+     */
+    public Follower(Drivetrain drivetrain, Localizer localizer) {
+        this.drivetrain = drivetrain;
+        this.localizer = localizer;
+    }
 
     /**
      * Update loop for the follower, should be called in a loop to update the follower's movement
@@ -81,7 +105,9 @@ public abstract class Follower {
      */
     protected void setTargetPose(Pose targetPose) {
         isBusy = true;
-        this.targetPose = targetPose;
+        this.targetPose = targetPose.copy();
+        this.targetPose.setDistanceUnit(Distance.Units.INCHES);
+        this.targetPose.setAngleUnit(Angle.Units.RADIANS);
     }
 
     /**

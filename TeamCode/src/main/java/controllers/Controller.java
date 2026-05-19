@@ -1,11 +1,126 @@
 package controllers;
 
-abstract class Controller {
-    private Double goal = 0.0;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
-    public void  setGoal(double newGoal) {
+import util.Angle;
+import util.Distance;
+
+public abstract class Controller {
+    protected double goal = 0.0;
+    protected double lastError = 0.0;
+    protected double motorDeadzone = 0.05;
+    protected boolean timeAnomalyDetected = false;
+    private long lastTimestamp;
+    private boolean hasRun = false;
+    private boolean angularController = false;
+    private boolean isAtTarget = false;
+    private double tolerance;
+    private double maxPower = 1.0;
+
+    public Controller() {
+        this.lastTimestamp = System.nanoTime();
+    }
+
+    public void setGoal(double newGoal) {
         this.goal = newGoal;
     }
 
-    abstract double calculate(double currentPosition);
+    public void setDeadzone(double deadzone) {
+        this.motorDeadzone = deadzone;
+    }
+
+    public void useAsAngularController() {
+        this.angularController = true;
+    }
+
+    public void useAsDefaultController() {
+        this.angularController = false;
+    }
+
+    public void setTolerance(Angle tolerance) {
+        if (!angularController) {
+            throw new IllegalStateException("Cannot set angular tolerance on a linear controller");
+        }
+        this.tolerance = tolerance.getRad();
+    }
+
+    public void setTolerance(Distance tolerance) {
+        if (angularController) {
+            throw new IllegalStateException("Cannot set linear tolerance on an angular controller");
+        }
+        this.tolerance = tolerance.getIn();
+    }
+
+    public void setMaxPower(double maxPower) { this.maxPower = maxPower; }
+
+    public double getDeadzone() { return motorDeadzone; }
+
+    public boolean isAtTarget() {
+        return isAtTarget;
+    }
+
+    /**
+     * Resets the controller state. Call this right before starting a new movement
+     * to prevent derivative kick and reset the timer.
+     */
+    public void reset() {
+        this.isAtTarget = false;
+        this.hasRun = false;
+        this.lastTimestamp = System.nanoTime();
+    }
+
+    public synchronized double calculateFromError(double error) {
+        long currentNano = System.nanoTime();
+        // Convert nanoseconds to seconds for standard unit gains
+        double deltaTime = (currentNano - lastTimestamp) / 1_000_000_000.0;
+
+        // Detect if loop is too fast (div by zero risk) or too slow (integral/derivative spike)
+        timeAnomalyDetected = deltaTime < 1E-6 || deltaTime > 0.15;
+
+        double actualError = angularController ?
+                AngleUnit.normalizeRadians(error) :
+                error;
+
+        isAtTarget = Math.abs(actualError) < tolerance;
+
+        // Initialize lastError on first run to prevent derivative kick from 0
+        if (!hasRun) {
+            deltaTime = 0.0;
+            lastError = actualError;
+            hasRun = true;
+        }
+
+        // Subclass-specific calculation (P, I, D, F, etc.)
+        double rawPower = computeOutput(actualError, lastError, deltaTime);
+
+        // Update state for next iteration
+        lastTimestamp = currentNano;
+        lastError = actualError;
+
+        // Apply deadzone to prevent jitters and humming close to target
+        if (Math.abs(rawPower) < motorDeadzone) {
+            return 0;
+        }
+
+        // Constrain output to range [-maxPower, maxPower]
+        return Math.max(-this.maxPower, Math.min(this.maxPower, rawPower));
+    }
+
+    public synchronized double calculate(double target, double currentPosition) {
+        long currentNano = System.nanoTime();
+        // Convert nanoseconds to seconds for standard unit gains
+        double deltaTime = (currentNano - lastTimestamp) / 1_000_000_000.0;
+
+        // Detect if loop is too fast (div by zero risk) or too slow (integral/derivative spike)
+        timeAnomalyDetected = deltaTime < 1E-6 || deltaTime > 0.15;
+
+        return calculateFromError(target - currentPosition);
+    }
+
+    /**
+     * @param error Difference between goal and current position.
+     * @param lastError Error from the previous loop.
+     * @param deltaTime Time elapsed since last loop in seconds.
+     */
+    protected abstract double computeOutput(double error, double lastError, double deltaTime);
 }

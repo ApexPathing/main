@@ -8,29 +8,30 @@ import util.Pose;
  * @author Dylan B. 18597 RoboClovers - Delta
  */
 public abstract class Localizer {
-    public Pose currentPosition = new Pose(0.0, 0.0, 0.0);
-    public Pose currentVelocity = new Pose(0.0, 0.0, 0.0);
+    public Pose currentPose;
+    public Pose currentVelocity;
 
     /**
-     * Gets the current robot pose (position and heading).
-     * @return the current pose of the robot as a Pose object (x, y, heading)
+     * Gets the current robot pose in inches and radians.
+     * @return the current pose of the robot as a {@link Pose} object (x, y, heading)
      */
-    public Pose getPose() { return currentPosition; }
+    public Pose getPose() { return currentPose; }
 
     /**
-     * Gets the current velocity vector. This is useful for path following and other advanced control algorithms.
-     * @return the current velocity of the robot as a Vector (x, y)
+     * Gets the current vector velocities in inches and radians per second.
+     * @return the current velocity as a {@link Pose} object (x vel, y vel, heading vel)
      */
     public Pose getVelocity() { return currentVelocity; }
 
     /**
      * Sets the current pose of the robot.
-     * @param pose the new pose of the robot
+     * @param pose the new {@link Pose} of the robot
      */
     public abstract void setPose(Pose pose);
 
     /**
-     * Updates the localizer's position, velocity, and acceleration estimates. This should be called in a loop to continuously update the robot's position.
+     * Updates the localizer's position and velocity estimates.
+     * This should be called in a loop to continuously update the robot's position.
      */
     public abstract void update();
 }

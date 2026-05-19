@@ -16,8 +16,8 @@ import util.Pose;
  *       .addPoint(48, 0,  0)
  *       .build();
  *
- * @author Xander Haemel 31616 404 Not Found
  * @author Sohum Arora 22985 Paraducks
+ * @author Xander Haemel 31616 404 Not Found
  * @author Dylan B. 18597 RoboClovers - Delta
  */
 public class QuinticPath {
@@ -26,7 +26,7 @@ public class QuinticPath {
     private final double[] segmentStartDistances;
     private final double totalLength;
 
-    private QuinticPath(List<QuinticSegment> segments) {
+    public QuinticPath(List<QuinticSegment> segments) {
         this.segments = segments;
         segmentStartDistances = new double[segments.size() + 1];
         segmentStartDistances[0] = 0;

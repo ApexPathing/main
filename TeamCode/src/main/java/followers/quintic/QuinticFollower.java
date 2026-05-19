@@ -3,10 +3,11 @@ package followers.quintic;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import drivetrains.Drivetrain;
-
 import followers.Follower;
 import localizers.Localizer;
+import util.Angle;
 import util.Pose;
+
 
 /**
  * Pure-pursuit follower for QuinticPath splines.
@@ -55,9 +56,9 @@ public class QuinticFollower extends Follower {
     private double PrevHeadingError = 0;
     private final ElapsedTime Timer = new ElapsedTime();
     private double PrevTime = 0;
+
     public QuinticFollower(Drivetrain drivetrain, Localizer localizer) {
-        this.drivetrain = drivetrain;
-        this.localizer  = localizer;
+        super(drivetrain, localizer);
     }
 
     /**
@@ -79,8 +80,8 @@ public class QuinticFollower extends Follower {
         if (!isBusy || Path == null) return;
 
         Pose current = localizer.getPose();
-        double x       = current.getX();
-        double y       = current.getY();
+        double x = current.getX();
+        double y = current.getY();
         double heading = current.getHeading();
 
         // Check if we've reached the end
@@ -117,7 +118,7 @@ public class QuinticFollower extends Follower {
         double dt = Math.max(Timer.seconds() - PrevTime, 0.001);
         PrevTime = Timer.seconds();
 
-        double headingError = Pose.normalize(target.getHeading() - heading);
+        double headingError = Angle.normalize(Math.toRadians(target.getHeading()) - Math.toRadians(heading));
         double headingDeriv = (headingError - PrevHeadingError) / dt;
         PrevHeadingError = headingError;
 

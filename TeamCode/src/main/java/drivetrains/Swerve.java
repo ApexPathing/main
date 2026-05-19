@@ -1,0 +1,111 @@
+package drivetrains;
+
+import androidx.annotation.NonNull;
+
+import com.qualcomm.robotcore.hardware.HardwareMap;
+
+import org.firstinspires.ftc.robotcore.external.Telemetry;
+
+import drivetrains.Constants.SwerveConstants;
+
+import java.util.Locale;
+
+/**
+ * Swerve drivetrain controller class
+ *
+ * @author Xander Haemel - 31616 404 Not Found
+ * @author Dylan B. - 18597 RoboClovers - Delta
+ */
+public class Swerve extends Drivetrain {
+    SwerveConstants constants;
+    SwerveModule fl;
+    SwerveModule bl;
+    SwerveModule fr;
+    SwerveModule br;
+
+    /**
+     * Creates a swerve drivetrain
+     * @param hardwareMap the hardware map to use for module initialization
+     * @param constants {@link SwerveConstants} object containing all tunable values and motor names/directions
+     */
+    public Swerve(HardwareMap hardwareMap, @NonNull  SwerveConstants constants){
+        this.constants = constants;
+        this.fl = constants.flModuleConstants.build(hardwareMap);
+        this.bl = constants.blModuleConstants.build(hardwareMap);
+        this.fr = constants.frModuleConstants.build(hardwareMap);
+        this.br = constants.brModuleConstants.build(hardwareMap);
+    }
+    
+    protected boolean isRobotCentric() {
+        return constants.robotCentric;
+    }
+
+    public void moveWithVectors(double drive, double strafe, double turn){
+        turn *= -1; // Clockwise turn angle
+
+        // Swerve kinematics calculations
+        double strafeRear = strafe - turn * this.constants.getWheelbaseRatio();
+        double strafeFront = strafe + turn * this.constants.getWheelbaseRatio();
+        double forwardRight = drive - turn * this.constants.getTrackWidthRatio();
+        double forwardLeft = drive + turn * this.constants.getTrackWidthRatio();
+        double flPower = Math.sqrt(Math.pow(strafeFront, 2) + Math.pow(forwardLeft, 2));
+        double blPower = Math.sqrt(Math.pow(strafeRear, 2) + Math.pow(forwardLeft, 2));
+        double frPower = Math.sqrt(Math.pow(strafeFront, 2) + Math.pow(forwardRight, 2));
+        double brPower = Math.sqrt(Math.pow(strafeRear, 2) + Math.pow(forwardRight, 2));
+
+        // Normalize powers from -maxPower to maxPower if any exceed the max
+        double max = Math.max(0, Math.abs(flPower));
+        max = Math.max(max, Math.abs(blPower));
+        max = Math.max(max, Math.abs(frPower));
+        max = Math.max(max, Math.abs(brPower));
+        if (max > constants.maxPower) {
+            flPower = (flPower / max) * constants.maxPower;
+            blPower = (blPower / max) * constants.maxPower;
+            frPower = (frPower / max) * constants.maxPower;
+            brPower = (brPower / max) * constants.maxPower;
+        }
+
+        // Normalize motor powers to not exceed the max current (if enabled)
+        if (constants.maxCurrent < 0) {
+            if (getTotalCurrent() > constants.maxCurrent) {
+                double currentRatio = getTotalCurrent() / constants.maxCurrent;
+                flPower /= currentRatio;
+                frPower /= currentRatio;
+                blPower /= currentRatio;
+                brPower /= currentRatio;
+            }
+        }
+
+        // Set pod target angles and powers, update to apply
+        this.fl.setTargets(Math.toDegrees(Math.atan2(strafeFront, forwardLeft)), flPower);
+        this.bl.setTargets(Math.toDegrees(Math.atan2(strafeRear, forwardLeft)), blPower);
+        this.fr.setTargets(Math.toDegrees(Math.atan2(strafeFront, forwardRight)), frPower);
+        this.br.setTargets(Math.toDegrees(Math.atan2(strafeRear, forwardRight)), brPower);
+        this.fl.update(); this.bl.update(); this.fr.update(); this.br.update();
+    }
+
+    public void stop() {
+        this.fl.stop(); this.bl.stop(); this.fr.stop(); this.br.stop(); // Note: stop() calls update()
+    }
+
+    /**
+     * @return the total motor current of the drivetrain in amps
+     */
+    private double getTotalCurrent(){
+        return fl.getCurrent() + fr.getCurrent() + bl.getCurrent() + br.getCurrent();
+    }
+
+    public void debug(Telemetry telemetry) {
+        telemetry.addData("Front Left Module", fl.toString());
+        telemetry.addData("Back Left Module", bl.toString());
+        telemetry.addData("Front Right Module", fr.toString());
+        telemetry.addData("Back Right Module", br.toString());
+    }
+
+    @NonNull
+    @Override
+    public String toString() {
+        return String.format(Locale.ENGLISH, "Swerve(fl=%s, bl=%s, fr=%s, br=%s)",
+                fl.toString(), bl.toString(), fr.toString(), br.toString());
+    }
+}
