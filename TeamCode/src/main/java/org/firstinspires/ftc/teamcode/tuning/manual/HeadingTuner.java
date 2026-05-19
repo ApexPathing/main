@@ -98,9 +98,9 @@ public class HeadingTuner extends OpMode {
         if (atTarget && !wasAtTarget) { //Gamepad rumble and Led green when at target
             gamepad1.rumble(0.8, 0.8, 300);
             gamepad1.setLedColor(0, 1, 0, 300);
-            wasAtTarget = true;
+    
         } else if (!atTarget) { //Led red when not at target
-            wasAtTarget = false;
+            
             gamepad1.setLedColor(1, 0, 0, 100);
         }
 
