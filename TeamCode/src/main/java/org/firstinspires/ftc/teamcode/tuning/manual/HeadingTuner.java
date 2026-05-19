@@ -38,6 +38,7 @@ public class HeadingTuner extends OpMode {
     public static double derivativeGain; // kD
     public static double minPower; // kL
     private boolean wasAtTarget = false;
+    private boolean atTarget = false;
 
     private boolean isAtTarget() {
         double error = Math.abs(target - localizer.getPose().getHeading());
@@ -92,14 +93,18 @@ public class HeadingTuner extends OpMode {
             controller.reset();
             drivetrain.stop();
         }
-        if (isAtTarget() && !wasAtTarget) { //Gamepad rumble and Led green when at target
+
+        atTarget = isAtTarget();
+        if (atTarget && !wasAtTarget) { //Gamepad rumble and Led green when at target
             gamepad1.rumble(0.8, 0.8, 300);
             gamepad1.setLedColor(0, 1, 0, 300);
             wasAtTarget = true;
-        } else if (!isAtTarget()) { //Led red when not at target
+        } else if (!atTarget) { //Led red when not at target
             wasAtTarget = false;
             gamepad1.setLedColor(1, 0, 0, 100);
         }
+
+        wasAtTarget = atTarget;
 
         fullTelem.addData("Target: ", target);
         fullTelem.addData("Position: ", localizer.getPose().getHeading());
