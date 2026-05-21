@@ -1,4 +1,4 @@
-package drivetrains.Constants;
+package drivetrains.constants;
 
 import com.qualcomm.robotcore.hardware.DcMotor.ZeroPowerBehavior;
 import com.qualcomm.robotcore.hardware.DcMotorSimple.Direction;

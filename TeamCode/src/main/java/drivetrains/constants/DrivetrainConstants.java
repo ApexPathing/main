@@ -1,4 +1,4 @@
-package drivetrains.Constants;
+package drivetrains.constants;
 
 import com.qualcomm.robotcore.hardware.HardwareMap;
 

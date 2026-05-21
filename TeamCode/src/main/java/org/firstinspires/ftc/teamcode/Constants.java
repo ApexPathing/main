@@ -7,8 +7,8 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
 import controllers.PDFLController.PDFLCoefficients;
 import core.ApexBuilder;
-import drivetrains.Constants.DrivetrainConstants;
-import drivetrains.Constants.MecanumConstants;
+import drivetrains.constants.DrivetrainConstants;
+import drivetrains.constants.MecanumConstants;
 import localizers.constants.LocalizerConstants;
 import localizers.constants.PinpointConstants;
 import followers.constants.FollowerConstants;

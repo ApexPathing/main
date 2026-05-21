@@ -2,7 +2,7 @@ package org.firstinspires.ftc.teamcode.tuning.manual;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
-import drivetrains.Constants.SwerveConstants;
+import drivetrains.constants.SwerveConstants;
 import drivetrains.SwerveModule;
 
 

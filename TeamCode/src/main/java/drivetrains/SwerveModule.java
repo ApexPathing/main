@@ -11,7 +11,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 
 import java.util.Locale;
 
-import drivetrains.Constants.SwerveModuleConstants;
+import drivetrains.constants.SwerveModuleConstants;
 
 
 /**

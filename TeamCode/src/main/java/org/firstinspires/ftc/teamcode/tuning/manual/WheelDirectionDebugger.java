@@ -5,7 +5,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 
 import org.firstinspires.ftc.teamcode.Constants;
 
-import drivetrains.Constants.MecanumConstants;
+import drivetrains.constants.MecanumConstants;
 
 
 /**

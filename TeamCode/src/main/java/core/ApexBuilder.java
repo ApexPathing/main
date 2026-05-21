@@ -2,7 +2,7 @@ package core;
 
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
-import drivetrains.Constants.DrivetrainConstants;
+import drivetrains.constants.DrivetrainConstants;
 import drivetrains.Drivetrain;
 import localizers.Localizer;
 import followers.Follower;

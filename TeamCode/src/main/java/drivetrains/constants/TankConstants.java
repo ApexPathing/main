@@ -1,10 +1,9 @@
-package drivetrains.Constants;
+package drivetrains.constants;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
-import drivetrains.Constants.DrivetrainConstants;
 import drivetrains.Tank;
 import util.MotorMetaData;
 
