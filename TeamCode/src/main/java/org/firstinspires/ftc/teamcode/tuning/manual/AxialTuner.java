@@ -41,15 +41,11 @@ public class AxialTuner extends OpMode {
     public static double minPower; // kL
     private boolean wasAtTarget = false;
     private boolean atTarget = false;
-    
 
     private boolean isAtTarget() {
         double error = Math.abs(target - localizer.getPose().getX());
         return error < deadzone;
     }
-
-    private double rawOutput;
-    private double error;
 
     private double rawOutput;
     private double error;
@@ -91,7 +87,7 @@ public class AxialTuner extends OpMode {
         }
 
         this.error = target - this.localizer.getPose().getX();
-        this.rawOutput = controller.calculate(error);
+        this.rawOutput = controller.calculateFromError(error);
         this.drivetrain.moveWithVectors(rawOutput, 0, turn);
     }
 
@@ -116,14 +112,12 @@ public class AxialTuner extends OpMode {
         }
 
         atTarget = isAtTarget();
-
         if (atTarget && !wasAtTarget) { // Gamepad rumble and Led green when at target
-            gamepad1.rumble(0.8, 0.8, 200);
+            gamepad1.rumble(0.5, 0.5, 100);
             gamepad1.setLedColor(0, 1, 0, 300);
         } else if (!atTarget) { // Led red when not at target
             gamepad1.setLedColor(1, 0, 0, 100);
         }
-        
         wasAtTarget = atTarget;
 
         fullTelem.addData("Target: ", target);

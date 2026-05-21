@@ -48,9 +48,6 @@ public class HeadingTuner extends OpMode {
     private double rawOutput;
     private double error;
 
-    private double rawOutput;
-    private double error;
-
     @Override
     public void init() {
         // Build constants, drivetrain, localizer, and telemetry
@@ -79,7 +76,7 @@ public class HeadingTuner extends OpMode {
     private void moveToTarget(double target) {
         this.target = target;
         this.error = target - this.localizer.getPose().getHeading();
-        this.rawOutput = -this.controller.calculate(error);
+        this.rawOutput = -this.controller.calculateFromError(error);
         this.drivetrain.moveWithVectors(0, 0, rawOutput);
     }
 
@@ -103,14 +100,11 @@ public class HeadingTuner extends OpMode {
 
         atTarget = isAtTarget();
         if (atTarget && !wasAtTarget) { //Gamepad rumble and Led green when at target
-            gamepad1.rumble(0.8, 0.8, 300);
+            gamepad1.rumble(0.5, 0.5, 100);
             gamepad1.setLedColor(0, 1, 0, 300);
-    
         } else if (!atTarget) { //Led red when not at target
-            
             gamepad1.setLedColor(1, 0, 0, 100);
         }
-
         wasAtTarget = atTarget;
 
         fullTelem.addData("Target: ", target);
@@ -120,5 +114,4 @@ public class HeadingTuner extends OpMode {
         fullTelem.addData("Drivetrain Output: ", drivetrain.toString());
         fullTelem.update();
     }
-
 }
