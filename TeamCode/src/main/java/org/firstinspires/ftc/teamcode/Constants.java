@@ -59,10 +59,10 @@ public class Constants extends ApexBuilder {
                 .setAxialCoeffs(new PDFLCoefficients(0.0, 0.0, 0.0))
                 .setStrafeCoeffs(new PDFLCoefficients(0.0, 0.0, 0.0))
                 .setHeadingCoeffs(new PDFLCoefficients(0.0, 0.0, 0.0))
-                .setHeadingTolerance(Angle.fromDeg(3.0))
-                .setTranslationalTolerance(Distance.fromIn(2.0))
-                .setMaxTranslationalPower(0.7)
-                .setMaxTurnPower(0.7);
+                .setHeadingTolerance(Angle.fromDeg(2.0))
+                .setTranslationalTolerance(Distance.fromIn(1.5))
+                .setMaxTranslationalPower(1)
+                .setMaxTurnPower(1);
     }
 }
 

@@ -37,6 +37,9 @@ public class HeadingTuner extends OpMode {
     public static double derivativeGain; // kD
     public static double minPower; // kL
 
+    private double rawOutput;
+    private double error;
+
     @Override
     public void init() {
         // Build constants, drivetrain, localizer, and telemetry
@@ -64,8 +67,9 @@ public class HeadingTuner extends OpMode {
 
     private void moveToTarget(double target) {
         this.target = target;
-        double error = target - this.localizer.getPose().getHeading();
-        this.drivetrain.moveWithVectors(0, 0, -this.controller.calculate(error));
+        this.error = target - this.localizer.getPose().getHeading();
+        this.rawOutput = -this.controller.calculate(error);
+        this.drivetrain.moveWithVectors(0, 0, rawOutput);
     }
 
     @Override
@@ -88,6 +92,9 @@ public class HeadingTuner extends OpMode {
 
         fullTelem.addData("Target: ", target);
         fullTelem.addData("Position: ", localizer.getPose().getHeading());
+        fullTelem.addData("Error: ", error);
+        fullTelem.addData("Raw Controller Output: ", rawOutput);
+        fullTelem.addData("Drivetrain Output: ", drivetrain.toString());
         fullTelem.update();
     }
 }

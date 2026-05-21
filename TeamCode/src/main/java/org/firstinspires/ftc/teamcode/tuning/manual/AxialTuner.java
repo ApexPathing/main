@@ -39,6 +39,9 @@ public class AxialTuner extends OpMode {
     public static double derivativeGain; // kD
     public static double minPower; // kL
 
+    private double rawOutput;
+    private double error;
+
     @Override
     public void init() {
         // Build constants, drivetrain, localizer, and telemetry
@@ -75,8 +78,9 @@ public class AxialTuner extends OpMode {
             headingController.reset(); // Prevent derivative kick when not maintaining heading
         }
 
-        double error = target - this.localizer.getPose().getX();
-        this.drivetrain.moveWithVectors(this.controller.calculate(error), 0, turn);
+        this.error = target - this.localizer.getPose().getX();
+        this.rawOutput = controller.calculate(error);
+        this.drivetrain.moveWithVectors(rawOutput, 0, turn);
     }
 
     @Override
@@ -101,6 +105,9 @@ public class AxialTuner extends OpMode {
 
         fullTelem.addData("Target: ", target);
         fullTelem.addData("Position: ", localizer.getPose().getX());
+        fullTelem.addData("Error: ", error);
+        fullTelem.addData("Raw Controller Output: ", rawOutput);
+        fullTelem.addData("Drivetrain Output: ", drivetrain.toString());
         fullTelem.update();
     }
 }

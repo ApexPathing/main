@@ -7,7 +7,7 @@ import util.Distance;
 
 public abstract class Controller {
     protected double lastError = 0.0;
-    protected double motorDeadzone = 0.05;
+    protected double motorDeadzone = 0;
     protected boolean timeAnomalyDetected = false;
     private long lastTimestamp;
     private boolean hasRun = false;

@@ -66,7 +66,7 @@ public class Mecanum extends Drivetrain {
         }
 
         // Normalize motor powers to not exceed the max current (if enabled)
-        if (constants.maxCurrent < 0) {
+        if (constants.maxCurrent > 0) {
             if (getTotalCurrent() > constants.maxCurrent) {
                 double currentRatio = getTotalCurrent() / constants.maxCurrent;
                 flPower /= currentRatio;
@@ -114,7 +114,7 @@ public class Mecanum extends Drivetrain {
     @Override
     public String toString() {
         return String.format(Locale.ENGLISH,
-                "Mecanum(fl=%.1f, bl=%.1f, fr=%.1f, br=%.1f)", 
+                "Mecanum(fl=%.2f, bl=%.2f, fr=%.2f, br=%.2f)",
                 flMotor.getPower(), blMotor.getPower(), frMotor.getPower(), brMotor.getPower()
         );
     }

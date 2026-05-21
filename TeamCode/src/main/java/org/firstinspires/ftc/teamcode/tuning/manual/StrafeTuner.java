@@ -39,6 +39,9 @@ public class StrafeTuner extends OpMode {
     public static double derivativeGain; // kD
     public static double minPower; // kL
 
+    private double rawOutput;
+    private double error;
+
     @Override
     public void init() {
         // Build constants, drivetrain, localizer, and telemetry
@@ -75,8 +78,9 @@ public class StrafeTuner extends OpMode {
             headingController.reset(); // Prevent derivative kick when not maintaining heading
         }
 
-        double error = target - this.localizer.getPose().getY();
-        this.drivetrain.moveWithVectors(0, this.controller.calculate(error), turn);
+        this.error = target - this.localizer.getPose().getY();
+        this.rawOutput = -controller.calculate(this.error);
+        this.drivetrain.moveWithVectors(0, this.rawOutput, turn);
     }
 
     @Override
@@ -101,6 +105,9 @@ public class StrafeTuner extends OpMode {
 
         fullTelem.addData("Target: ", target);
         fullTelem.addData("Position: ", localizer.getPose().getY());
+        fullTelem.addData("Error: ", error);
+        fullTelem.addData("Raw Controller Output: ", rawOutput);
+        fullTelem.addData("Drivetrain Output: ", drivetrain.toString());
         fullTelem.update();
     }
 }

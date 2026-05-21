@@ -74,7 +74,7 @@ public class Tank extends Drivetrain {
         }
 
         // Normalize motor powers to not exceed the max current (if enabled)
-        if (constants.maxCurrent < 0) {
+        if (constants.maxCurrent > 0) {
             if (getTotalCurrent() > constants.maxCurrent) {
                 double currentRatio = getTotalCurrent() / constants.maxCurrent;
                 leftPower /= currentRatio;
