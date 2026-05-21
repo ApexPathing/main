@@ -208,7 +208,7 @@ public class AutoHeadingTuner extends LinearOpMode {
     }
 
     private void turnTo(double error) {
-        drivetrain.moveWithVectors(0, 0, -controller.calculate(error));
+        drivetrain.moveWithVectors(0, 0, -controller.calculateFromError(error));
     }
 
     private void update() { localizer.update(); }

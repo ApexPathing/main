@@ -1,3 +1,6 @@
+## [ApexPathing](https://www.apexpathing.com/)
+A pathing tool for FTC designed to be as capable and easy-to-use as possible.
+
 ## NOTICE
 
 This repository contains the public FTC SDK for the DECODE (2025-2026) competition season.

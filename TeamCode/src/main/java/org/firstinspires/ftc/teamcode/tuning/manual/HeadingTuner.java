@@ -22,6 +22,7 @@ import util.Pose;
  *
  * @author Joel - 7842 Browncoats Alumni
  * @author Dylan B. - 18597 RoboClovers - Delta
+ * @author Sohum Arora - 22985 Paraducks
  */
 @Configurable
 @TeleOp(name = "Heading Tuner", group = "Apex Pathing Tuning")
@@ -36,6 +37,13 @@ public class HeadingTuner extends OpMode {
     public static double proportionalGain; // kP
     public static double derivativeGain; // kD
     public static double minPower; // kL
+    private boolean wasAtTarget = false;
+    private boolean atTarget = false;
+
+    private boolean isAtTarget() {
+        double error = Math.abs(target - localizer.getPose().getHeading());
+        return error < deadzone;
+    }
 
     private double rawOutput;
     private double error;
@@ -90,6 +98,18 @@ public class HeadingTuner extends OpMode {
             drivetrain.stop();
         }
 
+        atTarget = isAtTarget();
+        if (atTarget && !wasAtTarget) { //Gamepad rumble and Led green when at target
+            gamepad1.rumble(0.8, 0.8, 300);
+            gamepad1.setLedColor(0, 1, 0, 300);
+    
+        } else if (!atTarget) { //Led red when not at target
+            
+            gamepad1.setLedColor(1, 0, 0, 100);
+        }
+
+        wasAtTarget = atTarget;
+
         fullTelem.addData("Target: ", target);
         fullTelem.addData("Position: ", localizer.getPose().getHeading());
         fullTelem.addData("Error: ", error);
@@ -97,4 +117,5 @@ public class HeadingTuner extends OpMode {
         fullTelem.addData("Drivetrain Output: ", drivetrain.toString());
         fullTelem.update();
     }
+
 }

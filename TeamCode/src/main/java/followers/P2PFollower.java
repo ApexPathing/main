@@ -73,7 +73,7 @@ public class P2PFollower extends Follower {
                 axialController.calculate(translationError.getX()),
                 -strafeController.calculate(translationError.getY())
         ).rotated(-pose.getHeading()); // Rotate to the robot's frame of reference
-        double turn = -headingController.calculate(headingError);
+        double turn = -headingController.calculateFromError(headingError);
 
         drivetrain.drive(translational.getX(), translational.getY(), turn);
     }

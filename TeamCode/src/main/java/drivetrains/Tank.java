@@ -111,17 +111,17 @@ public class Tank extends Drivetrain {
             telemetry.addData("Back Right Power", brMotor.getPower());
         }
     }
-    
+
     @NonNull
     @Override
     public String toString() {
         if (constants.fourMotor) {
             return String.format(Locale.ENGLISH,
-                    "Tank(fourMotor=true, fl=%.1f, bl=%.1f, fr=%.1f, br=%.1f)", 
+                    "Tank(fourMotor=true, fl=%.1f, bl=%.1f, fr=%.1f, br=%.1f)",
                     flMotor.getPower(), blMotor.getPower(), frMotor.getPower(), brMotor.getPower());
         } else {
             return String.format(Locale.ENGLISH,
-                    "Tank(fourMotor=false, fl=%.1f, fr=%.1f)", 
+                    "Tank(fourMotor=false, fl=%.1f, fr=%.1f)",
                     flMotor.getPower(), frMotor.getPower());
         }
     }
