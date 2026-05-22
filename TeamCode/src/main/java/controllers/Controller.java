@@ -117,6 +117,8 @@ public abstract class Controller {
         return calculateFromError(target - currentPosition);
     }
 
+    public double getError() { return lastError; }
+
     /**
      * @param error Difference between goal and current position.
      * @param lastError Error from the previous loop.

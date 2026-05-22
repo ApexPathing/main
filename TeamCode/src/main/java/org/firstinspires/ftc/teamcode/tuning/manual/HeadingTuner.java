@@ -13,6 +13,7 @@ import controllers.PDFLController;
 import drivetrains.Drivetrain;
 import followers.constants.P2PFollowerConstants;
 import localizers.Localizer;
+import util.Angle;
 import util.Pose;
 
 /**
@@ -40,13 +41,7 @@ public class HeadingTuner extends OpMode {
     private boolean wasAtTarget = false;
     private boolean atTarget = false;
 
-    private boolean isAtTarget() {
-        double error = Math.abs(target - localizer.getPose().getHeading());
-        return error < deadzone;
-    }
-
     private double rawOutput;
-    private double error;
 
     @Override
     public void init() {
@@ -75,8 +70,7 @@ public class HeadingTuner extends OpMode {
 
     private void moveToTarget(double target) {
         this.target = target;
-        this.error = target - this.localizer.getPose().getHeading();
-        this.rawOutput = -this.controller.calculateFromError(error);
+        this.rawOutput = -this.controller.calculate(target, this.localizer.getPose().getHeading());
         this.drivetrain.moveWithVectors(0, 0, rawOutput);
     }
 
@@ -98,7 +92,7 @@ public class HeadingTuner extends OpMode {
             drivetrain.stop();
         }
 
-        atTarget = isAtTarget();
+        atTarget = controller.isAtTarget();
         if (atTarget && !wasAtTarget) { //Gamepad rumble and Led green when at target
             gamepad1.rumble(0.5, 0.5, 100);
             gamepad1.setLedColor(0, 1, 0, 300);
@@ -109,7 +103,7 @@ public class HeadingTuner extends OpMode {
 
         fullTelem.addData("Target: ", target);
         fullTelem.addData("Position: ", localizer.getPose().getHeading());
-        fullTelem.addData("Error: ", error);
+        fullTelem.addData("Error: ", controller.getError());
         fullTelem.addData("Raw Controller Output: ", rawOutput);
         fullTelem.addData("Drivetrain Output: ", drivetrain.toString());
         fullTelem.update();

@@ -41,14 +41,7 @@ public class StrafeTuner extends OpMode {
     public static double minPower; // kL
     private boolean wasAtTarget = false;
     private boolean atTarget = false;
-
-    private boolean isAtTarget() {
-        double error = Math.abs(target - localizer.getPose().getY());
-        return error < deadzone;
-    }
-
     private double rawOutput;
-    private double error;
 
     @Override
     public void init() {
@@ -80,14 +73,12 @@ public class StrafeTuner extends OpMode {
 
         double turn = 0;
         if (maintainHeading) {
-            double headingError = 0 - this.localizer.getPose().getHeading(); // Target heading is 0 degrees
-            turn = headingController.calculateFromError(headingError);
+            turn = headingController.calculate(0, this.localizer.getPose().getHeading());
         } else {
             headingController.reset(); // Prevent derivative kick when not maintaining heading
         }
 
-        this.error = target - this.localizer.getPose().getY();
-        this.rawOutput = -controller.calculateFromError(this.error);
+        this.rawOutput = -controller.calculate(target, this.localizer.getPose().getY());
         this.drivetrain.moveWithVectors(0, this.rawOutput, turn);
     }
 
@@ -112,7 +103,7 @@ public class StrafeTuner extends OpMode {
             wasAtTarget = false;
         }
 
-        atTarget = isAtTarget();
+        atTarget = controller.isAtTarget();
         if (atTarget && !wasAtTarget) { // Gamepad rumble and Led green when at target
             gamepad1.rumble(0.5, 0.5, 100);
             gamepad1.setLedColor(0, 1, 0, 300);
@@ -123,7 +114,7 @@ public class StrafeTuner extends OpMode {
         
         fullTelem.addData("Target: ", target);
         fullTelem.addData("Position: ", localizer.getPose().getY());
-        fullTelem.addData("Error: ", error);
+        fullTelem.addData("Error: ", controller.getError());
         fullTelem.addData("Raw Controller Output: ", rawOutput);
         fullTelem.addData("Drivetrain Output: ", drivetrain.toString());
         fullTelem.update();
