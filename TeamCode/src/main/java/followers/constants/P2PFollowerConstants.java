@@ -30,7 +30,7 @@ public class P2PFollowerConstants extends FollowerConstants {
         this.axialController = new PDFLController(axialCoeffs);
         this.strafeController = new PDFLController(strafeCoeffs);
         this.headingController = new PDFLController(headingCoeffs);
-        this.headingController.useAsAngularController();
+        this.headingController.setAngularController();
     }
 
     @Override
@@ -100,8 +100,8 @@ public class P2PFollowerConstants extends FollowerConstants {
      * @return this instance for chaining
      */
     public P2PFollowerConstants setMaxTranslationalPower(double maxTranslationalPower) {
-        this.axialController.setMaxPower(maxTranslationalPower);
-        this.strafeController.setMaxPower(maxTranslationalPower);
+        this.axialController.setMaxOutput(maxTranslationalPower);
+        this.strafeController.setMaxOutput(maxTranslationalPower);
         return this;
     }
 
@@ -112,7 +112,7 @@ public class P2PFollowerConstants extends FollowerConstants {
      * @return this instance for chaining
      */
     public P2PFollowerConstants setMaxTurnPower(double maxTurnPower) {
-        this.headingController.setMaxPower(maxTurnPower);
+        this.headingController.setMaxOutput(maxTurnPower);
         return this;
     }
 
