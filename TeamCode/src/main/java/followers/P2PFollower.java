@@ -67,10 +67,10 @@ public class P2PFollower extends Follower {
 
         // Note: powers are clipped to max powers defined in constants
         Vector translational = new Vector(
-                axialController.calculate(this.targetPose.getX(), pose.getX()),
-                -strafeController.calculate(this.targetPose.getY(), pose.getY())
-        ).rotated(-pose.getHeading()); // Rotate to the robot's frame of reference
-        double turn = -headingController.calculate(this.targetPose.getHeading(), pose.getHeading());
+                axialController.calculate(this.targetPose.getXComponent().getIn(), pose.getX()),
+                -strafeController.calculate(this.targetPose.getYComponent().getIn(), pose.getY())
+        ).rotated(-pose.getHeadingComponent().getRad()); // Rotate to the robot's frame of reference
+        double turn = -headingController.calculate(this.targetPose.getHeadingComponent().getRad(), pose.getHeading());
 
         drivetrain.drive(translational.getX(), translational.getY(), turn);
     }

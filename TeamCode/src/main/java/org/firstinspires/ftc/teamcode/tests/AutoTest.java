@@ -53,6 +53,7 @@ public class AutoTest extends LinearOpMode {
                     if (!timerStarted) {
                         waitTimer.reset();
                         timerStarted = true;
+                        follower.stop();
                     } else if (waitTimer.milliseconds() >= 1000) {
                         timerStarted = false;
                         iterator++;
