@@ -116,6 +116,15 @@ new SwerveConstants()
         .setRobotCentric(true);
 */
 
+/* Kiwi drivetrain constants
+return new KiwiConstants()
+                .setFrontRightMotorName("frMotor")
+                .setBackMotorName("bMotor")
+                .setFrontLeftMotorName("flMotor")
+                .setMaxPower(1.0)
+                .setRobotCentric(true);
+*/
+
 /* OTOS Constants
 new OTOSConstants() // Tuned for Dylan + Mikey strafer chassis with OTOS, don't change these
     .setName("otos")

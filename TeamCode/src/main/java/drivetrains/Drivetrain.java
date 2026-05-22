@@ -12,13 +12,13 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
  */
 public abstract class Drivetrain {
     /**
-     * Applies a deadzone to the input value. If the absolute value of the input is less than 0.05,
+     * Applies a deadzone to the input value. If the absolute value of the input is less than 0.03,
      * it returns 0. Otherwise, it returns the original value.
      * @param value the input value to apply the deadzone to
      * @return the value after applying the deadzone
      */
     protected static double deadzone(double value) {
-        return Math.abs(value) < 0.05 ? 0.0 : value;
+        return Math.abs(value) < 0.03 ? 0.0 : value;
     }
 
     /**
