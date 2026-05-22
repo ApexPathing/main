@@ -53,14 +53,11 @@ public class P2PFollower extends Follower {
     @Override
     public void update() {
         localizer.update();
+        Pose pose = localizer.getPose();
 
         if (!isBusy) {
             return; // No need to calculate anything if we're not busy
         }
-
-        Pose pose = localizer.getPose();
-        Vector translationError = targetPose.toVec().subtract(pose.toVec());
-        double headingError = targetPose.getHeading() - pose.getHeading(); // Controller handles wrapping
 
         if (axialController.isAtTarget() && strafeController.isAtTarget() && headingController.isAtTarget()) {
             isBusy = false;
@@ -70,10 +67,10 @@ public class P2PFollower extends Follower {
 
         // Note: powers are clipped to max powers defined in constants
         Vector translational = new Vector(
-                axialController.calculateFromError(translationError.getX()),
-                -strafeController.calculateFromError(translationError.getY())
+                axialController.calculate(this.targetPose.getX(), pose.getX()),
+                -strafeController.calculate(this.targetPose.getY(), pose.getY())
         ).rotated(-pose.getHeading()); // Rotate to the robot's frame of reference
-        double turn = -headingController.calculateFromError(headingError);
+        double turn = -headingController.calculate(this.targetPose.getHeading(), pose.getHeading());
 
         drivetrain.drive(translational.getX(), translational.getY(), turn);
     }
