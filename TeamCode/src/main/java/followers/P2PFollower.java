@@ -72,6 +72,6 @@ public class P2PFollower extends Follower {
         ).rotated(-pose.getHeadingComponent().getRad()); // Rotate to the robot's frame of reference
         double turn = -headingController.calculate(this.targetPose.getHeadingComponent().getRad(), pose.getHeading());
 
-        drivetrain.drive(translational.getX(), translational.getY(), turn);
+        drivetrain.drive(-translational.getY(), translational.getX(), turn);
     }
 }
