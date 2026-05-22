@@ -64,7 +64,11 @@ public class AutoTest extends LinearOpMode {
                     telemetry.addData("Target Pose", follower.getTargetPose().toString());
                 } else {
                     // We've reached the final pose
-                    follower.stop(); // Hold position
+                    if (follower.headingAtTarget() && follower.axialAtTarget() && follower.strafeAtTarget()) {
+                        follower.stop();
+                    } else {
+                        follower.setTargetPose(poses[poses.length - 1]); // Hold position
+                    }
                     telemetry.addData("Status", "Done");
                 }
             }
