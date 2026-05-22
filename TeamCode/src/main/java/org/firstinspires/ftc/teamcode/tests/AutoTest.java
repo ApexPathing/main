@@ -75,7 +75,6 @@ public class AutoTest extends LinearOpMode {
             }
 
             telemetry.addData("Current Pose", follower.getPose().toString());
-            telemetry.addData("Target Pose", follower.getTargetPose().toString());
             telemetry.addData("Velocity", follower.getVelocity().toString());
             telemetry.addData("Is Busy", follower.isBusy());
             telemetry.addData("Axial at target", follower.axialAtTarget());
