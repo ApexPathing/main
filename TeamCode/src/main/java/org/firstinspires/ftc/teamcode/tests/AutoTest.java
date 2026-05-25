@@ -10,7 +10,7 @@ import followers.P2PFollower;
 import util.Angle;
 import util.Distance;
 import util.Pose;
-import util.PoseBuilder;
+import util.PoseFactory;
 
 /**
  * Test OpMode for using Apex Pathing in Autonomous mode.
@@ -26,7 +26,7 @@ public class AutoTest extends LinearOpMode {
     private boolean timerStarted = true; // Start with true so it doesn't wait to move to the first pose
 
     // Poses
-    private final PoseBuilder pb = new PoseBuilder(Distance.Units.INCHES, Angle.Units.DEGREES, false);
+    private final PoseFactory pb = new PoseFactory(Distance.Units.INCHES, Angle.Units.DEGREES, false);
     final Pose[] poses = {
             pb.build(0, 0, 0), // startPose
             //pb.build(24, 0, 0), // X movement only

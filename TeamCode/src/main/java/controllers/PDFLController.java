@@ -67,8 +67,8 @@ public class PDFLController extends Controller {
     @Override
     protected double computeOutput(double error, double lastError, double deltaTime) {
         double proportional = this.coeffs.kP * error;
-        double minimum = this.coeffs.kL * Math.signum(error);
         double derivative = this.coeffs.kD * (timeAnomalyDetected ? 0.0 : (error - lastError) / deltaTime);
+        double minimum = Math.abs(error) > this.getTolerance() ? this.coeffs.kL * Math.signum(error) : 0.0;
         return proportional + derivative + this.coeffs.kF + minimum;
     }
 }
