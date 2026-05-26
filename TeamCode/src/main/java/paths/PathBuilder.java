@@ -35,30 +35,6 @@ public class PathBuilder {
         TURN
     }
 
-    public static class Step {
-        public final SegmentType type;
-        public final Pose[] poses;
-        public InterpolationStyle styleOverride = null;
-        public Function<Double, Angle> functionOverride = null;
-
-        public Step(SegmentType type, Pose... poses) {
-            this.type = type;
-            this.poses = poses;
-        }
-
-        public Step(SegmentType type, InterpolationStyle styleOverride, Pose... poses) {
-            this.type = type;
-            this.poses = poses;
-            this.styleOverride = styleOverride;
-        }
-
-        public Step(SegmentType type, Function<Double, Angle> functionOverride, Pose... poses) {
-            this.type = type;
-            this.poses = poses;
-            this.functionOverride = functionOverride;
-        }
-    }
-
     /**
      * Initializes the PathBuilder with the starting location and heading of the robot.
      *
@@ -73,44 +49,6 @@ public class PathBuilder {
      * Monolithic routing method to unpack and execute multiple path steps sequentially,
      * processing embedded heading overrides completely inside the block.
      */
-    public PathBuilder newPath(Step... steps) {
-        if (steps == null || steps.length == 0) {
-            throw new IllegalArgumentException("You must provide at least one Step execution sequence!");
-        }
-
-        for (Step step : steps) {
-            if (step.poses == null || step.poses.length == 0) {
-                throw new IllegalArgumentException("Each Step must contain at least one target Pose destination!");
-            }
-
-            switch (step.type) {
-                case LINETO:
-                    this.lineTo(step.poses[0]);
-                    break;
-
-                case TURN:
-                    this.turnTo(step.poses[0].getHeadingComponent());
-                    break;
-
-                case BSPLINE:
-                    if (step.poses.length < 2) {
-                        throw new IllegalArgumentException("A B-Spline Step requires at least 2 points!");
-                    }
-                    this.curveTo(step.poses);
-                    break;
-
-                default:
-                    throw new IllegalArgumentException("Unsupported segment type: " + step.type);
-            }
-
-            if (step.styleOverride != null) {
-                this.interpolateWith(step.styleOverride);
-            } else if (step.functionOverride != null) {
-                this.interpolateWith(step.functionOverride);
-            }
-        }
-        return this;
-    }
 
     /**
      * Appends a continuous Uniform Cubic B-Spline to the path.
@@ -270,5 +208,19 @@ public class PathBuilder {
         }
 
         return new HeadingInterpolator(currentStyle, start.getHeadingComponent(), end.getHeadingComponent());
+    }
+    /**
+     * Appends a continuous Uniform Cubic B-Spline to the path using the specified control points.
+     * The curve automatically begins at the end of the previous segment (or the start pose).
+     * <p>
+     * This is a fluent alias for {@link #curveTo(Pose...)}.
+     *
+     * @param poses A variable number of waypoints/control points to define the B-Spline curve.
+     * The final pose determines the target heading for the default interpolator.
+     * @return The current PathBuilder instance for method chaining.
+     * @throws IllegalArgumentException If fewer than 2 points are provided.
+     */
+    public PathBuilder addControlPoints(Pose... poses) {
+        return this.curveTo(poses);
     }
 }

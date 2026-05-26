@@ -100,4 +100,18 @@ public class PoseBuilder {
     /** Toggles the mirroring setting of the builder */
     public void toggleMirror() { this.mirror = !this.mirror; }
     // endregion
+    // Keep your code safe by routing .at() through the unit-aware build chain!
+    /**
+     * Alias for {@link #build(double, double, double)} which respects units and mirroring.
+     */
+    public Pose at(double x, double y, double heading) {
+        return build(x, y, heading);
+    }
+
+    /**
+     * Alias for {@link #build(double, double)} which respects units and mirroring.
+     */
+    public Pose at(double x, double y) {
+        return build(x, y, 0.0);
+    }
 }

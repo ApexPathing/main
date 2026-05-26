@@ -7,21 +7,21 @@ import org.firstinspires.ftc.teamcode.Constants;
 
 import followers.BSplineFollower;
 import followers.constants.BSplineFollowerConstants;
-import paths.ExamplePathAPI;
+import paths.ExamplePathAPIV3;
 import paths.Path;
 import util.Pose;
 
 /**
- * Test Autonomous opMode utilizing {@link ExamplePathAPI}
+ * Test Autonomous opMode utilizing {@link paths.ExamplePathAPIV3}
  * IMPORTANT: Make sure that you have your {@link BSplineFollowerConstants} set up
  */
 @Autonomous(name = "Apex BSpline Auto Test", group = "Apex Pathing Tests")
 public class BSplineAutoTest extends LinearOpMode {
-
+    private boolean mirror = false; //Pass in the constructor for ExamplePathAPIV3, change as required
     @Override
     public void runOpMode() throws InterruptedException {
         BSplineFollower follower = (BSplineFollower) new Constants().build(hardwareMap, Pose.zero());
-        Path autoPath = new ExamplePathAPI().testPath();
+        Path autoPath = new ExamplePathAPIV3(mirror).testPath();
 
         while (opModeInInit()){
             telemetry.addLine("Robot initialized");
