@@ -5,7 +5,7 @@ import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
-import controllers.PDFLController.PDFLCoefficients;
+import controllers.PDSController.PDSCoefficients;
 import core.ApexBuilder;
 import drivetrains.constants.DrivetrainConstants;
 import drivetrains.constants.MecanumConstants;
@@ -56,12 +56,14 @@ public class Constants extends ApexBuilder {
     @Override
     public FollowerConstants setFollowerConstants() { // Any FollowerConstants
         return new P2PFollowerConstants()
-                .setAxialCoeffs(new PDFLCoefficients(0.0, 0.0, 0.0))
-                .setStrafeCoeffs(new PDFLCoefficients(0.0, 0.0, 0.0))
-                .setHeadingCoeffs(new PDFLCoefficients(0.0, 0.0, 0.0))
+                .setAxialCoeffs(new PDSCoefficients(0.0, 0.0, 0.0, 0.0))
+                .setStrafeCoeffs(new PDSCoefficients(0.0, 0.0, 0.0, 0.0))
+                .setHeadingCoeffs(new PDSCoefficients(0.0, 0.0, 0.0, 0.0))
                 .setHeadingTolerance(Angle.fromDeg(2.0))
-                .setTranslationalTolerance(Distance.fromIn(1.5))
-                .setMaxTranslationalPower(1)
+                .setAxialTolerance(Distance.fromIn(1.5))
+                .setStrafeTolerance(Distance.fromIn(1.5))
+                .setMaxAxialPower(1)
+                .setMaxStrafePower(1)
                 .setMaxTurnPower(1);
     }
 }

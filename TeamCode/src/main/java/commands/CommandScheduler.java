@@ -16,7 +16,7 @@ import java.util.function.Consumer;
  *
  * Schedules and runs commands and command groups.
  */
-public final class CommandScheduler {
+public class CommandScheduler {
 
     private static CommandScheduler instance;
 

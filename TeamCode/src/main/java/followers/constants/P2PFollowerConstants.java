@@ -1,7 +1,7 @@
 package followers.constants;
 
-import controllers.PDFLController.PDFLCoefficients;
-import controllers.PDFLController;
+import controllers.PDSController.PDSCoefficients;
+import controllers.PDSController;
 import drivetrains.Drivetrain;
 import followers.P2PFollower;
 import localizers.Localizer;
@@ -14,22 +14,22 @@ import util.Distance;
  */
 public class P2PFollowerConstants extends FollowerConstants {
     // Tunable constants
-    public PDFLCoefficients axialCoeffs = new PDFLCoefficients();
-    public PDFLCoefficients strafeCoeffs = new PDFLCoefficients();
-    public PDFLCoefficients headingCoeffs = new PDFLCoefficients();
+    public PDSCoefficients axialCoeffs = new PDSCoefficients();
+    public PDSCoefficients strafeCoeffs = new PDSCoefficients();
+    public PDSCoefficients headingCoeffs = new PDSCoefficients();
 
     // Controllers
-    public PDFLController axialController;
-    public PDFLController strafeController;
-    public PDFLController headingController;
+    public PDSController axialController;
+    public PDSController strafeController;
+    public PDSController headingController;
 
     /**
      * Constructor for the P2PFollowerConstants class
      */
     public P2PFollowerConstants() {
-        this.axialController = new PDFLController(axialCoeffs);
-        this.strafeController = new PDFLController(strafeCoeffs);
-        this.headingController = new PDFLController(headingCoeffs);
+        this.axialController = new PDSController(axialCoeffs);
+        this.strafeController = new PDSController(strafeCoeffs);
+        this.headingController = new PDSController(headingCoeffs);
         this.headingController.setAngularController();
     }
 
@@ -40,46 +40,55 @@ public class P2PFollowerConstants extends FollowerConstants {
 
     // region Setters
     /**
-     * Sets the PDFL coefficients for the axial controller.
-     * @param coeffs the new axial {@link PDFLCoefficients}
+     * Sets the PDS coefficients for the axial controller.
+     * @param coeffs the new axial {@link PDSCoefficients}
      * @return this instance for chaining
      */
-    public P2PFollowerConstants setAxialCoeffs(PDFLCoefficients coeffs) {
+    public P2PFollowerConstants setAxialCoeffs(PDSCoefficients coeffs) {
         this.axialCoeffs = coeffs;
         this.axialController.setCoefficients(coeffs);
         return this;
     }
 
     /**
-     * Sets the PDFL coefficients for the strafe controller.
-     * @param coeffs the new strafe {@link PDFLCoefficients}
+     * Sets the PDS coefficients for the strafe controller.
+     * @param coeffs the new strafe {@link PDSCoefficients}
      * @return this instance for chaining
      */
-    public P2PFollowerConstants setStrafeCoeffs(PDFLCoefficients coeffs) {
+    public P2PFollowerConstants setStrafeCoeffs(PDSCoefficients coeffs) {
         this.strafeCoeffs = coeffs;
         this.strafeController.setCoefficients(coeffs);
         return this;
     }
 
     /**
-     * Sets the PDFL coefficients for the heading controller.
-     * @param coeffs the new heading {@link PDFLCoefficients}
+     * Sets the PDS coefficients for the heading controller.
+     * @param coeffs the new heading {@link PDSCoefficients}
      * @return this instance for chaining
      */
-    public P2PFollowerConstants setHeadingCoeffs(PDFLCoefficients coeffs) {
+    public P2PFollowerConstants setHeadingCoeffs(PDSCoefficients coeffs) {
         this.headingCoeffs = coeffs;
         this.headingController.setCoefficients(coeffs);
         return this;
     }
 
     /**
-     * Sets the translational error tolerance for the robot to be considered "at the target".
-     * @param translationalTolerance the tolerance in inches
+     * Sets the axial error tolerance for the robot to be considered "at the target".
+     * @param axialTolerance the tolerance in inches
      * @return this instance for chaining
      */
-    public P2PFollowerConstants setTranslationalTolerance(Distance translationalTolerance) {
-        this.axialController.setTolerance(translationalTolerance);
-        this.strafeController.setTolerance(translationalTolerance);
+    public P2PFollowerConstants setAxialTolerance(Distance axialTolerance) {
+        this.axialController.setTolerance(axialTolerance);
+        return this;
+    }
+
+    /**
+     * Sets the strafe error tolerance for the robot to be considered "at the target".
+     * @param strafeTolerance the tolerance in inches
+     * @return this instance for chaining
+     */
+    public P2PFollowerConstants setStrafeTolerance(Distance strafeTolerance) {
+        this.strafeController.setTolerance(strafeTolerance);
         return this;
     }
 
@@ -94,14 +103,24 @@ public class P2PFollowerConstants extends FollowerConstants {
     }
 
     /**
-     * Sets the maximum translational power that the follower can output.
+     * Sets the maximum axial power that the follower can output.
      * Note that drivetrain power limits take precedence over this and this only affects following
-     * @param maxTranslationalPower the maximum translational power (0 to 1)
+     * @param maxAxialPower the maximum translational power (0 to 1)
      * @return this instance for chaining
      */
-    public P2PFollowerConstants setMaxTranslationalPower(double maxTranslationalPower) {
-        this.axialController.setMaxOutput(maxTranslationalPower);
-        this.strafeController.setMaxOutput(maxTranslationalPower);
+    public P2PFollowerConstants setMaxAxialPower(double maxAxialPower) {
+        this.axialController.setMaxOutput(maxAxialPower);
+        return this;
+    }
+
+    /**
+     * Sets the maximum strafe power that the follower can output.
+     * Note that drivetrain power limits take precedence over this and this only affects following
+     * @param maxStrafePower the maximum strafe power (0 to 1)
+     * @return this instance for chaining
+     */
+    public P2PFollowerConstants setMaxStrafePower(double maxStrafePower) {
+        this.strafeController.setMaxOutput(maxStrafePower);
         return this;
     }
 

@@ -180,7 +180,7 @@ public class AutoAxialTuner extends LinearOpMode {
 
             // Full forward power, but applying heading correction to keep it straight
             double headingError = AngleUnit.normalizeRadians(0 - localizer.getPose().getHeading());
-            drivetrain.moveWithVectors(1.0, 0, -headingController.calculateFromError(headingError));
+            drivetrain.moveWithVectors(1.0, 0, headingController.calculateFromError(headingError));
         }
 
         // Calculate Delay Time (L) based on the tangent line of the inflection point
@@ -235,7 +235,7 @@ public class AutoAxialTuner extends LinearOpMode {
 
     private void driveTo(double axialError) {
         double headingError = AngleUnit.normalizeRadians(0 - localizer.getPose().getHeading());
-        double turnCorrection = -headingController.calculateFromError(headingError);
+        double turnCorrection = headingController.calculateFromError(headingError);
 
         drivetrain.moveWithVectors(axialController.calculateFromError(axialError), 0, turnCorrection);
     }

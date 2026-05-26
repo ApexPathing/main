@@ -82,11 +82,11 @@ public class Mecanum extends Drivetrain {
         brMotor.setPower(brPower);
     }
 
-    public void moveWithVectors(double drive, double strafe, double turn) {
-        double flPower = drive + strafe + turn;
-        double blPower = drive - strafe + turn;
-        double frPower = drive - strafe - turn;
-        double brPower = drive + strafe - turn;
+    public void moveWithVectors(double x, double y, double turn) {
+        double flPower = x - y - turn;
+        double blPower = x + y - turn;
+        double frPower = x + y + turn;
+        double brPower = x - y + turn;
 
         setPowers(flPower, blPower, frPower, brPower);
     }

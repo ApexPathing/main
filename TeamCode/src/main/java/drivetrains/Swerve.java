@@ -40,14 +40,12 @@ public class Swerve extends Drivetrain {
         return constants.robotCentric;
     }
 
-    public void moveWithVectors(double drive, double strafe, double turn){
-        turn *= -1; // Clockwise turn angle
-
+    public void moveWithVectors(double x, double y, double turn){
         // Swerve kinematics calculations
-        double strafeRear = strafe - turn * this.constants.getWheelbaseRatio();
-        double strafeFront = strafe + turn * this.constants.getWheelbaseRatio();
-        double forwardRight = drive - turn * this.constants.getTrackWidthRatio();
-        double forwardLeft = drive + turn * this.constants.getTrackWidthRatio();
+        double strafeRear = -y - turn * this.constants.getWheelbaseRatio();
+        double strafeFront = -y + turn * this.constants.getWheelbaseRatio();
+        double forwardRight = x - turn * this.constants.getTrackWidthRatio();
+        double forwardLeft = x + turn * this.constants.getTrackWidthRatio();
         double flPower = Math.sqrt(Math.pow(strafeFront, 2) + Math.pow(forwardLeft, 2));
         double blPower = Math.sqrt(Math.pow(strafeRear, 2) + Math.pow(forwardLeft, 2));
         double frPower = Math.sqrt(Math.pow(strafeFront, 2) + Math.pow(forwardRight, 2));

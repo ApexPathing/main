@@ -74,11 +74,11 @@ public class Kiwi extends Drivetrain {
         flMotor.setPower(flMotorPower);
     }
 
-    public void moveWithVectors(double drive, double strafe, double turn) {
+    public void moveWithVectors(double x, double y, double turn) {
         // Video explaining Kiwi kinematics: https://www.youtube.com/watch?v=n6TWzzj74gk&t=27
-        double frMotorPower = -(strafe / 2) + (drive * sqrt3over2) + turn;
-        double bMotorPower = strafe + turn;
-        double flMotorPower = -(strafe / 2) - (drive * sqrt3over2) + turn;
+        double frMotorPower = (y / 2) + (x * sqrt3over2) - turn;
+        double bMotorPower = -y - turn;
+        double flMotorPower = (y / 2) - (x * sqrt3over2) - turn;
 
         setPowers(frMotorPower, bMotorPower, flMotorPower);
     }

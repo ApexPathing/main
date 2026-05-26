@@ -1,37 +1,37 @@
 package util;
 
-public class PoseBuilder {
+public class PoseFactory {
     private Distance.Units distanceUnit;
     private Angle.Units angleUnit;
     private boolean mirror;
 
     // region Constructors
     /**
-     * Constructor for the {@link PoseBuilder} class
+     * Constructor for the {@link PoseFactory} class
      * @param distanceUnit the {@link Distance.Units} to use for pose positions
      * @param angleUnit the {@link Angle.Units} to use for pose headings
      * @param mirror whether to mirror the pose across the y-axis (for switching alliances)
      */
-    public PoseBuilder(Distance.Units distanceUnit, Angle.Units angleUnit, boolean mirror) {
+    public PoseFactory(Distance.Units distanceUnit, Angle.Units angleUnit, boolean mirror) {
         this.distanceUnit = distanceUnit;
         this.angleUnit = angleUnit;
         this.mirror = mirror;
     }
 
     /**
-     * Constructor for the {@link PoseBuilder} class with mirroring set to false
+     * Constructor for the {@link PoseFactory} class with mirroring set to false
      * @param distanceUnit the {@link Distance.Units} to use for pose positions
      * @param angleUnit the {@link Angle.Units} to use for pose headings
      */
-    public PoseBuilder(Distance.Units distanceUnit, Angle.Units angleUnit) {
+    public PoseFactory(Distance.Units distanceUnit, Angle.Units angleUnit) {
         this(distanceUnit, angleUnit, false);
     }
 
     /**
-     * Constructor for the {@link PoseBuilder} class with default units of inches and degrees,
+     * Constructor for the {@link PoseFactory} class with default units of inches and degrees,
      * and mirroring set to false
      */
-    public PoseBuilder() { this(Distance.Units.INCHES, Angle.Units.DEGREES, false); }
+    public PoseFactory() { this(Distance.Units.INCHES, Angle.Units.DEGREES, false); }
     // endregion
 
     // region Builder methods

@@ -184,7 +184,7 @@ public class AutoStrafeTuner extends LinearOpMode {
 
             // BUG FIX: Switched from .calculate() to .calculateFromError()
             double headingError = AngleUnit.normalizeRadians(0 - localizer.getPose().getHeading());
-            drivetrain.moveWithVectors(0, 1.0, -headingController.calculateFromError(headingError));
+            drivetrain.moveWithVectors(0, 1.0, headingController.calculateFromError(headingError));
         }
 
         // Calculate Delay Time (L) based on the tangent line of the inflection point
@@ -240,7 +240,7 @@ public class AutoStrafeTuner extends LinearOpMode {
     private void strafeTo(double strafeError) {
         // Automatically correct heading while strafing point-to-point
         double headingError = AngleUnit.normalizeRadians(0 - localizer.getPose().getHeading());
-        double turnCorrection = -headingController.calculateFromError(headingError);
+        double turnCorrection = headingController.calculateFromError(headingError);
 
         // Mapped to the second parameter (strafe) instead of the first (axial)
         drivetrain.moveWithVectors(0, controller.calculateFromError(strafeError), turnCorrection);

@@ -43,10 +43,10 @@ public class Tank extends Drivetrain {
         return this.constants.robotCentric;
     }
 
-    public void moveWithVectors(double drive, double strafe, double turn) {
+    public void moveWithVectors(double x, double y, double turn) {
         // Tank isn't holonomic, ignore the strafe vector
-        double leftPower = drive + turn;
-        double rightPower = drive - turn;
+        double leftPower = x - turn;
+        double rightPower = x + turn;
 
         // Normalize powers if any exceed the max power
         double max = Math.max(Math.abs(leftPower), Math.abs(rightPower));

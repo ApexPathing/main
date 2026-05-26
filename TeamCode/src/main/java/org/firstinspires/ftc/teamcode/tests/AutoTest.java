@@ -10,7 +10,7 @@ import followers.P2PFollower;
 import util.Angle;
 import util.Distance;
 import util.Pose;
-import util.PoseBuilder;
+import util.PoseFactory;
 
 /**
  * Test OpMode for using Apex Pathing in Autonomous mode.
@@ -26,7 +26,7 @@ public class AutoTest extends LinearOpMode {
     private boolean timerStarted = true; // Start with true so it doesn't wait to move to the first pose
 
     // Poses
-    private final PoseBuilder pb = new PoseBuilder(Distance.Units.INCHES, Angle.Units.DEGREES, false);
+    private final PoseFactory pb = new PoseFactory(Distance.Units.INCHES, Angle.Units.DEGREES, false);
     final Pose[] poses = {
             pb.build(0, 0, 0), // startPose
             //pb.build(24, 0, 0), // X movement only
@@ -49,7 +49,6 @@ public class AutoTest extends LinearOpMode {
 
             if (!follower.isBusy() || timerStarted) {
                 if (iterator < poses.length - 1) {
-                    // Wait before moving on for the robot to settle
                     if (!timerStarted) {
                         waitTimer.reset();
                         timerStarted = true;
@@ -58,27 +57,32 @@ public class AutoTest extends LinearOpMode {
                         timerStarted = false;
                         iterator++;
                         follower.setTargetPose(poses[iterator]);
-                    } else {
-                        continue; // Wait until the timer has elapsed
                     }
-                    telemetry.addData("Target Pose", follower.getTargetPose().toString());
                 } else {
                     follower.holdPose(poses[poses.length - 1]);
-                    telemetry.addData("Status", "Done");
                 }
             }
 
             if (gamepad1.a) { // Emergency stop
                 follower.stop();
                 telemetry.addData("Status", "Stopped");
+            } else if (iterator >= poses.length - 1) {
+                telemetry.addData("Status", "Done");
+            } else {
+                telemetry.addData("Status", "Moving to Pose " + (iterator + 1));
+            }
+
+            if (follower.getTargetPose() != null) {
+                telemetry.addData("Target Pose", follower.getTargetPose().toString());
             }
 
             telemetry.addData("Current Pose", follower.getPose().toString());
-            telemetry.addData("Velocity", follower.getVelocity().toString());
+            //telemetry.addData("Velocity", follower.getVelocity().toString());
             telemetry.addData("Is Busy", follower.isBusy());
             telemetry.addData("Axial at target", follower.axialAtTarget());
             telemetry.addData("Strafe at target", follower.strafeAtTarget());
             telemetry.addData("Heading at target", follower.headingAtTarget());
+            telemetry.addData("Holding Pose", follower.isHoldingPose());
             telemetry.update();
         }
     }

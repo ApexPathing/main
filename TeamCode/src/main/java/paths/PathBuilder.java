@@ -1,5 +1,8 @@
 package paths;
 
+import java.util.function.Function;
+import java.util.function.Supplier;
+
 import paths.geometry.BSpline;
 import paths.geometry.Line;
 import paths.heading.HeadingInterpolator;
@@ -20,11 +23,12 @@ import util.Vector;
  * BE CHANGED IN NEAR-FUTURE UPDATES TO FORCE C1 CONTINUITY.
  * <p>
  * Author: DrPixelCat
+ * @author Sohum Arora 22985 Paraducks
  */
 public class PathBuilder {
     private final Path path;
     private Pose lastPose;
-    private final InterpolationStyle DEFAULT_INTERPOLATION = InterpolationStyle.SMOOTH_START_TO_END;
+    private static final InterpolationStyle DEFAULT_INTERPOLATION = InterpolationStyle.SMOOTH_START_TO_END;
     private InterpolationStyle currentStyle = DEFAULT_INTERPOLATION;
 
     /**
@@ -43,12 +47,12 @@ public class PathBuilder {
      * By default, this segment will use {@link InterpolationStyle#TANGENT_OPTIMAL} for heading.
      *
      * @param poses A variable number of waypoints to define the B-Spline curve.
-     *              The final pose determines the target heading for the default interpolator.
+     * The final pose determines the target heading for the default interpolator.
      * @return The current PathBuilder instance for method chaining.
      * @throws IllegalArgumentException If too few points are provided to construct a valid B-Spline.
      */
     public PathBuilder bSplineTo(Pose... poses) {
-        if (poses.length == 0)
+        if (poses.length < 2)
             throw new IllegalArgumentException("A B-Spline must be created with > 1 points!");
 
         Vector[] vectors = new Vector[poses.length + 1];
@@ -84,9 +88,23 @@ public class PathBuilder {
      * @param interpolator The custom HeadingInterpolator to apply to the preceding segment.
      * @return The current PathBuilder instance for method chaining.
      */
-    public PathBuilder interpolatePreviousSegment(HeadingInterpolator interpolator) {
+    private PathBuilder interpolateSegment(HeadingInterpolator interpolator) {
         path.overrideLastInterpolator(interpolator);
         return this;
+    }
+
+    /**
+     * Easier method to call which uses interpolatePreviousSegment
+     * Usage: .interpolatePreviousSegment(InterpolationStyle.TANGENT_FORWARD) instead of .interpolatePreviousSegment(new HeadingInterpolator(s -> new Angle(s * (6 * Math.PI))))
+     * @param style is the style of interpolation
+     * @return overrides the previous segment with selected style of interpolation
+     */
+
+    public PathBuilder interpolateSegment(InterpolationStyle style) {
+        return interpolateSegment(new HeadingInterpolator(style));
+    }
+    public PathBuilder interpolateSegment(Function<Double, Angle> function) {
+        return interpolateSegment(new HeadingInterpolator(function));
     }
 
     /**
@@ -123,6 +141,20 @@ public class PathBuilder {
     }
 
     /**
+     * Seamlessly holds the robot's last pose for a specific duration
+     * @param durationSeconds - Duration for which pose is held (IN SECONDS)
+     */
+    public PathBuilder holdPose(double durationSeconds) {
+        path.addHold(lastPose, durationSeconds);
+        return this;
+    }
+    // keeping this for now, will replace with the method below once we figure it out
+//    public PathBuilder holdPose(double tValue, Supplier<T> callback) {
+//
+//    }
+//TODO: Write the above method to replace the original hold pose method
+
+    /**
      * Overrides the default (SMOOTH_START_TO_END) heading interpolation strategy for the whole path.
      * For fastest results, use the default for shorter segments and TANGENT_OPTIMAL for longer ones.
      *
@@ -132,26 +164,22 @@ public class PathBuilder {
     public PathBuilder setInterpolationStyle(InterpolationStyle style) {
         switch (style) {
             case TANGENT_OPTIMAL:
-                currentStyle = InterpolationStyle.TANGENT_OPTIMAL;
-                break;
             case TANGENT_FORWARD:
-                currentStyle = InterpolationStyle.TANGENT_FORWARD;
-                break;
             case SMOOTH_START_TO_END:
-                currentStyle = InterpolationStyle.SMOOTH_START_TO_END;
+                currentStyle = style;
                 break;
             default:
                 throw new IllegalArgumentException(
                         "You need more parameters for: " + style.name() + "! You can use this style " +
-                        "on specific segments with interpolatePreviousSegmentWith(<HeadingInterpolator>)");
+                                "on specific segments with interpolatePreviousSegmentWith(<HeadingInterpolator>)");
         }
         return this;
     }
 
     /**
-     * Finalizes the construction process and returns the completed path.
+     * Finalizes the construction process and returns the completed path._
      *
-     * @return The fully constructed {@link Path} object ready for execution.
+     * @return The fully constructed {@link Path} object ready for execution._
      */
     public Path build() {
         return path;
@@ -180,6 +208,4 @@ public class PathBuilder {
         // Otherwise, we have valid headings and can safely use the 2-angle constructor
         return new HeadingInterpolator(currentStyle, start.getHeadingComponent(), end.getHeadingComponent());
     }
-
-    // endregion
 }

@@ -11,6 +11,7 @@ import util.Vector;
  * many control points are in the path.
  * TODO: Maybe add heading component to each control point
  * Author: DrPixelCat
+ * @author Sohum Arora
  */
 public class BSpline implements ParametricSegment {
     private final int numSegments;
@@ -36,8 +37,8 @@ public class BSpline implements ParametricSegment {
      * @throws IllegalArgumentException if there are 2 or fewer points provided.
      */
     public BSpline(Vector[] inputPoints) throws IllegalArgumentException {
-        if (inputPoints.length <= 1) {
-            throw new IllegalArgumentException("You can't make a B-Spline curve with only one point!");
+        if (inputPoints.length <= 2) {
+            throw new IllegalArgumentException("You can't make a B-Spline curve with < 2 points!");
         }
 
         // 1. Create ghost points

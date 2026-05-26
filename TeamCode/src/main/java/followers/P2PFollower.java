@@ -1,6 +1,6 @@
 package followers;
 
-import controllers.PDFLController;
+import controllers.PDSController;
 import drivetrains.Drivetrain;
 import localizers.Localizer;
 import followers.constants.P2PFollowerConstants;
@@ -16,9 +16,9 @@ import util.Vector;
 public class P2PFollower extends Follower {
     private final P2PFollowerConstants constants;
 
-    private final PDFLController axialController;
-    private final PDFLController strafeController;
-    private final PDFLController headingController;
+    private final PDSController axialController;
+    private final PDSController strafeController;
+    private final PDSController headingController;
 
     /**
      * Constructor for the P2PFollower
@@ -41,17 +41,15 @@ public class P2PFollower extends Follower {
         // Use the unexposed method from the Follower class (converts target pose to inches and radians)
         super.setTargetPose(targetPose);
         this.axialController.reset();
-        this.axialController.setTarget(targetPose.getX());
+        this.axialController.setTarget(this.targetPose.getX());
         this.strafeController.reset();
-        this.strafeController.setTarget(targetPose.getY());
+        this.strafeController.setTarget(this.targetPose.getY());
         this.headingController.reset();
-        this.headingController.setTarget(targetPose.getHeading());
+        this.headingController.setTarget(this.targetPose.getHeading());
     }
 
     public boolean axialAtTarget() { return constants.axialController.isAtTarget(); }
-
     public boolean strafeAtTarget() { return constants.strafeController.isAtTarget(); }
-
     public boolean headingAtTarget() { return constants.headingController.isAtTarget(); }
 
     @Override
@@ -74,13 +72,12 @@ public class P2PFollower extends Follower {
             }
         }
 
-        // Note: powers are clipped to max powers defined in constants
+        // Rotate backwards to convert from field to robot centric (CCW rotation = positive)
         Vector translational = new Vector(
                 axialController.calculate(currentX),
-                -strafeController.calculate(currentY)
-        ).rotated(-currentHeading); // Rotate to the robot's frame of reference
-        double turn = -headingController.calculate(currentHeading);
-
-        drivetrain.drive(-translational.getX(), translational.getY(), turn);
+                strafeController.calculate(currentY)
+        ).rotated(-currentHeading);
+        double turn = headingController.calculate(currentHeading);
+        drivetrain.drive(translational.getX(), translational.getY(), turn);
     }
 }

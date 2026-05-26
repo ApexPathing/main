@@ -78,6 +78,8 @@ public abstract class Follower {
         holdingPose = true;
     }
 
+    public boolean isHoldingPose() { return holdingPose; }
+
     /**
      * Stops the robot and aborts any active path following
      */
