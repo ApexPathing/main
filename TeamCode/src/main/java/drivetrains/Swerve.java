@@ -35,17 +35,20 @@ public class Swerve extends Drivetrain {
         this.fr = constants.frModuleConstants.build(hardwareMap);
         this.br = constants.brModuleConstants.build(hardwareMap);
     }
-    
+
     protected boolean isRobotCentric() {
         return constants.robotCentric;
     }
 
-    public void moveWithVectors(double x, double y, double turn){
+
+    public void moveWithVectors(double drive, double strafe, double turn){
+        turn *= -1; // Clockwise turn angle
+
         // Swerve kinematics calculations
-        double strafeRear = -y - turn * this.constants.getWheelbaseRatio();
-        double strafeFront = -y + turn * this.constants.getWheelbaseRatio();
-        double forwardRight = x - turn * this.constants.getTrackWidthRatio();
-        double forwardLeft = x + turn * this.constants.getTrackWidthRatio();
+        double strafeRear = strafe - turn * this.constants.getWheelbaseRatio();
+        double strafeFront = strafe + turn * this.constants.getWheelbaseRatio();
+        double forwardRight = drive - turn * this.constants.getTrackWidthRatio();
+        double forwardLeft = drive + turn * this.constants.getTrackWidthRatio();
         double flPower = Math.sqrt(Math.pow(strafeFront, 2) + Math.pow(forwardLeft, 2));
         double blPower = Math.sqrt(Math.pow(strafeRear, 2) + Math.pow(forwardLeft, 2));
         double frPower = Math.sqrt(Math.pow(strafeFront, 2) + Math.pow(forwardRight, 2));
@@ -106,4 +109,11 @@ public class Swerve extends Drivetrain {
         return String.format(Locale.ENGLISH, "Swerve(fl=%s, bl=%s, fr=%s, br=%s)",
                 fl.toString(), bl.toString(), fr.toString(), br.toString());
     }
+    public void manuallySetAngles(double frAngle, double flAngle, double brAngle, double blAngle){
+        fl.setTargets(frAngle, 0);
+        fr.setTargets(flAngle, 0);
+        br.setTargets(brAngle, 0);
+        bl.setTargets(blAngle, 0);
+    }
+
 }
