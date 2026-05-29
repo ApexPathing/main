@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import paths.movements.Turn;
-import paths.callbacks.AngleCallback;
 import geometry.Angle;
 import geometry.Pose;
 

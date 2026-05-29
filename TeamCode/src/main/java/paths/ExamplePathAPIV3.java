@@ -1,6 +1,8 @@
 package paths;
 
 import paths.builders.MovementBuilder; // Updated to use the unified builder
+import paths.builders.PathBuilder;
+import paths.builders.TurnBuilder;
 import paths.movements.FollowerMovement;
 import paths.movements.Path;
 import paths.movements.Turn;
@@ -38,7 +40,7 @@ public class ExamplePathAPIV3 {
 
         // 1. THE CORE B-SPLINE
         // Explicitly casting the FollowerMovement return type to a concrete Path
-        testPath = (Path) new MovementBuilder(startPose)
+        testPath = (Path) new PathBuilder(startPose)
                 // A B-Spline can be created with 2 points in Apex because of ghost points that are added during construction
                 .addControlPoints(
                         pose.of(15, 0), // Standard waypoint
@@ -66,7 +68,7 @@ public class ExamplePathAPIV3 {
         // 6. THE TURN BUILDER
         // Seamlessly starts EXACTLY where the last path ended using .getEndPose()
         // Explicitly casting the FollowerMovement return type to a concrete Turn
-        testTurn = (Turn) new MovementBuilder(testPath.getEndPose())
+        testTurn = (Turn) new TurnBuilder(testPath.getEndPose())
                 // Defines the final heading the robot should rotate to
                 .turnTo(Angle.fromRad(Math.PI / 2))
 

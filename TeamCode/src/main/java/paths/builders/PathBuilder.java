@@ -5,8 +5,7 @@ import java.util.List;
 import java.util.function.Function;
 
 import paths.movements.Path;
-import paths.callbacks.AngleCallback;
-import paths.callbacks.DistanceCallback;
+import paths.callbacks.Callback;
 import geometry.BSpline;
 import geometry.PathSegment;
 import paths.heading.HeadingInterpolator;
@@ -127,7 +126,7 @@ public class PathBuilder {
      * @return The current PathBuilder instance for method chaining.
      */
     public PathBuilder addDistanceCallback(double s, Runnable action) {
-        buildTasks.add(() -> path.addCallback(new DistanceCallback(s, action)));
+        buildTasks.add(() -> path.addCallback(new Callback(s, action)));
         return this;
     }
 
@@ -160,7 +159,7 @@ public class PathBuilder {
                     throw new IllegalArgumentException("Angular callback is outside the range of the path's start and end headings.");
                 }
             }
-            path.addCallback(new AngleCallback(angle, action));
+            path.addCallback(new Callback(angle, action));
         });
 
         return this;
