@@ -1,6 +1,5 @@
 package paths;
 
-import paths.builders.MovementBuilder; // Updated to use the unified builder
 import paths.builders.PathBuilder;
 import paths.builders.TurnBuilder;
 import paths.movements.FollowerMovement;
