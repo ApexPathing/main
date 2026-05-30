@@ -50,7 +50,9 @@ public final class Vector {
     /** @return the y component of the vector in the specified distance unit */
     public double getY(DistUnit unit) { return y.get(unit); }
 
-    /** @return the magnitude of this Vector from the origin */
+    /**
+     * @return the magnitude of this Vector from the origin
+     */
     public Dist getMag() { return x.hypot(y); }
 
     /** @return the magnitude squared of this Vector from the origin */

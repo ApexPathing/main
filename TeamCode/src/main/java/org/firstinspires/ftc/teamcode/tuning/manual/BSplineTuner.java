@@ -72,7 +72,7 @@ public class BSplineTuner extends OpMode {
         hS = followerConstants.headingCoeffs.kS;
         hSDeadzone = followerConstants.headingCoeffs.kSDeadzone;
 
-        vFF = followerConstants.velocityFF;
+        vFF = followerConstants.kV;
         headingTol = Math.toDegrees(followerConstants.headingTolerance);
         distanceTol = followerConstants.distanceTolerance;
         tTol = followerConstants.tTolerance;
@@ -118,7 +118,7 @@ public class BSplineTuner extends OpMode {
         // Push Dashboard variable updates back into the active follower constants
         followerConstants.translationCoeffs = new PDSCoefficients(tP, tD, tS, tSDeadzone);
         followerConstants.headingCoeffs = new PDSCoefficients(hP, hD, hS, hSDeadzone);
-        followerConstants.velocityFF = vFF;
+        followerConstants.kV = vFF;
         followerConstants.headingTolerance = Math.toRadians(headingTol);
         followerConstants.distanceTolerance = distanceTol;
         followerConstants.tTolerance = tTol;

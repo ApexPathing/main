@@ -1,7 +1,5 @@
 package geometry;
 
-import util.DistUnit;
-
 /**
  * A wrapper class that binds a mathematical parametric curve to physical properties.
  * <p>
@@ -236,7 +234,7 @@ public class PathSegment {
      * @param secondDerivative The acceleration vector of the segment at the closest point.
      * @return The principal unit normal Vector pointing toward the center of curvature. Returns (0, 0) if the cross product is zero.
      */
-    public static Vector getNormal(Vector firstDerivative, Vector secondDerivative) {
+    public static Vector calculateArcNormal(Vector firstDerivative, Vector secondDerivative) {
         double vx = firstDerivative.getX(util.DistUnit.IN);
         double vy = firstDerivative.getY(util.DistUnit.IN);
 

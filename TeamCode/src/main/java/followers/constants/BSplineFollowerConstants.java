@@ -15,7 +15,8 @@ public class BSplineFollowerConstants extends FollowerConstants {
     // PDS Coefficients instead of flat primitives!
     public PDSController.PDSCoefficients translationCoeffs = new PDSController.PDSCoefficients(0.1, 0.0, 0.0, 0.0);
     public PDSController.PDSCoefficients headingCoeffs = new PDSController.PDSCoefficients(0.4, 0.0, 0.0, 0.0);
-    public double velocityFF = 0.01;
+    public double kV = 0.01;
+    public double kA = 0.01;
 
     // Tolerances
     public double headingTolerance = Math.toRadians(1.0);
@@ -42,8 +43,13 @@ public class BSplineFollowerConstants extends FollowerConstants {
         return this;
     }
 
-    public BSplineFollowerConstants setVelocityFF(double velocityFF) {
-        this.velocityFF = velocityFF;
+    public BSplineFollowerConstants setkV(double kV) {
+        this.kV = kV;
+        return this;
+    }
+
+    public BSplineFollowerConstants setkA(double kA) {
+        this.kA = kA;
         return this;
     }
 

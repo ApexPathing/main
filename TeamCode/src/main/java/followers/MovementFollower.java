@@ -1,5 +1,8 @@
 package followers;
 
+import com.qualcomm.robotcore.util.Range;
+
+import controllers.PDFLController;
 import controllers.PDSController;
 import drivetrains.Drivetrain;
 import followers.constants.BSplineFollowerConstants;
@@ -26,7 +29,9 @@ public class MovementFollower extends Follower {
     private final BSplineFollowerConstants constants;
 
     // PDS Controllers for closed-loop feedback
-    private final PDSController translationController;
+    private final PDSController lateralController;
+    private final PDFLController velocityController;
+    private final PDSController driveController;
     private final PDSController headingController;
 
     // Architecture Change: Singular active movement. Throws exception if overridden prematurely.
@@ -46,11 +51,13 @@ public class MovementFollower extends Follower {
         this.constants = constants;
 
         // Initialize controllers with PDS coefficients from constants
-        this.translationController = new PDSController(constants.translationCoeffs);
+        this.lateralController = new PDSController(constants.translationCoeffs);
         this.headingController = new PDSController(constants.headingCoeffs);
 
         // Mark heading controller as angular so it handles angle normalization
         this.headingController.setAngularController();
+        this.velocityController = new PDFLController(new PDFLController.PDFLCoefficients());
+        this.driveController = new PDSController(new PDSController.PDSCoefficients());
     }
 
     /**
@@ -77,7 +84,7 @@ public class MovementFollower extends Follower {
         this.wasHoldingPosePrevFrame = false;
 
         // Reset controllers right before starting a new path to prevent derivative kick
-        translationController.reset();
+        lateralController.reset();
         headingController.reset();
     }
 
@@ -126,13 +133,15 @@ public class MovementFollower extends Follower {
             Vector error = targetPoseVec.minus(current.getPos());
 
             double errorMag = error.getMag().getIn();
-            double translationPower = translationController.calculateFromError(errorMag);
+            double translationPower = lateralController.calculateFromError(errorMag);
             Vector feedback = errorMag > 0 ? error.normalize().times(translationPower) : Vector.zero();
 
             double turnPower = headingController.calculateFromError(headingError);
 
             // Pass the calculated feedback instead of 0, 0
             drive(feedback.getX().getIn(), feedback.getY().getIn(), turnPower, currentHeading);
+
+            // region Curve movement
 
         } else if (currentMovement instanceof Path) {
             Path pathSegmentMove = (Path) currentMovement;
@@ -144,56 +153,119 @@ public class MovementFollower extends Follower {
                 return;
             }
 
+            // 1. READS: Extract all state, geometry, and error values
             double t = segment.getBestT(current.getPos());
+            double currentHeading = current.getHeading().getRad();
 
+            Vector robotVelocity = localizer.getVelocity().getPos();
             Vector targetPoseVec = segment.getPosition(t);
-            //********** CFS YAY! ************
 
-            Vector targetVelocity = segment.getFirstDerivative(t); //first derivative
-            Vector targetAcceleration = segment.getSecondDerivative(t); //second derivative
+            // Raw derivatives needed ONLY for calculating the radius of curvature
+            Vector velVec = segment.getFirstDerivative(t);
+            Vector accelVec = segment.getSecondDerivative(t);
 
-            double velocityMag = targetVelocity.getMag().getIn();
-            double crossProductMag = Math.abs(targetVelocity.cross(targetAcceleration).getIn());
+            Vector normal = PathSegment.calculateArcNormal(velVec, accelVec);
 
-            if (velocityMag > 1e-6) {
-                double lateralAccel = crossProductMag / velocityMag;
-
-                if (lateralAccel > constants.getMaxLateralAccel()) {
-                    double radius = crossProductMag < 1e-6 ? Double.POSITIVE_INFINITY : Math.pow(velocityMag, 3) / crossProductMag;
-
-                    if (radius != Double.POSITIVE_INFINITY) {
-                        //calculating maximum safe lateral velocity as the square root of max lateral acceleration * radius
-                        double maxSafeVelocity = Math.sqrt(constants.getMaxLateralAccel() * radius);
-                        targetVelocity = targetVelocity.times(maxSafeVelocity / velocityMag);
-                    }
-                }
-            }
-            Vector error = targetPoseVec.minus(current.getPos());
-
-            double errorMag = error.getMag().getIn();
-            // TODO: test to make sure this type of scaling won't be an issue in the future (since mag is always positive)
-            double translationPower = translationController.calculateFromError(errorMag);
-            Vector feedback = errorMag > 0 ? error.normalize().times(translationPower) : Vector.zero();
-
-            Vector feedforward = targetVelocity.times(constants.velocityFF);
-
-            Vector drivePower = feedback.plus(feedforward);
-
-            double driveX = drivePower.getX().getIn();
-            double driveY = drivePower.getY().getIn();
+            // The normalized tangent dictates pure geometric direction, independent of speed
+            Vector unitTangent = velVec.normalize();
 
             double distanceRemaining = segment.getDistanceToEnd_in(targetPoseVec, t);
             double distanceTravelled = segment.getLength_in() - distanceRemaining;
+            double pathProgression = distanceTravelled / segment.getLength_in();
 
-            Angle targetAngle = interpolator.getHeading(distanceTravelled / segment.getLength_in(), targetVelocity);
+            Angle targetAngle = interpolator.getHeading(pathProgression, velVec);
             double targetHeading = targetAngle.getRad();
-            double currentHeading = current.getHeading().getRad();
 
+            Vector fieldError = targetPoseVec.minus(current.getPos());
             double headingError = getShortestAngularDistance(currentHeading, targetHeading);
-            double turnPower = headingController.calculateFromError(headingError);
 
+            // 2. CALCULATIONS: Apply physics, scaling, and PID math
+            double availableMotorPower = 1.0;
+
+            // --- 1. Turn Power Allocation (Highest Priority) ---
+            double turnPower = headingController.calculateFromError(headingError);
+            availableMotorPower -= Math.abs(turnPower);
+
+            // --- 2. Combined Lateral Power (Centripetal + Feedback) ---
+            double radius = PathSegment.calculateRadiusOfCurvature(velVec, accelVec);
+            double robotVelMag = robotVelocity.getMag().getIn();
+
+            // Required inward acceleration based on ACTUAL current speed
+            double requiredLateralAccel = (robotVelMag * robotVelMag) / radius;
+            double centripetalMag = requiredLateralAccel / constants.getMaxLateralAccel();
+
+            // Project field error onto the normal vector to isolate lateral drift
+            double crossTrackError = fieldError.dot(normal).getIn();
+            double lateralFeedbackMag = lateralController.calculateFromError(crossTrackError);
+
+            // Mathematically combine centripetal feedforward and corrective feedback
+            double netLateralMag = centripetalMag + lateralFeedbackMag;
+            netLateralMag = Range.clip(netLateralMag, -availableMotorPower, availableMotorPower);
+
+            Vector lateralDriveVec = normal.times(netLateralMag);
+            availableMotorPower -= Math.abs(netLateralMag);
+
+            // --- 3. Tangent/Along-Track Power Allocation ---
+
+            // TODO: Implement properly with velocity limit in constants!
+            double desiredVelocity = 10.0;
+
+            // Cap the desired speed if the upcoming curve is too sharp
+            if (radius != Double.POSITIVE_INFINITY) {
+                double maxSafeVelocity = Math.sqrt(constants.getMaxLateralAccel() * radius);
+                if (desiredVelocity > maxSafeVelocity) {
+                    desiredVelocity = maxSafeVelocity;
+                }
+            }
+
+            // Project field error onto the tangent vector to isolate forward/backward error
+            double alongTrackError = fieldError.dot(unitTangent).getIn();
+
+            // Calculate deceleration if current speed exceeds the safe requested speed
+            double neededAccel = 0.0;
+            if (desiredVelocity < robotVelMag) {
+                neededAccel = desiredVelocity - robotVelMag; // Yields a negative value for braking
+            }
+
+            // Feedforward: kV scales the target speed, kA (with negative accel) pulls power back to brake
+            double feedforward = (constants.kV * desiredVelocity) + (constants.kA * neededAccel);
+
+            double tangentFeedbackMag;
+            if (t < 1.0) {
+                tangentFeedbackMag = driveController.calculateFromError(alongTrackError);
+            } else {
+                // Infinite line fallback for end of path
+                Vector endPos = segment.getPosition(1.0);
+                Vector endTangent = segment.getFirstDerivative(1.0).normalize();
+                Vector endToRobot = current.getPos().minus(endPos);
+
+                double distancePastEnd = endToRobot.dot(endTangent).getIn();
+                tangentFeedbackMag = driveController.calculateFromError(-distancePastEnd);
+            }
+
+            // Calculate the velocity feedback and safely append the Feedforward and kS
+            double velocityFeedback = velocityController.calculateFromError(desiredVelocity - robotVelMag)
+                    + feedforward
+                    + driveController.getCoefficients().kS;
+
+            double positionFeedback = tangentFeedbackMag;
+
+            // Cap the spatial position request with the velocity ceiling
+            double totalTangentPower = Math.min(velocityFeedback, positionFeedback);
+            totalTangentPower = Range.clip(totalTangentPower, -availableMotorPower, availableMotorPower);
+
+            // Apply the power scalar to the purely directional unit tangent
+            Vector tangentDriveVec = unitTangent.times(totalTangentPower);
+
+            // --- Final Blending ---
+            Vector driveOutput = tangentDriveVec.plus(lateralDriveVec);
+
+            double driveX = driveOutput.getX().getIn();
+            double driveY = driveOutput.getY().getIn();
+
+            // 3. WRITES: Actuate motors or advance state machine
             if (t >= constants.tTolerance && distanceRemaining < constants.distanceTolerance) {
-                Vector finalPosition = currentMovement.getEndPose().getPos(); // Used cached pos to avoid extra compute
+                Vector finalPosition = currentMovement.getEndPose().getPos();
                 this.setTargetPose(new Pose(finalPosition, Angle.fromRad(targetHeading)));
                 this.holdingPose = true;
                 this.isBusy = false;
@@ -217,8 +289,7 @@ public class MovementFollower extends Follower {
             drivetrain.stop();
             return;
         }
-
-        double translationPower = translationController.calculateFromError(errorMag);
+        double translationPower = lateralController.calculateFromError(errorMag);
         Vector feedback = errorMag > 0 ? error.normalize().times(translationPower) : Vector.zero();
 
         double turnPower = headingController.calculateFromError(headingError);
@@ -231,6 +302,10 @@ public class MovementFollower extends Follower {
         if (diff > Math.PI) diff -= pi2;
         else if (diff < -Math.PI) diff += pi2;
         return diff;
+    }
+
+    private double calculateNewAvailablePower(double availablePower, double newRequest) {
+        return Range.clip(availablePower - Math.abs(newRequest), 0.0, 1.0);
     }
 
     @Override
