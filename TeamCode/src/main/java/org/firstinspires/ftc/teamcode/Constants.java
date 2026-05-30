@@ -9,8 +9,6 @@ import controllers.PDSController;
 import core.ApexBuilder;
 import drivetrains.constants.DrivetrainConstants;
 import drivetrains.constants.MecanumConstants;
-import drivetrains.constants.SwerveConstants;
-import drivetrains.constants.SwerveModuleConstants;
 import localizers.constants.LocalizerConstants;
 import localizers.constants.PinpointConstants;
 import followers.constants.FollowerConstants;
