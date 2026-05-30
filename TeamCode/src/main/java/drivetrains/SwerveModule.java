@@ -9,6 +9,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
+import org.firstinspires.ftc.teamcode.Constants;
 
 import java.util.Locale;
 
@@ -34,8 +35,8 @@ public class SwerveModule {
     private double targetPower = 0;
     private double lastTargetPower = 0;
     private double lastSteerError = 0;
-
-    private static final double voltageToDegrees = 360.0 / 3.3; // Degrees = voltage * this
+    public double encoderVolts = 3.3;
+    private final double voltageToDegrees = 360.0 / this.encoderVolts; // Degrees = voltage * this
 
     /**
      * @param hardwareMap the hardware map to use for initializing the module
@@ -46,6 +47,7 @@ public class SwerveModule {
         this.driveMotor = this.constants.motorData.build(hardwareMap);
         this.steerServo = hardwareMap.get(CRServo.class, this.constants.servoName);
         this.encoder = hardwareMap.get(AnalogInput.class, this.constants.encoderName);
+        this.encoderVolts = constants.maxEncoderVolts;
     }
 
     /**

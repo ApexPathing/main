@@ -20,7 +20,6 @@ import drivetrains.constants.TankConstants;
  */
 public class Tank extends Drivetrain {
     TankConstants constants;
-
     // Motors
     DcMotorEx flMotor;
     DcMotorEx blMotor; // Only used for 4 motor tank drive

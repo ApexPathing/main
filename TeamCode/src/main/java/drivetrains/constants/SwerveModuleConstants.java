@@ -18,10 +18,10 @@ public class SwerveModuleConstants {
     public MotorMetaData motorData = new MotorMetaData();
     public String servoName = "flServo";
     public String encoderName = "flEncoder"; // 0–3.3V maps to 0–360 degrees
-
     // Tuned values (these are set by the main SwerveConstants class because all modules should have the same tuning)
     public double steeringPGain = 0.015; // Proportional gain for steering correction
     double OffsetAngle = 0;
+    public double maxEncoderVolts = 3.3; //axon default
 
     /**
      * Constructor for the SwerveConstants class
@@ -96,6 +96,26 @@ public class SwerveModuleConstants {
      */
     public SwerveModuleConstants setModuleAngleOffset(double degrees){
         this.OffsetAngle = degrees;
+        return this;
+    }
+
+    /**
+     * sets the threshold for the encoder that reads pod angle
+     * @param volts is the voltage max
+     * @return this instance for stacking
+     */
+    public SwerveModuleConstants setMaxEncoderVoltage(double volts){
+        this.maxEncoderVolts = volts;
+        return this;
+    }
+
+    /**
+     * sets the kP steering gain for the pods
+     * @param kP is the steering value
+     * @return this instance for stacking
+     */
+    public SwerveModuleConstants setSteering_kP_val(double kP){
+        this.steeringPGain = kP;
         return this;
     }
 }
