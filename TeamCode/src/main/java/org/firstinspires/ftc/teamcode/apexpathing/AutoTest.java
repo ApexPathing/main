@@ -64,6 +64,8 @@ public class AutoTest extends LinearOpMode {
     private final double[] stagePeakDemand = new double[3];
     private final double[] stageSquaredDemand = new double[3];
     private final long[] stageSaturatedSamples = new long[3];
+    private final double[] movementDurations = new double[5];
+    private final double[] firstToleranceTimes = new double[5];
 
     enum AutoState {
         OUTBOUND_CURVE,
@@ -97,6 +99,7 @@ public class AutoTest extends LinearOpMode {
             sampleCommandDemand(follower);
             logOutboundVelocitySample(follower);
             Pose pose = follower.getPose();
+            recordFirstToleranceEntry(pose);
             maximumCrossTrackError = Math.max(maximumCrossTrackError,
                     Math.abs(follower.getCrossTrackErrorIn()));
 
@@ -142,6 +145,7 @@ public class AutoTest extends LinearOpMode {
     }
 
     private void finishStage(Follower follower, Pose actualPose) {
+        movementDurations[currentState.ordinal()] = stageTimer.seconds();
         if (currentState == AutoState.OUTBOUND_CURVE) { closeOutboundVelocityCsv(); }
         FollowerMovement completed = movementFor(currentState);
         Pose expectedPose = completed.getEndPose();
@@ -237,6 +241,47 @@ public class AutoTest extends LinearOpMode {
 
     public String getOutboundVelocityCsvError() { return outboundVelocityCsvError; }
 
+    /** Returns the elapsed motion time across all five completed checks. */
+    public double getTotalMovementTimeSeconds() {
+        double total = 0.0;
+        for (double duration : movementDurations) { total += duration; }
+        return total;
+    }
+
+    /** Returns a concise timing breakdown for performance regression tests. */
+    public String getMovementTimingReport() {
+        return String.format(Locale.US,
+                "outbound=%.3fs(+%.3fs settle), turn=%.3fs(+%.3fs settle), " +
+                        "return=%.3fs(+%.3fs settle), strafeOut=%.3fs(+%.3fs settle), " +
+                        "strafeBack=%.3fs(+%.3fs settle), total=%.3fs",
+                movementDurations[0], settlingDelay(0),
+                movementDurations[1], settlingDelay(1),
+                movementDurations[2], settlingDelay(2),
+                movementDurations[3], settlingDelay(3),
+                movementDurations[4], settlingDelay(4), getTotalMovementTimeSeconds());
+    }
+
+    private double settlingDelay(int stage) {
+        return Double.isFinite(firstToleranceTimes[stage])
+                ? Math.max(0.0, movementDurations[stage] - firstToleranceTimes[stage])
+                : movementDurations[stage];
+    }
+
+    private void recordFirstToleranceEntry(Pose actualPose) {
+        int stage = currentState.ordinal();
+        if (stage >= movementDurations.length || Double.isFinite(firstToleranceTimes[stage])) {
+            return;
+        }
+        Pose expected = movementFor(currentState).getEndPose();
+        double positionError = actualPose.distanceTo(expected).getIn();
+        double headingError = Math.abs(actualPose.getHeading()
+                .getShortestAngleTo(expected.getHeading()).getDeg());
+        boolean inside = currentState == AutoState.POINT_TURN
+                ? headingError <= 2.0
+                : positionError <= 1.0 && headingError <= 2.0;
+        if (inside) { firstToleranceTimes[stage] = stageTimer.seconds(); }
+    }
+
     /** Summarizes raw controller demand before command normalization. */
     public String getCommandDemandReport() {
         double rms = demandSamples == 0 ? 0.0 :
@@ -307,6 +352,8 @@ public class AutoTest extends LinearOpMode {
         Arrays.fill(stagePeakDemand, 0.0);
         Arrays.fill(stageSquaredDemand, 0.0);
         Arrays.fill(stageSaturatedSamples, 0);
+        Arrays.fill(movementDurations, 0.0);
+        Arrays.fill(firstToleranceTimes, Double.NaN);
     }
 
     private void openOutboundVelocityCsv() {

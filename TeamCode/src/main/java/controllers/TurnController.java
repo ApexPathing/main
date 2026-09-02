@@ -31,6 +31,7 @@ public class TurnController {
     private double angularVelocityFeedbackGain;
 
     private boolean overshootRecovery;
+    private boolean quickEndpointCapture;
 
     public TurnController(PDSController.PDSCoefficients headingCoefficients,
                           double angularKV, double angularKA, double angularFeedforwardKS,
@@ -68,6 +69,16 @@ public class TurnController {
 
     /** Uses the complete heading PDS for an unprofiled turn. */
     public double calculateQuick(double headingError) { return headingPds.calculate(headingError); }
+
+    /** Latches out static compensation after a quick turn reaches its endpoint band. */
+    public double calculateQuick(double headingError, double measuredAngularVelocity,
+                                 double endpointCaptureHeading) {
+        if (Math.abs(headingError) <= endpointCaptureHeading) {
+            quickEndpointCapture = true;
+        }
+        return headingPds.calculate(
+                headingError, -measuredAngularVelocity, !quickEndpointCapture);
+    }
 
     /**
      * Calculates a profiled turn command and permanently switches to PDS recovery after overshoot.
@@ -160,6 +171,7 @@ public class TurnController {
 
     public void reset() {
         overshootRecovery = false;
+        quickEndpointCapture = false;
         headingPds.reset();
     }
 

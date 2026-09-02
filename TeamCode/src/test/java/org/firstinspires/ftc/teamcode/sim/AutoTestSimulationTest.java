@@ -23,6 +23,8 @@ import controllers.PDSController.PDSCoefficients;
 import paths.movements.Path;
 
 public class AutoTestSimulationTest {
+    private static final double MAX_TOTAL_MOVEMENT_SECONDS = 36.0;
+
     @Test(timeout = 130_000L)
     public void autoTestCompletesEveryMovement() throws Exception {
         configureStableConstants();
@@ -61,6 +63,9 @@ public class AutoTestSimulationTest {
             assertTrue("Auto Test did not complete every movement:\n" + frame,
                     frame.contains("Current check COMPLETE"));
             System.out.println("AUTO TEST COMMAND DEMAND: " + auto.getCommandDemandReport());
+            System.out.println("AUTO TEST TIMING: " + auto.getMovementTimingReport());
+            assertTrue("Auto Test following regressed: " + auto.getMovementTimingReport(),
+                    auto.getTotalMovementTimeSeconds() <= MAX_TOTAL_MOVEMENT_SECONDS);
             if (outbound.isProfiled()) {
                 File velocityCsv = new File(auto.getOutboundVelocityCsvPath());
                 assertTrue("Profiled outbound velocity CSV was not created: path=" +
@@ -122,20 +127,22 @@ public class AutoTestSimulationTest {
             System.setProperty(ApexStorage.DIRECTORY_PROPERTY, directory.getAbsolutePath());
         }
         FollowerConstants constants = FollowerConstants.getInstance();
-        constants.angularCoeffs = new PDSCoefficients(0.80, 0.10, 0.23);
-        constants.translationalCoeffs = new PDSCoefficients(0.12, 0.03, 0.23);
-        constants.angularKV = 0.066;
-        constants.angularKA = 0.043;
-        constants.translationalKV = 0.0071;
-        constants.translationalKA = 0.0047;
-        constants.kCentripetal = 0.0061;
-        constants.velocityFeedbackGain = 0.059;
+        constants.angularCoeffs = new PDSCoefficients(2.40, 0.45, 0.236);
+        constants.translationalCoeffs = new PDSCoefficients(0.20, 0.04, 0.235);
+        constants.angularKV = 0.03729620016302293;
+        constants.angularKA = 0.05762017415132837;
+        constants.angularFeedforwardKS = 0.2571326953727573;
+        constants.translationalKV = 0.007985735155227602;
+        constants.translationalKA = 0.006869366751688844;
+        constants.translationalFeedforwardKS = 0.10800918318444208;
+        constants.kCentripetal = 0.008830155935013819;
+        constants.velocityFeedbackGain = 0.08273740189064561;
         constants.angularVelocityFeedbackGain = 0.25;
-        constants.forwardVelLimitIn = 64.7;
-        constants.forwardAccelLimitIn = 105.7;
-        constants.strafeVelLimitIn = 53.6;
-        constants.strafeAccelLimitIn = 84.9;
-        constants.angularVelLimitRad = 6.96;
-        constants.angularAccelLimitRad = 12.0;
+        constants.forwardVelLimitIn = 64.82715934849021;
+        constants.forwardAccelLimitIn = 138.67321291770276;
+        constants.strafeVelLimitIn = 53.709295445494945;
+        constants.strafeAccelLimitIn = 107.71546803022714;
+        constants.angularVelLimitRad = 6.980307090964637;
+        constants.angularAccelLimitRad = 14.46018035928052;
     }
 }
