@@ -1,132 +1,88 @@
 package tuning;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
+import controllers.PDSController.PDSCoefficients;
+
 public class PDSRoutineTest {
     @Test
-    public void usesLargerClosedLoopTrialDeltas() {
-        assertEquals(Math.toRadians(60.0),
-                PDSRoutine.trialMagnitudeFor(PDSRoutine.Axis.HEADING), 1e-9);
-        assertEquals(24.0,
-                PDSRoutine.trialMagnitudeFor(PDSRoutine.Axis.DRIVE), 1e-9);
+    public void linearPositionIsRelativeToTrialStart() {
+        assertEquals(2.5, PDSRoutine.relativePosition(12.5, 10.0, false), 1e-9);
     }
 
     @Test
-    public void timeWeightedSquaredErrorPenalizesLateErrorMore() {
-        double early = PDSRoutine.accumulateTimeWeightedSquaredError(
-                0.0, 1.0, 2.0, 0.1);
-        double late = PDSRoutine.accumulateTimeWeightedSquaredError(
-                0.0, 3.0, 2.0, 0.1);
+    public void angularPositionWrapsAcrossPiBoundary() {
+        double start = Math.toRadians(179.0);
+        double current = Math.toRadians(-179.0);
 
-        assertEquals(0.4, early, 1e-9);
-        assertEquals(1.2, late, 1e-9);
-        assertTrue(late > early);
+        assertEquals(Math.toRadians(2.0),
+                PDSRoutine.relativePosition(current, start, true), 1e-9);
     }
 
     @Test
-    public void normalizedFiniteDifferenceUsesEachGainRange() {
-        double pGradient = PDSRoutine.normalizedFiniteDifference(
-                12.0, 8.0, 0.60, 0.40, 0.0, 1.0, 10.0);
-        double dGradient = PDSRoutine.normalizedFiniteDifference(
-                12.0, 8.0, 0.060, 0.040, 0.0, 0.10, 10.0);
-
-        assertEquals(2.0, pGradient, 1e-9);
-        assertEquals(2.0, dGradient, 1e-9);
+    public void configRejectsUnsafeInputs() {
+        assertThrows(IllegalArgumentException.class,
+                () -> PDSRoutine.Config.linear(
+                        "drive", 0.75, 0.01, 0.0, 0.3,
+                        24.0, 0.75, 1.0, 36.0));
+        assertThrows(IllegalArgumentException.class,
+                () -> PDSRoutine.Config.linear(
+                        "drive", Double.NaN, 0.75, 0.0, 0.3,
+                        24.0, 0.75, 1.0, 36.0));
     }
 
     @Test
-    public void normalizedGradientStepScalesDifferentGainMagnitudesEqually() {
-        double magnitude = Math.sqrt(2.0);
-        double p = PDSRoutine.gradientUpdatedGain(
-                0.50, 1.0, magnitude, 0.10, 0.0, 1.0);
-        double d = PDSRoutine.gradientUpdatedGain(
-                0.050, 1.0, magnitude, 0.10, 0.0, 0.10);
+    public void routineRequiresARefinedFeedforwardModel() {
+        PDSRoutine.Config config = PDSRoutine.Config.linear(
+                "drive", 0.01, 0.75, 0.0, 0.3,
+                24.0, 0.75, 1.0, 36.0);
 
-        assertEquals(0.4292893219, p, 1e-9);
-        assertEquals(0.04292893219, d, 1e-9);
+        assertThrows(IllegalArgumentException.class,
+                () -> new PDSRoutine(config, 0.0, 0.01, 0.2));
+        assertThrows(IllegalArgumentException.class,
+                () -> new PDSRoutine(config, 0.01, 0.0, 0.2));
     }
 
     @Test
-    public void gradientStepClampsToSafeBounds() {
-        assertEquals(0.0, PDSRoutine.gradientUpdatedGain(
-                0.05, 10.0, 10.0, 0.20, 0.0, 1.0), 1e-9);
-        assertEquals(1.0, PDSRoutine.gradientUpdatedGain(
-                0.95, -10.0, 10.0, 0.20, 0.0, 1.0), 1e-9);
+    public void routineStartsFromAnAggressiveModelSeed() {
+        PDSRoutine.Config config = PDSRoutine.Config.angular(
+                "heading", 0.10, 32.0, 0.0, 2.0,
+                Math.toRadians(60.0), Math.toRadians(1.0), 0.10,
+                Math.toRadians(110.0));
+        PDSRoutine routine = new PDSRoutine(config, 0.066, 0.043, 0.23);
+
+        routine.start();
+
+        PDSCoefficients expected = PDSRoutine.modelBasedPd(
+                0.066, 0.043, 0.75, 0.75, 0.23);
+        assertEquals(expected.kP, routine.getCoefficients().kP, 1e-9);
+        assertEquals(Math.min(2.0, expected.kD), routine.getCoefficients().kD, 1e-9);
+        assertEquals(0.23, routine.getCoefficients().kS, 1e-9);
     }
 
     @Test
-    public void finiteDifferenceProbeIsCentralWhenThereIsRoom() {
-        assertEquals(0.55,
-                PDSRoutine.perturbGain(0.50, 0.05, 0.0, 1.0, 1), 1e-9);
-        assertEquals(0.45,
-                PDSRoutine.perturbGain(0.50, 0.05, 0.0, 1.0, -1), 1e-9);
+    public void modelBasedGainsUseMeasuredKvAndKa() {
+        PDSCoefficients gains = PDSRoutine.modelBasedPd(
+                0.08, 0.04, 1.0, 1.5, 0.20);
+
+        assertEquals(0.2844444444, gains.kP, 1e-9);
+        assertEquals(0.1333333333, gains.kD, 1e-9);
+        assertEquals(0.20, gains.kS, 1e-9);
     }
 
     @Test
-    public void finiteDifferenceProbeFallsBackToOneSidedAtBound() {
-        assertEquals(0.05,
-                PDSRoutine.perturbGain(0.0, 0.05, 0.0, 1.0, 1), 1e-9);
-        assertEquals(0.0,
-                PDSRoutine.perturbGain(0.0, 0.05, 0.0, 1.0, -1), 1e-9);
-    }
+    public void completedTuneRequiresExplicitUserAcceptance() {
+        PDSRoutine.Config config = PDSRoutine.Config.linear(
+                "drive", 0.01, 0.75, 0.0, 0.3,
+                24.0, 0.75, 1.0, 36.0);
+        PDSRoutine routine = new PDSRoutine(config, 0.02, 0.004, 0.2);
 
-    @Test
-    public void worseUpdateHalvesLearningRateWithoutPassingFloor() {
-        assertEquals(0.04, PDSRoutine.reducedLearningRate(0.08, 0.005), 1e-9);
-        assertEquals(0.005, PDSRoutine.reducedLearningRate(0.006, 0.005), 1e-9);
-    }
+        routine.start();
 
-    @Test
-    public void relativeImprovementRejectsWorseCost() {
-        assertEquals(0.20, PDSRoutine.relativeImprovement(10.0, 8.0), 1e-9);
-        assertEquals(0.0, PDSRoutine.relativeImprovement(10.0, 12.0), 1e-9);
-    }
-
-    @Test
-    public void stalledOperatorTestClearsSoftStaticFrictionDeadband() {
-        double tolerance = Math.toRadians(2.5);
-
-        assertEquals(-0.28125, PDSRoutine.ensureTestBreakawayPower(
-                -0.2359652517928235,
-                -0.043727866438586505,
-                0.0,
-                0.23125,
-                tolerance,
-                0.10), 1e-9);
-    }
-
-    @Test
-    public void operatorTestBreakawayFloorIsLimitedToStallOutsideTolerance() {
-        double tolerance = Math.toRadians(2.5);
-
-        assertEquals(-0.20, PDSRoutine.ensureTestBreakawayPower(
-                -0.20, -Math.toRadians(2.0), 0.0, 0.23125, tolerance, 0.10), 1e-9);
-        assertEquals(-0.20, PDSRoutine.ensureTestBreakawayPower(
-                -0.20, -Math.toRadians(3.0), -0.20, 0.23125, tolerance, 0.10), 1e-9);
-        assertEquals(-0.40, PDSRoutine.ensureTestBreakawayPower(
-                -0.40, -Math.toRadians(3.0), 0.0, 0.23125, tolerance, 0.10), 1e-9);
-    }
-
-    @Test
-    public void bidirectionalPdsTestsStageAtFieldCenter() {
-        for (PDSRoutine.Axis axis : PDSRoutine.Axis.values()) {
-            assertEquals(0.0, PDSRoutine.stagingPoseFor(axis).getX().getIn(), 1e-9);
-            assertEquals(0.0, PDSRoutine.stagingPoseFor(axis).getY().getIn(), 1e-9);
-            assertEquals(0.0, PDSRoutine.stagingPoseFor(axis).getHeading().getRad(), 1e-9);
-        }
-    }
-
-    @Test
-    public void automaticPdsTrialsAlternateForwardAndBackward() {
-        double magnitude = PDSRoutine.trialMagnitudeFor(PDSRoutine.Axis.DRIVE);
-
-        double backward = PDSRoutine.alternatingTrialTarget(magnitude, magnitude);
-        double forward = PDSRoutine.alternatingTrialTarget(backward, magnitude);
-
-        assertEquals(-magnitude, backward, 1e-9);
-        assertEquals(magnitude, forward, 1e-9);
+        assertTrue(!routine.isComplete());
     }
 }

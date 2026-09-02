@@ -34,6 +34,8 @@ public class FollowerConstants {
     public double angularVelocityFeedbackGain = 0.0;
     public double translationalKV = 0.0, translationalKA = 0.0;
     public double angularKV = 0.0, angularKA = 0.0;
+    /** Moving-friction feedforward terms; PDS kS remains the larger breakaway value. */
+    public double translationalFeedforwardKS = 0.0, angularFeedforwardKS = 0.0;
     public double kCentripetal = 0.0;
 
     public double forwardVelLimitIn = 0.0;
@@ -95,6 +97,10 @@ public class FollowerConstants {
         translationalKA = loadDouble(json, "translationKA");
         angularKV = loadDouble(json, "angularKV");
         angularKA = loadDouble(json, "angularKA");
+        angularFeedforwardKS = json.has("angularFeedforwardS")
+                ? loadDouble(json, "angularFeedforwardS") : angularCoeffs.kS;
+        translationalFeedforwardKS = json.has("translationalFeedforwardS")
+                ? loadDouble(json, "translationalFeedforwardS") : translationalCoeffs.kS;
         velocityFeedbackGain = loadDouble(json, "velocityFeedbackGain");
         angularVelocityFeedbackGain = loadDouble(json, "angularVelocityFeedbackGain");
         kCentripetal = loadDouble(json, "kCentripetal");
@@ -121,6 +127,8 @@ public class FollowerConstants {
             json.put("translationKA", translationalKA);
             json.put("angularKV", angularKV);
             json.put("angularKA", angularKA);
+            json.put("angularFeedforwardS", angularFeedforwardKS);
+            json.put("translationalFeedforwardS", translationalFeedforwardKS);
             json.put("velocityFeedbackGain", velocityFeedbackGain);
             json.put("angularVelocityFeedbackGain", angularVelocityFeedbackGain);
             json.put("kCentripetal", kCentripetal);

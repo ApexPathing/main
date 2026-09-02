@@ -1,13 +1,12 @@
 package org.firstinspires.ftc.teamcode.apexpathing;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
-
-import tuning.VelocityFeedbackPhase;
 
 public class FollowerTunerSequenceTest {
     @Test
@@ -21,9 +20,25 @@ public class FollowerTunerSequenceTest {
     }
 
     @Test
-    public void centripetalCompletionConstructsVelocityFeedbackNext() {
-        assertEquals(VelocityFeedbackPhase.class,
-                FollowerTuner.nextPhaseClass(FollowerTuner.Phase.CENTRIPETAL));
+    public void workflowEstablishesDependenciesBeforeControllerTuning() {
+        assertArrayEquals(new FollowerTuner.Phase[] {
+                        FollowerTuner.Phase.STATIC_FRICTION,
+                        FollowerTuner.Phase.LIMITS,
+                        FollowerTuner.Phase.FEEDFORWARD,
+                        FollowerTuner.Phase.HEADING,
+                        FollowerTuner.Phase.DRIVE,
+                        FollowerTuner.Phase.CENTRIPETAL,
+                        FollowerTuner.Phase.VELOCITY_FEEDBACK
+                },
+                FollowerTuner.Phase.values());
+        assertEquals(FollowerTuner.Phase.HEADING,
+                FollowerTuner.nextPhase(FollowerTuner.Phase.FEEDFORWARD));
+    }
+
+    @Test
+    public void centripetalCompletionAdvancesToVelocityFeedback() {
+        assertEquals(FollowerTuner.Phase.VELOCITY_FEEDBACK,
+                FollowerTuner.nextPhase(FollowerTuner.Phase.CENTRIPETAL));
     }
 
     @Test
@@ -44,12 +59,14 @@ public class FollowerTunerSequenceTest {
 
         try {
             assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.HEADING));
+            assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.STATIC_FRICTION));
             assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.LIMITS));
             assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.DRIVE));
             assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.VELOCITY_FEEDBACK));
 
             FollowerTuner.Phase.HEADING.tuned = true;
             assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.HEADING));
+            assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.STATIC_FRICTION));
             assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.LIMITS));
             assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.DRIVE));
         } finally {

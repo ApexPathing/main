@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.apexpathing;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 import core.Follower;
@@ -13,6 +14,7 @@ import tuning.DrivePhase;
 import tuning.FeedforwardTuner;
 import tuning.HeadingPhase;
 import tuning.LimitsPhase;
+import tuning.StaticFrictionPhase;
 import tuning.TunerContext;
 import tuning.TuningPhase;
 import tuning.VelocityFeedbackPhase;
@@ -34,29 +36,44 @@ public class FollowerTuner extends LinearOpMode {
      * Tuners are ran in the order of the enum ordinals
      */
     enum Phase {
-        HEADING(HeadingPhase.class, (FollowerConstants constants) ->
+        STATIC_FRICTION(StaticFrictionPhase::new, constants ->
+                constants.angularCoeffs.kS != 0.0 &&
+                        constants.translationalCoeffs.kS != 0.0),
+        LIMITS(LimitsPhase::new, constants ->
+                constants.forwardVelLimitIn != 0.0 &&
+                        constants.forwardAccelLimitIn != 0.0 &&
+                        constants.strafeVelLimitIn != 0.0 &&
+                        constants.strafeAccelLimitIn != 0.0 &&
+                        constants.angularVelLimitRad != 0.0 &&
+                        constants.angularAccelLimitRad != 0.0),
+        FEEDFORWARD(FeedforwardTuner::new, constants ->
+                constants.angularKV != 0.0 &&
+                        constants.angularKA != 0.0 &&
+                        constants.translationalKV != 0.0 &&
+                        constants.translationalKA != 0.0),
+        HEADING(HeadingPhase::new, constants ->
                 constants.angularCoeffs.kP != 0.0),
-        LIMITS(LimitsPhase.class, (FollowerConstants constants) ->
-                constants.angularKA != 0.0),
-        DRIVE(DrivePhase.class, (FollowerConstants constants) ->
+        DRIVE(DrivePhase::new, constants ->
                 constants.translationalCoeffs.kP != 0.0),
-        FEEDFORWARD(FeedforwardTuner.class, (FollowerConstants constants) ->
-                constants.angularKV != 0.0 && constants.angularKA != 0.0 &&
-                        constants.translationalKV != 0.0 && constants.translationalKA != 0.0),
-        CENTRIPETAL(CentripetalPhase.class, (FollowerConstants constants) ->
+        CENTRIPETAL(CentripetalPhase::new, constants ->
                 constants.kCentripetal != 0.0),
-        VELOCITY_FEEDBACK(VelocityFeedbackPhase.class, (FollowerConstants constants) ->
-                velocityFeedbackTuned(constants.velocityFeedbackGain,
+        VELOCITY_FEEDBACK(VelocityFeedbackPhase::new, constants ->
+                velocityFeedbackTuned(
+                        constants.velocityFeedbackGain,
                         constants.angularVelocityFeedbackGain));
 
-        final Class<? extends TuningPhase> phaseClass;
+        final Function<TunerContext, TuningPhase> phaseFactory;
         final Predicate<FollowerConstants> isTunedPredicate;
         boolean tuned;
 
-        Phase(Class<? extends TuningPhase> phaseClass,
+        Phase(Function<TunerContext, TuningPhase> phaseFactory,
               Predicate<FollowerConstants> isTunedPredicate) {
-            this.phaseClass = phaseClass;
+            this.phaseFactory = phaseFactory;
             this.isTunedPredicate = isTunedPredicate;
+        }
+
+        TuningPhase create(TunerContext context) {
+            return phaseFactory.apply(context);
         }
 
         void updateTunedStatus(FollowerConstants constants) {
@@ -195,31 +212,20 @@ public class FollowerTuner extends LinearOpMode {
     }
 
     private void selectPhase() {
-        try {
-            phase = selectedPhaseOrdinal.phaseClass.getDeclaredConstructor(TunerContext.class)
-                    .newInstance(context);
-            isPhaseSelected = true;
-            // Do not let a rate-limited RESULTS frame from the previous phase obscure the next
-            // phase's selector in FTCodeSim's Driver Station.
-            telemetry.clearAll();
-            context.addInterfaceHeader();
-            telemetry.addLine("Next phase: " + phaseDisplayName(selectedPhaseOrdinal));
-            telemetry.addLine("Choose automatic/manual mode, then press A.");
-            telemetry.update();
-        } catch (Exception e) {
-            // This won't happen because the setup is correct, but Java requires the catch.
-            throw new RuntimeException(e);
-        }
+        phase = selectedPhaseOrdinal.create(context);
+        isPhaseSelected = true;
+        // Do not let a rate-limited RESULTS frame from the previous phase obscure the next
+        // phase's selector in FTCodeSim's Driver Station.
+        telemetry.clearAll();
+        context.addInterfaceHeader();
+        telemetry.addLine("Next phase: " + phaseDisplayName(selectedPhaseOrdinal));
+        telemetry.addLine("Choose automatic/manual mode, then press A.");
+        telemetry.update();
     }
 
     static Phase nextPhase(Phase current) {
         int nextOrdinal = current.ordinal() + 1;
         return nextOrdinal < phaseAmount ? phases[nextOrdinal] : null;
-    }
-
-    static Class<? extends TuningPhase> nextPhaseClass(Phase current) {
-        Phase next = nextPhase(current);
-        return next == null ? null : next.phaseClass;
     }
 
     static boolean velocityFeedbackTuned(double translationGain, double angularGain) {

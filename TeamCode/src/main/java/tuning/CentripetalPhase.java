@@ -81,7 +81,7 @@ public class CentripetalPhase extends TuningPhase {
         double upper = Math.max(seed * 2.0, 2.0 / fullStrafeAcceleration);
 
         search = new BinarySearch(0.0, upper, upper / 64.0);
-        context.constants.kCentripetal = manualMode ? seed : search.getGuess();
+        context.constants.kCentripetal = manualMode ? seed : search.current();
 
         if (manualMode) {
             context.getFollower().setCentripetal(context.constants.kCentripetal);
@@ -222,10 +222,10 @@ public class CentripetalPhase extends TuningPhase {
             return false;
         }
 
-        boolean keepSearching = search.updateGuess(averageError > 0.0);
-        context.constants.kCentripetal = search.getGuess();
+        search.advance(averageError > 0.0 ? BinarySearch.SearchDirection.HIGHER : BinarySearch.SearchDirection.LOWER);
+        context.constants.kCentripetal = search.current();
         context.getFollower().setCentripetal(context.constants.kCentripetal);
-        if (keepSearching) {
+        if (!search.hasConverged()) {
             resetTrial();
         } else {
             return true;

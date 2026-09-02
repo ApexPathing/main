@@ -11,6 +11,13 @@ import geometry.Vector;
 
 public class FollowerVectorTest {
     @Test
+    public void feedbackNormalizationScalesTranslationAndHeadingTogether() {
+        assertEquals(1.5, Follower.commandNormalizationScale(0.8, -0.4, 0.3, true), 1e-9);
+        assertEquals(1.0, Follower.commandNormalizationScale(0.3, 0.4, 0.2, false), 1e-9);
+        assertEquals(1.3, Follower.commandNormalizationScale(0.3, 0.4, 0.8, false), 1e-9);
+    }
+
+    @Test
     public void centripetalVectorPointsInsideForLeftAndRightCurves() {
         Vector tangent = Vector.of(1.0, 0.0, DistUnit.IN);
 
@@ -93,9 +100,9 @@ public class FollowerVectorTest {
 
     @Test
     public void stalledEndpointCommandClearsStaticFrictionDeadband() {
-        assertEquals(0.26375, Follower.ensureEndpointBreakawayPower(
+        assertEquals(0.24375, Follower.ensureEndpointBreakawayPower(
                 0.18, 0.60, 0.0, 0.24375, 0.50, 0.0), 1e-9);
-        assertEquals(-0.26375, Follower.ensureEndpointBreakawayPower(
+        assertEquals(-0.24375, Follower.ensureEndpointBreakawayPower(
                 -0.18, -0.60, 0.0, 0.24375, 0.50, 0.0), 1e-9);
 
         // Never inject breakaway power after reaching tolerance or while already moving.
@@ -107,9 +114,9 @@ public class FollowerVectorTest {
 
     @Test
     public void stalledProfiledTurnClearsStaticFrictionDeadband() {
-        assertEquals(0.26375, Follower.ensureAngularEndpointBreakawayPower(
+        assertEquals(0.24375, Follower.ensureAngularEndpointBreakawayPower(
                 0.0, Math.toRadians(3.25), 0.0, 0.24375, Math.toRadians(1.0)), 1e-9);
-        assertEquals(-0.26375, Follower.ensureAngularEndpointBreakawayPower(
+        assertEquals(-0.24375, Follower.ensureAngularEndpointBreakawayPower(
                 0.0, Math.toRadians(-3.25), 0.0, 0.24375, Math.toRadians(1.0)), 1e-9);
         assertEquals(0.0, Follower.ensureAngularEndpointBreakawayPower(
                 0.0, Math.toRadians(0.5), 0.0, 0.24375, Math.toRadians(1.0)), 1e-9);

@@ -27,18 +27,20 @@ public class TurnController {
     private final PDSController headingPds;
     private double angularKV;
     private double angularKA;
+    private double angularFeedforwardKS;
     private double angularVelocityFeedbackGain;
 
     private boolean overshootRecovery;
 
     public TurnController(PDSController.PDSCoefficients headingCoefficients,
-                          double angularKV, double angularKA,
+                          double angularKV, double angularKA, double angularFeedforwardKS,
                           double angularVelocityFeedbackGain) {
         headingPds = new PDSController(headingCoefficients);
         headingPds.setAngularController();
 
         this.angularKV = angularKV;
         this.angularKA = angularKA;
+        this.angularFeedforwardKS = angularFeedforwardKS;
         this.angularVelocityFeedbackGain = angularVelocityFeedbackGain;
     }
 
@@ -49,8 +51,17 @@ public class TurnController {
 
     public void setMotionGains(double angularKV, double angularKA,
                                double angularVelocityFeedbackGain) {
+        setMotionGains(angularKV, angularKA, angularFeedforwardKS,
+                angularVelocityFeedbackGain);
+    }
+
+    /** Updates dynamic and moving-friction feedforward gains. */
+    public void setMotionGains(double angularKV, double angularKA,
+                               double angularFeedforwardKS,
+                               double angularVelocityFeedbackGain) {
         this.angularKV = angularKV;
         this.angularKA = angularKA;
+        this.angularFeedforwardKS = angularFeedforwardKS;
         this.angularVelocityFeedbackGain = angularVelocityFeedbackGain;
         reset();
     }
@@ -84,9 +95,11 @@ public class TurnController {
         }
 
         double feedforward = angularKV * targetVelocity + angularKA * targetAcceleration
-                + headingPds.getCoefficients().kS * motionSign;
-        double velocityFeedback = clipVelocityFeedback(angularVelocityFeedbackGain
-                * (targetVelocity - measuredAngularVelocity), intendedDirection);
+                + angularFeedforwardKS * motionSign;
+        double velocityFeedback = Math.abs(targetVelocity) > EPSILON
+                ? clipVelocityFeedback(angularVelocityFeedbackGain
+                * (targetVelocity - measuredAngularVelocity), intendedDirection)
+                : 0.0;
 
         double requestedPower = feedforward + velocityFeedback;
         // Endpoint capture is based on actual remaining heading and motion, not a particular LUT

@@ -82,6 +82,11 @@ public class DriveController {
 
     public double calculateCrossTrack(double error) { return crossTrackPDS.calculate(error); }
 
+    /** Calculates cross-track correction with optional static-friction compensation. */
+    public double calculateCrossTrack(double error, boolean applyStaticCompensation) {
+        return crossTrackPDS.calculate(error, applyStaticCompensation);
+    }
+
     public double calculateEndDistance(double error) { return endDistancePDS.calculate(error); }
 
     /** Allocates one field-centric stage using mecanum direction-dependent wheel demand. */

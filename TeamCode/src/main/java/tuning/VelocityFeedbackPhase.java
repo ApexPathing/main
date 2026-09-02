@@ -24,11 +24,13 @@ import paths.movements.Turn;
  * @author Dylan B. - 18597 RoboClovers - Delta
  */
 public class VelocityFeedbackPhase extends TuningPhase {
-    private static final int SEARCH_ROUNDS = 4;
-    private static final double DIRECTION_TIMEOUT_SECONDS = 12.0;
+    private static final int SEARCH_ROUNDS = 2;
+    private static final double DIRECTION_TIMEOUT_SECONDS = 4.5;
     private static final double SAMPLE_EDGE_FRACTION = 0.10;
     /** Prevents angular velocity feedback from becoming a noisy bang-bang controller. */
     public static double MAX_ANGULAR_FEEDBACK_GAIN = 0.25;
+    /** Ten inches/second of error may contribute at most full translation power. */
+    public static double MAX_TRANSLATION_FEEDBACK_GAIN = 0.10;
 
     enum FeedbackAxis { TRANSLATION, ANGULAR }
 
@@ -73,6 +75,7 @@ public class VelocityFeedbackPhase extends TuningPhase {
     private String acceptanceMessage = "Pending";
     private final ElapsedTime directionTimer = new ElapsedTime();
     private final ElapsedTime trialTimer = new ElapsedTime();
+    private double lastVelocitySampleTime;
 
     public VelocityFeedbackPhase(TunerContext context) { super(context); }
 
@@ -88,9 +91,9 @@ public class VelocityFeedbackPhase extends TuningPhase {
     @Override
     protected void showPreRunInstructions() {
         context.getTelemetry().addLine(
-                "Translation needs a clear 48-inch out-and-back lane.");
+                "Translation needs a clear 24-inch out-and-back lane.");
         context.getTelemetry().addLine(
-                "Angular feedback needs room for a 90-degree out-and-back turn.");
+                "Angular feedback needs room for a 45-degree out-and-back turn.");
         context.getTelemetry().addLine(
                 "Manual tests remain stopped until X is pressed.");
     }
@@ -101,6 +104,8 @@ public class VelocityFeedbackPhase extends TuningPhase {
                 context.constants.translationalCoeffs.kD > 0.0) {
             context.constants.velocityFeedbackGain = context.constants.translationalCoeffs.kD;
         }
+        context.constants.velocityFeedbackGain = Math.min(
+                context.constants.velocityFeedbackGain, MAX_TRANSLATION_FEEDBACK_GAIN);
         if (context.constants.angularVelocityFeedbackGain <= 0.0 &&
                 context.constants.angularCoeffs.kD > 0.0) {
             context.constants.angularVelocityFeedbackGain = context.constants.angularCoeffs.kD;
@@ -112,9 +117,9 @@ public class VelocityFeedbackPhase extends TuningPhase {
         GeometryFactory factory = new GeometryFactory(context.getFollower())
                 .setDistUnit(DistUnit.IN).setAngleUnit(AngleUnit.DEG);
 
-        // Center the complete 48-inch translation footprint on the field.
-        Pose start = factory.pose(-24, 0, 0);
-        Pose end = factory.pose(24, 0, 0);
+        // Short profiles expose velocity-loop quality without spending minutes at endpoints.
+        Pose start = factory.pose(-12, 0, 0);
+        Pose end = factory.pose(12, 0, 0);
         if (Boolean.getBoolean("apex.simulation.unlockTunerPhases")) {
             positionRobotForSimulation(start);
         } else {
@@ -125,7 +130,7 @@ public class VelocityFeedbackPhase extends TuningPhase {
         backwardPath = factory.path(end, start)
                 .interpolateWith(InterpolationStyle.CONSTANT_START_HEADING).profiledBuild();
 
-        Pose turned = factory.pose(-24, 0, 90);
+        Pose turned = factory.pose(-12, 0, 45);
         forwardTurn = factory.turn(start).turnTo(turned.getHeading()).profiledBuild();
         backwardTurn = factory.turn(turned).turnTo(start.getHeading()).profiledBuild();
 
@@ -193,6 +198,10 @@ public class VelocityFeedbackPhase extends TuningPhase {
             for (int i = 0; i < gains.length; i++) {
                 gains[i] = Math.min(gains[i], MAX_ANGULAR_FEEDBACK_GAIN);
             }
+        } else {
+            for (int i = 0; i < gains.length; i++) {
+                gains[i] = Math.min(gains[i], MAX_TRANSLATION_FEEDBACK_GAIN);
+            }
         }
         candidate = 0;
         startCandidate();
@@ -200,7 +209,8 @@ public class VelocityFeedbackPhase extends TuningPhase {
 
     private void startCandidate() {
         if (axis == FeedbackAxis.TRANSLATION) {
-            context.constants.velocityFeedbackGain = gains[candidate];
+            context.constants.velocityFeedbackGain = Math.min(
+                    gains[candidate], MAX_TRANSLATION_FEEDBACK_GAIN);
         } else {
             context.constants.angularVelocityFeedbackGain = gains[candidate];
         }
@@ -231,10 +241,15 @@ public class VelocityFeedbackPhase extends TuningPhase {
         context.getFollower().follow(currentMovement);
         directionTimer.reset();
         trialTimer.reset();
+        lastVelocitySampleTime = 0.0;
     }
 
     private void sampleTest() {
         if (!context.getFollower().isBusy()) { return; }
+        double sampleTime = trialTimer.seconds();
+        double sampleDt = sampleTime - lastVelocitySampleTime;
+        lastVelocitySampleTime = sampleTime;
+        if (sampleDt > 0.15) { return; }
 
         double targetVelocity;
         double rawVelocity;
@@ -343,21 +358,13 @@ public class VelocityFeedbackPhase extends TuningPhase {
                         Math.abs(context.getFollower().getDrivetrain().getLastBrPower())));
     }
 
+    /** Advances one outbound-and-return candidate measurement. */
     private boolean updateTest() {
         sampleTest();
 
         if (context.getFollower().isBusy()) {
             if (directionTimer.seconds() <= DIRECTION_TIMEOUT_SECONDS) { return false; }
             context.getFollower().stop();
-            throw new IllegalStateException(
-                    "Velocity feedback " + axis.name().toLowerCase() + " candidate " +
-                            (candidate + 1) + " timed out during " +
-                            (forwardIsRunning ? "outbound" : "return") +
-                            " travel at gain " + gains[candidate] + ". Pose=" +
-                            context.getFollower().getPose() + ", velocity=" +
-                            context.getFollower().getVelocity() +
-                            ". Verify localization, feedforward, and PDS constants."
-            );
         }
 
         finishDirectionMetrics(forwardIsRunning ? 0 : 1);
@@ -421,7 +428,9 @@ public class VelocityFeedbackPhase extends TuningPhase {
         reportAutomaticProgress();
         if (!updateTest()) { return false; }
 
-        scores[candidate] = candidateResults[candidate].outboundRms;
+        // Candidate selection must represent both directions. The old outbound-only score could
+        // choose a gain that was predictably poor on the held-out return path.
+        scores[candidate] = candidateResults[candidate].centralRms;
         candidate++;
         if (candidate < gains.length) {
             startCandidate();

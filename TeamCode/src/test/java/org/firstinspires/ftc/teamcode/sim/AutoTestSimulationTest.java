@@ -60,6 +60,7 @@ public class AutoTestSimulationTest {
                     frame.contains("Current check FAILED"));
             assertTrue("Auto Test did not complete every movement:\n" + frame,
                     frame.contains("Current check COMPLETE"));
+            System.out.println("AUTO TEST COMMAND DEMAND: " + auto.getCommandDemandReport());
             if (outbound.isProfiled()) {
                 File velocityCsv = new File(auto.getOutboundVelocityCsvPath());
                 assertTrue("Profiled outbound velocity CSV was not created: path=" +

@@ -8,9 +8,9 @@ package tuning;
  */
 public class BinarySearch {
     private final double threshold;
-    private double maximum;
-    private double minimum;
-    private double guess;
+    private double minimum, maximum, guess, lastGuess;
+    private boolean converged;
+    public enum SearchDirection { HIGHER, LOWER }
 
     BinarySearch(double minimum, double maximum, double threshold) {
         this.maximum = maximum;
@@ -18,16 +18,18 @@ public class BinarySearch {
         this.threshold = threshold;
         guess = (maximum + minimum) / 2.0;
     }
+    public void advance(SearchDirection direction) {
+        if (direction == SearchDirection.HIGHER) {
+            minimum = guess;
+        } else {
+            maximum = guess;
+        }
 
-    boolean updateGuess(boolean increase) {
-        double lastGuess = guess;
-
-        if (increase) { minimum = guess; }
-        else { maximum = guess; }
-
-        guess = (maximum + minimum) / 2.0;
-        return Math.abs(lastGuess - guess) > threshold;
+        double nextGuess = (minimum + maximum) / 2.0;
+        converged = Math.abs(nextGuess - guess) <= threshold;
+        guess = nextGuess;
     }
 
-    double getGuess() { return guess; }
+    public double current() { return guess; }
+    public boolean hasConverged() { return converged; }
 }

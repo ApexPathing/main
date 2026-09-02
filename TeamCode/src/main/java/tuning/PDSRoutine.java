@@ -5,1104 +5,350 @@ import com.qualcomm.robotcore.util.Range;
 
 import controllers.PDSController;
 import controllers.PDSController.PDSCoefficients;
-import geometry.Pose;
+import geometry.Angle;
 
-/**
- * Tunes static friction and PD position gains. Static friction is found with a bounded search;
- * kP and kD are then refined with repeated closed-loop point-to-point tests and finite-difference
- * gradient updates. The best measured gains can be checked with operator-triggered alternating
- * moves before the operator accepts them.
- */
-public class PDSRoutine {
-    // region Tuning model
+/** Non-blocking coordinate-descent tuner shared by linear and angular PDS controllers. */
+public final class PDSRoutine {
+    // region Configuration
 
-    /** Physical axis controlled by this tuning pass. */
-    enum Axis {
-        DRIVE,
-        STRAFE,
-        HEADING
+    /** Unit, safety, and gain bounds for one axis. */
+    public static final class Config {
+        final String name;
+        final double minP, maxP, minD, maxD, step, tolerance, velocityTolerance, safetyLimit;
+        final boolean angular;
+
+        /** Creates an inches-based configuration. */
+        public static Config linear(String name, double minP, double maxP, double minD,
+                                    double maxD, double step, double tolerance,
+                                    double velocityTolerance, double safetyLimit) {
+            return new Config(name, minP, maxP, minD, maxD, step, tolerance,
+                    velocityTolerance, safetyLimit, false);
+        }
+
+        /** Creates a radians-based configuration. */
+        public static Config angular(String name, double minP, double maxP, double minD,
+                                     double maxD, double step, double tolerance,
+                                     double velocityTolerance, double safetyLimit) {
+            return new Config(name, minP, maxP, minD, maxD, step, tolerance,
+                    velocityTolerance, safetyLimit, true);
+        }
+
+        private Config(String name, double minP, double maxP, double minD, double maxD,
+                       double step, double tolerance, double velocityTolerance,
+                       double safetyLimit, boolean angular) {
+            if (name == null || name.isEmpty() || !range(minP, maxP) || !range(minD, maxD) ||
+                    !positive(step) || !positive(tolerance) || !positive(velocityTolerance) ||
+                    !positive(safetyLimit) || safetyLimit <= step) {
+                throw new IllegalArgumentException("Invalid PDS tuning configuration");
+            }
+            this.name = name;
+            this.minP = minP;
+            this.maxP = maxP;
+            this.minD = minD;
+            this.maxD = maxD;
+            this.step = step;
+            this.tolerance = tolerance;
+            this.velocityTolerance = velocityTolerance;
+            this.safetyLimit = safetyLimit;
+            this.angular = angular;
+        }
+
+        private static boolean range(double min, double max) {
+            return Double.isFinite(min) && min >= 0.0 && Double.isFinite(max) && max > min;
+        }
     }
 
-    /** High-level phases of the routine's state machine. */
-    enum PDSState {
-        TUNING_KS,
-        SETTLING_BETWEEN_KS,
-        SETTLING_FOR_PD_TEST,
-        TUNING_PD,
-        SETTLING_FOR_OPERATOR_CHECK,
-        OPERATOR_CHECK
-    }
+    /** Public optimizer state. */
+    public enum PDSState { SETTLING, TUNING, TEST_READY, TEST_RUNNING, COMPLETE }
+    private enum Evaluation { BASELINE, PLUS, MINUS }
 
-    /** Gain set currently being measured by the finite-difference optimizer. */
-    private enum Evaluation {
-        BASELINE,
-        KP_PLUS,
-        KP_MINUS,
-        KD_PLUS,
-        KD_MINUS,
-        CANDIDATE
-    }
+    private static final double COMMAND_LIMIT = 0.85;
+    private static final double TRIAL_TIMEOUT = 4.0;
+    private static final double SETTLED_TIME = 0.25;
+    private static final double BETWEEN_TRIALS = 0.25;
+    private static final double MAX_VALID_DT = 0.08;
+    private static final int TRIALS_PER_CANDIDATE = 2;
+    private static final int MAX_COORDINATE_STEPS = 8;
 
-    // endregion
-
-    // region Safety and timing limits
-
-    private static final double MOVEMENT_THRESHOLD = 0.05;
-    private static final double HEADING_THRESHOLD = 0.02;
-    private static final double GUESS_TIME_MS = 1500.0;
-    private static final double SETTLING_TIME_MS = 750.0;
-    private static final double PD_SETTLING_TIME_MS = 400.0;
-    private static final double TEST_TIMEOUT_SECONDS = 4.0;
-    private static final double OPERATOR_TEST_TIMEOUT_SECONDS = 8.0;
-    private static final double TEST_SETTLED_SECONDS = 0.50;
-    private static final double MAX_TEST_POWER = 0.75;
-    private static final double MAX_STATIC_FRICTION_SEARCH_POWER = 0.75;
-    private static final double TEST_BREAKAWAY_RESERVE = 0.05;
-    private static final double MAX_PD_SAMPLE_GAP_SECONDS = 0.50;
-    private static final int MAX_ERROR_ZERO_CROSSINGS = 8;
-    private static final double MAX_SATURATION_FRACTION = 0.80;
-
-    // endregion
-
-    // region User-configurable PD tuning parameters
-
-    /*
-     * Public tuning limits are deliberately simple source-level configuration. Gains are always
-     * clipped to these bounds, including saved starting values and finite-difference probes.
-     */
-    public static double TRANSLATIONAL_KP_MIN = 0.01;
-    public static double TRANSLATIONAL_KP_MAX = 0.75;
-    public static double TRANSLATIONAL_KD_MIN = 0.0;
-    public static double TRANSLATIONAL_KD_MAX = 0.30;
-    public static double HEADING_KP_MIN = 0.10;
-    public static double HEADING_KP_MAX = 8.0;
-    public static double HEADING_KD_MIN = 0.0;
-    public static double HEADING_KD_MAX = 2.0;
-
-    public static double TRANSLATIONAL_INITIAL_KP = 0.08;
-    public static double TRANSLATIONAL_INITIAL_KD = 0.02;
-    public static double HEADING_INITIAL_KP = 0.80;
-    public static double HEADING_INITIAL_KD = 0.10;
-
-    public static int PD_TRIAL_REPEATS = 2;
-    public static int PD_MAX_ITERATIONS = 5;
-    public static int PD_CONVERGENCE_PATIENCE = 2;
-    public static double PD_FINITE_DIFFERENCE_FRACTION = 0.05;
-    public static double PD_INITIAL_LEARNING_RATE = 0.08;
-    public static double PD_MIN_LEARNING_RATE = 0.005;
-    public static double PD_MAX_LEARNING_RATE = 0.15;
-    public static double PD_RELATIVE_IMPROVEMENT_TOLERANCE = 0.01;
-    public static double PD_NORMALIZED_GRADIENT_TOLERANCE = 0.03;
-    public static double PD_MAX_TUNING_SECONDS = 240.0;
-
-    // endregion
-
-    // region Routine state
-
-    // Dependencies and timers shared by every phase.
-    private final Axis axis;
-    private final ElapsedTime timer = new ElapsedTime();
-    private final ElapsedTime sessionTimer = new ElapsedTime();
+    private final Config config;
     private final PDSController controller;
-    private BinarySearch search;
-    private final double threshold;
+    private final ElapsedTime clock = new ElapsedTime();
+    private final double[] gains = new double[2];
+    private final double[] deltas = new double[2];
+    private PDSState state = PDSState.SETTLING;
+    private Evaluation evaluation = Evaluation.BASELINE;
+    private boolean started;
+    private double origin = Double.NaN, position, target, error, direction, nextDirection = 1.0;
+    private double validTime, settledTime, errorIntegral, overshoot, saturatedTime, lastTime;
+    private double candidateCost, bestCost = Double.POSITIVE_INFINITY;
+    private int candidateTrials, coordinate, coordinateSteps, totalTrials;
+    private String status = "Not started";
 
-    // State-machine and operator-check state.
-    private PDSState state = PDSState.TUNING_KS;
-    private double startValue;
-    private double testTarget;
-    private double nextTestTarget;
-    private double testSettledSince = -1.0;
-    private double testFinalError = Double.NaN;
-    private boolean testActive;
-    private int completedTestCount;
-    private String operatorCheckSummary = "Not started";
-    private TuningCsvWriter csv;
-
-    // Optimizer state accumulated across evaluations and iterations.
-    private Evaluation evaluation;
-    private int iteration;
-    private int trialRepeat;
-    private double evaluationKp;
-    private double evaluationKd;
-    private double evaluationCostSum;
-    private int evaluationBadTrials;
-    private double baselineCost = Double.NaN;
-    private double kpPlusCost = Double.NaN;
-    private double kpMinusCost = Double.NaN;
-    private double kdPlusCost = Double.NaN;
-    private double kdMinusCost = Double.NaN;
-    private double candidateKp;
-    private double candidateKd;
-    private double currentKp;
-    private double currentKd;
-    private double bestKp;
-    private double bestKd;
-    private double bestCost = Double.POSITIVE_INFINITY;
-    private double normalizedGradientP = Double.NaN;
-    private double normalizedGradientD = Double.NaN;
-    private double normalizedGradientMagnitude = Double.NaN;
-    private boolean finiteDifferenceTrialsSafe;
-    private double learningRate;
-    private int smallGradientIterations;
-    private int smallImprovementIterations;
-    private double pdTuningStartedSeconds;
-    private String automaticTuneSummary = "Not started";
-
-    // Measurements and safeguards for the active closed-loop trial.
-    private double trialCost;
-    private double trialStartPosition;
-    private double nextPdTestTarget;
-    private double lastTrialSampleSeconds;
-    private double lastTrialError;
-    private double lastErrorCrossingSeconds;
-    private int errorZeroCrossings;
-    private double saturatedSeconds;
-    private String trialBadReason;
-
-    // endregion
-
-    // region Lifecycle and state machine
-
-    PDSRoutine(TunerContext context, Axis axis) {
-        this.axis = axis;
-        controller = new PDSController(new PDSCoefficients());
-        if (axis == Axis.HEADING) { controller.setAngularController(); }
-        threshold = axis == Axis.HEADING ? HEADING_THRESHOLD : MOVEMENT_THRESHOLD;
-    }
-
-    void start(TunerContext context) {
-        if (csv != null) { csv.close(); }
-        search = new BinarySearch(0.0, MAX_STATIC_FRICTION_SEARCH_POWER, 0.01);
-        context.getFollower().disableControllers();
-        resetAxisPose(context);
-        timer.reset();
-        sessionTimer.reset();
-        controller.getCoefficients().setkP(0.0);
-        controller.getCoefficients().setkD(0.0);
-        controller.getCoefficients().setkS(search.getGuess());
-        state = PDSState.TUNING_KS;
-        evaluation = null;
-        testActive = false;
-        completedTestCount = 0;
-        operatorCheckSummary = "Pending PD optimization";
-        automaticTuneSummary = "Waiting for static-friction measurement";
-        csv = TuningCsvWriter.open(
-                "pds_" + axis.toString().toLowerCase(),
-                "time_s", "axis", "state", "iteration", "evaluation", "repeat",
-                "target", "position", "error", "velocity", "command", "kp", "kd", "ks",
-                "trial_cost", "error_zero_crossings", "saturation_fraction", "trial_status"
-        );
-    }
-
-    private void resetAxisPose(TunerContext context) {
-        Pose stagingPose = stagingPoseFor(axis);
-        if (Boolean.getBoolean("apex.simulation.unlockTunerPhases")) {
-            context.positionRobotForSimulation(stagingPose);
-        } else {
-            // Re-zeroing odometry does not move the real robot. Alternating trial directions keep
-            // the repeated tests near the same physical location.
-            context.getFollower().setPose(Pose.zero());
+    /** Creates a Twiddle tuner; the feedforward model supplies only its initial guess. */
+    public PDSRoutine(Config config, double kV, double kA, double staticPower) {
+        this.config = config;
+        if (!positive(kV) || !positive(kA) || !Double.isFinite(staticPower) ||
+                staticPower < 0.0 || staticPower >= COMMAND_LIMIT) {
+            throw new IllegalArgumentException("Invalid PDS tuning seed");
         }
-        startValue = getValue(stagingPose);
+        controller = new PDSController(new PDSCoefficients(0.0, 0.0, staticPower));
+        if (config.angular) { controller.setAngularController(); }
+        PDSCoefficients seed = modelBasedPd(kV, kA, 0.75, 0.75, staticPower);
+        gains[0] = Range.clip(seed.kP, config.minP, config.maxP);
+        gains[1] = Range.clip(seed.kD, config.minD, config.maxD);
+        deltas[0] = Math.max(gains[0] * 0.35, (config.maxP - config.minP) * 0.025);
+        deltas[1] = Math.max(gains[1] * 0.35, (config.maxD - config.minD) * 0.025);
     }
 
-    /** Bidirectional PDS tests stage at field center. */
-    static Pose stagingPoseFor(Axis ignored) { return Pose.zero(); }
-
-    private void move(TunerContext context, double power) {
-        switch (axis) {
-            case DRIVE:
-                context.getFollower().getDrivetrain().moveWithVectors(power, 0.0, 0.0);
-                break;
-            case STRAFE:
-                context.getFollower().getDrivetrain().moveWithVectors(0.0, power, 0.0);
-                break;
-            case HEADING:
-                context.getFollower().getDrivetrain().moveWithVectors(0.0, 0.0, power);
-                break;
-        }
-    }
-
-    private double getValue(Pose pose) {
-        switch (axis) {
-            case DRIVE:
-                return pose.getX().getIn();
-            case STRAFE:
-                return pose.getY().getIn();
-            case HEADING:
-                return pose.getHeading().getRad();
-            default:
-                return 0.0;
-        }
-    }
-
-    private double getRelativePosition(TunerContext context) {
-        return getValue(context.getFollower().getPose()) - startValue;
-    }
-
-    private double getAxisVelocity(TunerContext context) {
-        return getValue(context.getFollower().getVelocity());
-    }
-
-    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    public boolean update(TunerContext context) {
-        switch (state) {
-            case TUNING_KS:
-                return updateStaticFriction(context);
-            case SETTLING_BETWEEN_KS:
-                settle(context, PDSState.TUNING_KS);
-                return false;
-            case SETTLING_FOR_PD_TEST:
-                if (settle(context, PDSState.TUNING_PD)) { beginPdTrial(context); }
-                return false;
-            case TUNING_PD:
-                return updatePdTrial(context);
-            case SETTLING_FOR_OPERATOR_CHECK:
-                if (settle(context, PDSState.OPERATOR_CHECK)) { beginOperatorCheck(); }
-                return false;
-            case OPERATOR_CHECK:
-                return updateOperatorCheck(context);
-            default:
-                return false;
-        }
-    }
-
-    // endregion
-
-    // region Static-friction tuning
-
-    private boolean updateStaticFriction(TunerContext context) {
-        double command = search.getGuess();
-        move(context, command);
-        double position = getRelativePosition(context);
-        if (!Double.isFinite(position)) {
-            abort(context, "Static-friction test produced a non-finite position");
-        }
-        double movement = Math.abs(position);
-        logSample(context, 0.0, position, command);
-
-        boolean moved = movement > threshold;
-        if (!moved && timer.milliseconds() < GUESS_TIME_MS) { return false; }
-
-        boolean keepTuning = search.updateGuess(!moved);
-        if (keepTuning) {
-            state = PDSState.SETTLING_BETWEEN_KS;
-        } else {
-            controller.getCoefficients().setkS(search.getGuess());
-            initializePdTuning(context);
-            state = PDSState.SETTLING_FOR_PD_TEST;
-        }
-        timer.reset();
-        return false;
-    }
-
-    /** Returns true on the loop where the requested next state is entered. */
-    private boolean settle(TunerContext context, PDSState nextState) {
-        context.getFollower().stop();
-        logSample(context, 0.0, getRelativePosition(context), 0.0);
-        double requiredMs = nextState == PDSState.TUNING_PD
-                ? PD_SETTLING_TIME_MS : SETTLING_TIME_MS;
-        if (timer.milliseconds() < requiredMs) { return false; }
-
-        resetAxisPose(context);
-        state = nextState;
-        timer.reset();
-        return true;
-    }
-
-    // endregion
-
-    // region Automatic PD tuning
-
-    private void initializePdTuning(TunerContext context) {
-        validateTuningConfiguration();
-        PDSCoefficients saved = axis == Axis.HEADING
-                ? context.constants.angularCoeffs : context.constants.translationalCoeffs;
-        currentKp = startingGain(saved.kP, initialKp(), minKp(), maxKp());
-        currentKd = startingGain(saved.kD, initialKd(), minKd(), maxKd());
-        bestKp = currentKp;
-        bestKd = currentKd;
+    /** Starts with a paired baseline response. */
+    public void start() {
+        applyGains();
+        started = true;
+        origin = Double.NaN;
+        evaluation = Evaluation.BASELINE;
+        candidateTrials = coordinateSteps = totalTrials = coordinate = 0;
+        candidateCost = 0.0;
         bestCost = Double.POSITIVE_INFINITY;
-        learningRate = Range.clip(PD_INITIAL_LEARNING_RATE,
-                PD_MIN_LEARNING_RATE, PD_MAX_LEARNING_RATE);
-        iteration = 0;
-        smallGradientIterations = 0;
-        smallImprovementIterations = 0;
-        pdTuningStartedSeconds = sessionTimer.seconds();
-        automaticTuneSummary = "Starting repeated closed-loop tests";
-        finiteDifferenceTrialsSafe = true;
-        nextPdTestTarget = trialMagnitudeFor(axis);
-        selectEvaluation(Evaluation.BASELINE);
+        nextDirection = 1.0;
+        state = PDSState.SETTLING;
+        status = "Measuring baseline";
+        clock.reset();
     }
 
-    private void validateTuningConfiguration() {
-        boolean validBounds = Double.isFinite(minKp()) && Double.isFinite(maxKp()) &&
-                maxKp() > minKp() && Double.isFinite(minKd()) && Double.isFinite(maxKd()) &&
-                maxKd() > minKd();
-        boolean validOptimizer = PD_TRIAL_REPEATS > 0 && PD_MAX_ITERATIONS > 0 &&
-                PD_CONVERGENCE_PATIENCE > 0 &&
-                Double.isFinite(PD_FINITE_DIFFERENCE_FRACTION) &&
-                PD_FINITE_DIFFERENCE_FRACTION > 0.0 &&
-                PD_FINITE_DIFFERENCE_FRACTION < 0.5 &&
-                Double.isFinite(PD_MIN_LEARNING_RATE) && PD_MIN_LEARNING_RATE > 0.0 &&
-                Double.isFinite(PD_MAX_LEARNING_RATE) &&
-                PD_MAX_LEARNING_RATE >= PD_MIN_LEARNING_RATE &&
-                Double.isFinite(PD_INITIAL_LEARNING_RATE) &&
-                Double.isFinite(PD_RELATIVE_IMPROVEMENT_TOLERANCE) &&
-                PD_RELATIVE_IMPROVEMENT_TOLERANCE >= 0.0 &&
-                Double.isFinite(PD_NORMALIZED_GRADIENT_TOLERANCE) &&
-                PD_NORMALIZED_GRADIENT_TOLERANCE >= 0.0 &&
-                Double.isFinite(initialKp()) && Double.isFinite(initialKd()) &&
-                Double.isFinite(PD_MAX_TUNING_SECONDS) && PD_MAX_TUNING_SECONDS > 0.0;
-        if (!validBounds || !validOptimizer) {
-            throw new IllegalStateException("Invalid PDS auto-tuning bounds or optimizer settings");
-        }
+    /** Returns true after the user accepts the result. */
+    public boolean isComplete() { return state == PDSState.COMPLETE; }
+
+    /** Returns the current state. */
+    public PDSState getState() { return state; }
+
+    /** Returns a copy of the active coefficients. */
+    public PDSCoefficients getCoefficients() {
+        PDSCoefficients c = controller.getCoefficients();
+        return new PDSCoefficients(c.kP, c.kD, c.kS);
     }
 
-    private void selectEvaluation(Evaluation next) {
-        evaluation = next;
-        trialRepeat = 0;
-        evaluationCostSum = 0.0;
-        evaluationBadTrials = 0;
+    /** Returns whether manual verification is available. */
+    public boolean isTestReady() { return state == PDSState.TEST_READY; }
 
-        double pStep = (maxKp() - minKp()) * PD_FINITE_DIFFERENCE_FRACTION;
-        double dStep = (maxKd() - minKd()) * PD_FINITE_DIFFERENCE_FRACTION;
-        switch (evaluation) {
-            case KP_PLUS:
-                evaluationKp = perturbGain(currentKp, pStep, minKp(), maxKp(), 1);
-                evaluationKd = currentKd;
-                break;
-            case KP_MINUS:
-                evaluationKp = perturbGain(currentKp, pStep, minKp(), maxKp(), -1);
-                evaluationKd = currentKd;
-                break;
-            case KD_PLUS:
-                evaluationKp = currentKp;
-                evaluationKd = perturbGain(currentKd, dStep, minKd(), maxKd(), 1);
-                break;
-            case KD_MINUS:
-                evaluationKp = currentKp;
-                evaluationKd = perturbGain(currentKd, dStep, minKd(), maxKd(), -1);
-                break;
-            case CANDIDATE:
-                evaluationKp = candidateKp;
-                evaluationKd = candidateKd;
-                break;
-            case BASELINE:
-            default:
-                evaluationKp = currentKp;
-                evaluationKd = currentKd;
-                break;
-        }
+    /** Queues an alternating verification step. */
+    public void requestTest() {
+        if (state != PDSState.TEST_READY) { return; }
+        candidateTrials = -1;
+        state = PDSState.SETTLING;
+        status = "Preparing user test";
+        clock.reset();
     }
 
-    private void beginPdTrial(TunerContext context) {
-        setControllerGains(evaluationKp, evaluationKd);
-        double magnitude = trialMagnitudeFor(axis);
-        trialStartPosition = getRelativePosition(context);
-        testTarget = nextPdTestTarget;
-        nextPdTestTarget = alternatingTrialTarget(testTarget, magnitude);
-        testSettledSince = -1.0;
-        testFinalError = testTarget;
-        trialCost = 0.0;
-        lastTrialSampleSeconds = Double.NaN;
-        lastTrialError = Double.NaN;
-        lastErrorCrossingSeconds = Double.NEGATIVE_INFINITY;
-        errorZeroCrossings = 0;
-        saturatedSeconds = 0.0;
-        trialBadReason = null;
-        controller.reset();
-        timer.reset();
-    }
-
-    /** Each automatically tuned move starts from a re-zeroed pose, so alternate its direction. */
-    static double alternatingTrialTarget(double currentTarget, double magnitude) {
-        return currentTarget >= 0.0 ? -Math.abs(magnitude) : Math.abs(magnitude);
-    }
-
-    private boolean updatePdTrial(TunerContext context) {
-        if (sessionTimer.seconds() - pdTuningStartedSeconds >= PD_MAX_TUNING_SECONDS) {
-            finishAutomaticTuning(context, "Stopped at the automatic-tuning time limit");
-            return false;
-        }
-
-        double elapsed = timer.seconds();
-        double position = getRelativePosition(context);
-        double velocity = getAxisVelocity(context);
-        double error = testTarget - position;
-        double dt = Double.isFinite(lastTrialSampleSeconds)
-                ? elapsed - lastTrialSampleSeconds : 0.0;
-
-        if (!Double.isFinite(elapsed) || !Double.isFinite(position) ||
-                !Double.isFinite(velocity) || !Double.isFinite(error)) {
-            return rejectPdTrial(context, "non-finite position, velocity, or error");
-        }
-        if (dt < 0.0 || dt > MAX_PD_SAMPLE_GAP_SECONDS) {
-            return rejectPdTrial(context, "control-loop sample gap exceeded " +
-                    MAX_PD_SAMPLE_GAP_SECONDS + " s");
-        }
-
-        double errorTolerance = errorTolerance();
-        double velocityTolerance = velocityTolerance();
-        double rawCommand = ensureTestBreakawayPower(
-                controller.calculate(error), error, velocity,
-                controller.getCoefficients().kS, errorTolerance, velocityTolerance);
-        if (!Double.isFinite(rawCommand)) {
-            return rejectPdTrial(context, "controller produced non-finite output");
-        }
-        double command = Range.clip(rawCommand, -MAX_TEST_POWER, MAX_TEST_POWER);
-
-        double safetyLimit = safetyLimit();
-        double trialMovement = Math.abs(testTarget - trialStartPosition);
-        if (Math.abs(position) > safetyLimit ||
-                Math.abs(error) > Math.max(trialMovement * 2.25,
-                        errorTolerance * 4.0)) {
-            return rejectPdTrial(context, "test exceeded its bounded travel envelope");
-        }
-
-        if (dt > 0.0) {
-            trialCost = accumulateTimeWeightedSquaredError(
-                    trialCost, elapsed, error, dt);
-            if (Math.abs(rawCommand) >= MAX_TEST_POWER) { saturatedSeconds += dt; }
-        }
-        updateOscillationCount(elapsed, error, errorTolerance);
-        lastTrialSampleSeconds = elapsed;
-        lastTrialError = error;
-        testFinalError = error;
-
-        double saturationFraction = saturationFraction(elapsed);
-        if (errorZeroCrossings > MAX_ERROR_ZERO_CROSSINGS) {
-            return rejectPdTrial(context, "unstable oscillation detected");
-        }
-        // A large point move can legitimately spend its first second at the configured test-power
-        // ceiling. Treat saturation as unsafe only when the robot has also made very little
-        // progress; otherwise the timeout and bounded-travel checks remain the relevant guards.
-        if (elapsed >= 1.0 && saturationFraction > MAX_SATURATION_FRACTION &&
-                Math.abs(error) > Math.max(errorTolerance, trialMovement * 0.90)) {
-            return rejectPdTrial(context, "controller remained saturated");
-        }
-
-        move(context, command);
-        logSample(context, testTarget, position, command);
-
-        boolean withinTolerance = Math.abs(error) <= errorTolerance &&
-                Math.abs(velocity) <= velocityTolerance;
-        if (withinTolerance) {
-            if (testSettledSince < 0.0) { testSettledSince = elapsed; }
-        } else {
-            testSettledSince = -1.0;
-        }
-
-        boolean settled = testSettledSince >= 0.0 &&
-                elapsed - testSettledSince >= TEST_SETTLED_SECONDS;
-        if (!settled && elapsed < TEST_TIMEOUT_SECONDS) { return false; }
-
-        if (!settled) {
-            // Approximate another half-second of late residual error. This preserves the smooth
-            // time-weighted error objective while making a timed-out endpoint clearly expensive.
-            trialCost += elapsed * error * error * TEST_SETTLED_SECONDS;
-            if (Math.abs(error) > Math.max(errorTolerance * 4.0,
-                    trialMovement * 0.75)) {
-                trialBadReason = "timed out with obviously large residual error";
-            }
-        }
-        if (saturationFraction > 0.0) {
-            trialCost *= 1.0 + 0.25 * saturationFraction;
-        }
-        return completePdTrial(context);
-    }
-
-    private void updateOscillationCount(double elapsed, double error, double tolerance) {
-        if (!Double.isFinite(lastTrialError)) { return; }
-        boolean crossed = Math.signum(error) != Math.signum(lastTrialError);
-        boolean meaningful = Math.max(Math.abs(error), Math.abs(lastTrialError)) >
-                tolerance * 0.25;
-        if (crossed && meaningful && elapsed - lastErrorCrossingSeconds >= 0.08) {
-            errorZeroCrossings++;
-            lastErrorCrossingSeconds = elapsed;
-        }
-    }
-
-    private boolean rejectPdTrial(TunerContext context, String reason) {
-        trialBadReason = reason;
-        trialCost = badTrialCost(testTarget - trialStartPosition);
-        return completePdTrial(context);
-    }
-
-    private boolean completePdTrial(TunerContext context) {
-        context.getFollower().stop();
-        if (!Double.isFinite(trialCost) || trialCost < 0.0) {
-            trialBadReason = "non-finite trial cost";
-            trialCost = badTrialCost(testTarget - trialStartPosition);
-        }
-        evaluationCostSum += trialCost;
-        if (trialBadReason != null) { evaluationBadTrials++; }
-        trialRepeat++;
-
-        if (trialRepeat < PD_TRIAL_REPEATS) {
-            state = PDSState.SETTLING_FOR_PD_TEST;
-            timer.reset();
-            return false;
-        }
-
-        double averageCost = evaluationCostSum / PD_TRIAL_REPEATS;
-        if (evaluationBadTrials == 0) {
-            considerBest(evaluationKp, evaluationKd, averageCost);
-        }
-        advanceEvaluation(context, averageCost);
-        return false;
-    }
-
-    private void advanceEvaluation(TunerContext context, double averageCost) {
-        switch (evaluation) {
-            case BASELINE:
-                baselineCost = averageCost;
-                finiteDifferenceTrialsSafe &= evaluationBadTrials == 0;
-                if (evaluationBadTrials > 0) {
-                    if (!Double.isFinite(bestCost)) {
-                        abort(context, "Initial closed-loop PD trials were unsafe");
-                    }
-                    finishRejectedIteration(context, "Unsafe baseline trial");
-                    return;
-                }
-                selectEvaluation(Evaluation.KP_PLUS);
-                break;
-            case KP_PLUS:
-                kpPlusCost = averageCost;
-                finiteDifferenceTrialsSafe &= evaluationBadTrials == 0;
-                selectEvaluation(Evaluation.KP_MINUS);
-                break;
-            case KP_MINUS:
-                kpMinusCost = averageCost;
-                finiteDifferenceTrialsSafe &= evaluationBadTrials == 0;
-                selectEvaluation(Evaluation.KD_PLUS);
-                break;
-            case KD_PLUS:
-                kdPlusCost = averageCost;
-                finiteDifferenceTrialsSafe &= evaluationBadTrials == 0;
-                selectEvaluation(Evaluation.KD_MINUS);
-                break;
-            case KD_MINUS:
-                kdMinusCost = averageCost;
-                finiteDifferenceTrialsSafe &= evaluationBadTrials == 0;
-                if (!prepareCandidate()) {
-                    finishRejectedIteration(context, "Unsafe finite-difference trial");
-                    return;
-                }
-                selectEvaluation(Evaluation.CANDIDATE);
-                break;
-            case CANDIDATE:
-                finishCandidateIteration(context, averageCost);
-                return;
-            default:
-                throw new IllegalStateException("Unknown PD evaluation");
-        }
-        state = PDSState.SETTLING_FOR_PD_TEST;
-        timer.reset();
-    }
-
-    private boolean prepareCandidate() {
-        if (!finiteDifferenceTrialsSafe || !Double.isFinite(baselineCost) ||
-                baselineCost <= 0.0) {
-            return false;
-        }
-        double pPlus = perturbGain(currentKp,
-                (maxKp() - minKp()) * PD_FINITE_DIFFERENCE_FRACTION,
-                minKp(), maxKp(), 1);
-        double pMinus = perturbGain(currentKp,
-                (maxKp() - minKp()) * PD_FINITE_DIFFERENCE_FRACTION,
-                minKp(), maxKp(), -1);
-        double dPlus = perturbGain(currentKd,
-                (maxKd() - minKd()) * PD_FINITE_DIFFERENCE_FRACTION,
-                minKd(), maxKd(), 1);
-        double dMinus = perturbGain(currentKd,
-                (maxKd() - minKd()) * PD_FINITE_DIFFERENCE_FRACTION,
-                minKd(), maxKd(), -1);
-
-        double costScale = Math.max(baselineCost, 1e-12);
-        normalizedGradientP = normalizedFiniteDifference(
-                kpPlusCost, kpMinusCost, pPlus, pMinus, minKp(), maxKp(), costScale);
-        normalizedGradientD = normalizedFiniteDifference(
-                kdPlusCost, kdMinusCost, dPlus, dMinus, minKd(), maxKd(), costScale);
-        normalizedGradientMagnitude = Math.hypot(normalizedGradientP, normalizedGradientD);
-        if (!Double.isFinite(normalizedGradientMagnitude)) { return false; }
-
-        if (normalizedGradientMagnitude <= PD_NORMALIZED_GRADIENT_TOLERANCE) {
-            smallGradientIterations++;
-        } else {
-            smallGradientIterations = 0;
-        }
-
-        candidateKp = gradientUpdatedGain(currentKp, normalizedGradientP,
-                normalizedGradientMagnitude, learningRate, minKp(), maxKp());
-        candidateKd = gradientUpdatedGain(currentKd, normalizedGradientD,
-                normalizedGradientMagnitude, learningRate, minKd(), maxKd());
-        return Double.isFinite(candidateKp) && Double.isFinite(candidateKd);
-    }
-
-    private void finishCandidateIteration(TunerContext context, double candidateCost) {
-        double relativeImprovement = relativeImprovement(baselineCost, candidateCost);
-        boolean candidateSafe = evaluationBadTrials == 0 && Double.isFinite(candidateCost);
-        // Repeated robot trials contain enough noise that accepting every numerically smaller
-        // score makes gains bounce around a flat minimum. Require a meaningful improvement.
-        boolean improved = candidateSafe &&
-                relativeImprovement >= PD_RELATIVE_IMPROVEMENT_TOLERANCE;
-        if (improved) {
-            currentKp = candidateKp;
-            currentKd = candidateKd;
-            setControllerGains(currentKp, currentKd);
-            smallImprovementIterations = 0;
-            learningRate = Math.min(PD_MAX_LEARNING_RATE, learningRate * 1.05);
-            automaticTuneSummary = "Accepted gradient update; improvement " +
-                    percent(relativeImprovement);
-        } else {
-            setControllerGains(currentKp, currentKd);
-            learningRate = reducedLearningRate(learningRate, PD_MIN_LEARNING_RATE);
-            smallImprovementIterations++;
-            automaticTuneSummary = candidateSafe
-                    ? "Rejected worse update; reduced learning rate"
-                    : "Rejected unsafe update; reduced learning rate";
-        }
-
-        iteration++;
-        if (shouldStopTuning()) {
-            finishAutomaticTuning(context, stopReason());
-            return;
-        }
-        resetIterationCosts();
-        selectEvaluation(Evaluation.BASELINE);
-        state = PDSState.SETTLING_FOR_PD_TEST;
-        timer.reset();
-    }
-
-    private void finishRejectedIteration(TunerContext context, String reason) {
-        setControllerGains(currentKp, currentKd);
-        learningRate = reducedLearningRate(learningRate, PD_MIN_LEARNING_RATE);
-        smallImprovementIterations++;
-        smallGradientIterations = 0;
-        iteration++;
-        automaticTuneSummary = reason + "; reduced learning rate";
-        if (shouldStopTuning()) {
-            finishAutomaticTuning(context, stopReason());
-            return;
-        }
-        resetIterationCosts();
-        selectEvaluation(Evaluation.BASELINE);
-        state = PDSState.SETTLING_FOR_PD_TEST;
-        timer.reset();
-    }
-
-    private void resetIterationCosts() {
-        baselineCost = Double.NaN;
-        kpPlusCost = Double.NaN;
-        kpMinusCost = Double.NaN;
-        kdPlusCost = Double.NaN;
-        kdMinusCost = Double.NaN;
-        normalizedGradientP = Double.NaN;
-        normalizedGradientD = Double.NaN;
-        normalizedGradientMagnitude = Double.NaN;
-        finiteDifferenceTrialsSafe = true;
-    }
-
-    private boolean shouldStopTuning() {
-        return iteration >= PD_MAX_ITERATIONS ||
-                smallGradientIterations >= PD_CONVERGENCE_PATIENCE ||
-                smallImprovementIterations >= PD_CONVERGENCE_PATIENCE ||
-                learningRate <= PD_MIN_LEARNING_RATE;
-    }
-
-    private String stopReason() {
-        if (smallGradientIterations >= PD_CONVERGENCE_PATIENCE) {
-            return "Gradient remained small for " + smallGradientIterations + " iterations";
-        }
-        if (smallImprovementIterations >= PD_CONVERGENCE_PATIENCE) {
-            return "Improvement remained small for " + smallImprovementIterations + " iterations";
-        }
-        if (learningRate <= PD_MIN_LEARNING_RATE) {
-            return "Learning rate reached its minimum";
-        }
-        return "Reached the configured iteration limit";
-    }
-
-    private void finishAutomaticTuning(TunerContext context, String reason) {
-        context.getFollower().stop();
-        if (Double.isFinite(bestCost)) {
-            setControllerGains(bestKp, bestKd);
-        } else {
-            setControllerGains(currentKp, currentKd);
-        }
-        automaticTuneSummary = reason + "; restored best measured gains";
-        operatorCheckSummary = automaticTuneSummary;
-        evaluation = null;
-        state = PDSState.SETTLING_FOR_OPERATOR_CHECK;
-        timer.reset();
-    }
-
-    private void considerBest(double kP, double kD, double cost) {
-        if (!Double.isFinite(cost) || cost >= bestCost) { return; }
-        bestCost = cost;
-        bestKp = kP;
-        bestKd = kD;
-    }
-
-    private void setControllerGains(double kP, double kD) {
-        controller.getCoefficients().setkP(Range.clip(kP, minKp(), maxKp()));
-        controller.getCoefficients().setkD(Range.clip(kD, minKd(), maxKd()));
+    /** Accepts the optimized result. */
+    public void accept() {
+        if (state == PDSState.TEST_READY) { state = PDSState.COMPLETE; }
     }
 
     // endregion
+    // region Real-time state machine
 
-    // region Operator validation
-
-    private void beginOperatorCheck() {
-        nextTestTarget = trialMagnitudeFor(axis);
-        testTarget = 0.0;
-        testSettledSince = -1.0;
-        testFinalError = Double.NaN;
-        testActive = false;
-        operatorCheckSummary = "Ready for operator check (" + automaticTuneSummary + ")";
-        controller.reset();
+    /** Advances one non-blocking control-loop tick. */
+    public double update(double absolutePosition, double velocity) {
+        if (!started) { throw new IllegalStateException("Call start() before update()"); }
+        if (!Double.isFinite(absolutePosition) || !Double.isFinite(velocity)) {
+            throw new IllegalStateException("PDS tuner received invalid localization");
+        }
+        if (Double.isNaN(origin)) { origin = absolutePosition; }
+        position = relativePosition(absolutePosition, origin, config.angular);
+        if (Math.abs(position) > config.safetyLimit) {
+            throw new IllegalStateException("PDS tuner exceeded its safe travel limit");
+        }
+        if (state == PDSState.SETTLING) { return settle(velocity); }
+        if (state == PDSState.TUNING || state == PDSState.TEST_RUNNING) {
+            return measure(velocity);
+        }
+        return 0.0;
     }
 
-    private boolean updateOperatorCheck(TunerContext context) {
-        if (!testActive) {
-            context.getFollower().stop();
-            logSample(context, testTarget, getRelativePosition(context), 0.0);
-
-            if (context.testButtonWasPressed()) {
-                testTarget = nextTestTarget;
-                nextTestTarget = Math.abs(testTarget) < 1e-9
-                        ? trialMagnitudeFor(axis) : 0.0;
-                testSettledSince = -1.0;
-                testFinalError = testTarget - getRelativePosition(context);
-                testActive = true;
-                timer.reset();
-                controller.reset();
-                operatorCheckSummary = "Running operator-requested test";
-                return false;
-            }
-            if (context.retuneButtonWasPressed()) {
-                start(context);
-                return false;
-            }
-            if (context.acceptButtonWasPressed()) {
-                operatorCheckSummary = "Gains accepted by operator";
-                if (csv != null) { csv.close(); }
-                return true;
-            }
-            return false;
-        }
-
-        double elapsed = timer.seconds();
-        double position = getRelativePosition(context);
-        double velocity = getAxisVelocity(context);
-        double error = testTarget - position;
-        double rawCommand = ensureTestBreakawayPower(
-                controller.calculate(error), error, velocity,
-                controller.getCoefficients().kS, errorTolerance(), velocityTolerance());
-        if (!Double.isFinite(position) || !Double.isFinite(velocity) ||
-                !Double.isFinite(error) || !Double.isFinite(rawCommand) ||
-                Math.abs(position) > safetyLimit()) {
-            abort(context, "Operator-requested PDS test exceeded its safe limits");
-        }
-        double command = Range.clip(rawCommand, -MAX_TEST_POWER, MAX_TEST_POWER);
-
-        move(context, command);
-        testFinalError = error;
-        logSample(context, testTarget, position, command);
-
-        boolean withinTolerance = Math.abs(error) <= errorTolerance() &&
-                Math.abs(velocity) <= velocityTolerance();
-        if (withinTolerance) {
-            if (testSettledSince < 0.0) { testSettledSince = elapsed; }
-        } else {
-            testSettledSince = -1.0;
-        }
-
-        boolean settled = testSettledSince >= 0.0 &&
-                elapsed - testSettledSince >= TEST_SETTLED_SECONDS;
-        if (!settled && elapsed < OPERATOR_TEST_TIMEOUT_SECONDS) { return false; }
-
-        context.getFollower().stop();
-        testActive = false;
-        completedTestCount++;
-        operatorCheckSummary = settled
-                ? "Test complete; inspect the response and run again or accept"
-                : "Test stopped after timeout; retune if the response is not acceptable";
-        return false;
-    }
-
-    // endregion
-
-    // region Trial math and safety helpers
-
-    /**
-     * Gives a stalled controller just enough output to cross the measured static-friction floor.
-     * The floor is used only outside the endpoint tolerance and is capped by the test power limit.
-     */
-    static double ensureTestBreakawayPower(double requestedPower, double error,
-                                           double velocity, double staticGain,
-                                           double errorTolerance,
-                                           double velocityTolerance) {
-        if (!Double.isFinite(requestedPower) || !Double.isFinite(error) ||
-                !Double.isFinite(velocity) || !Double.isFinite(staticGain) ||
-                !Double.isFinite(errorTolerance) || errorTolerance < 0.0 ||
-                !Double.isFinite(velocityTolerance) || velocityTolerance < 0.0) {
-            return requestedPower;
-        }
-        boolean outsideTolerance = Math.abs(error) > errorTolerance;
-        boolean stalled = Math.abs(velocity) < velocityTolerance;
-        if (!outsideTolerance || !stalled) { return requestedPower; }
-
-        double minimumPower = Math.min(MAX_TEST_POWER,
-                Math.abs(staticGain) + TEST_BREAKAWAY_RESERVE);
-        if (Math.abs(requestedPower) >= minimumPower) { return requestedPower; }
-        return Math.copySign(minimumPower, error);
-    }
-
-    static double accumulateTimeWeightedSquaredError(double accumulatedCost,
-                                                     double elapsedSeconds,
-                                                     double error,
-                                                     double deltaTimeSeconds) {
-        if (!Double.isFinite(accumulatedCost) || accumulatedCost < 0.0 ||
-                !Double.isFinite(elapsedSeconds) || elapsedSeconds < 0.0 ||
-                !Double.isFinite(error) || !Double.isFinite(deltaTimeSeconds) ||
-                deltaTimeSeconds < 0.0) {
-            return Double.NaN;
-        }
-        return accumulatedCost + elapsedSeconds * error * error * deltaTimeSeconds;
-    }
-
-    static double normalizedFiniteDifference(double plusCost, double minusCost,
-                                             double plusGain, double minusGain,
-                                             double minGain, double maxGain,
-                                             double costScale) {
-        double normalizedSeparation = (plusGain - minusGain) / (maxGain - minGain);
-        if (!Double.isFinite(plusCost) || !Double.isFinite(minusCost) ||
-                !Double.isFinite(normalizedSeparation) || normalizedSeparation <= 0.0 ||
-                !Double.isFinite(costScale) || costScale <= 0.0) {
-            return Double.NaN;
-        }
-        return (plusCost - minusCost) / normalizedSeparation / costScale;
-    }
-
-    static double gradientUpdatedGain(double gain, double normalizedGradient,
-                                      double gradientMagnitude, double learningRate,
-                                      double minGain, double maxGain) {
-        if (!Double.isFinite(gain) || !Double.isFinite(normalizedGradient) ||
-                !Double.isFinite(gradientMagnitude) || gradientMagnitude < 0.0 ||
-                !Double.isFinite(learningRate) || learningRate < 0.0 ||
-                !Double.isFinite(minGain) || !Double.isFinite(maxGain) || maxGain <= minGain) {
-            return Double.NaN;
-        }
-        if (gradientMagnitude == 0.0) { return Range.clip(gain, minGain, maxGain); }
-        double normalizedGain = (gain - minGain) / (maxGain - minGain);
-        double updated = normalizedGain -
-                learningRate * normalizedGradient / gradientMagnitude;
-        return Range.clip(minGain + updated * (maxGain - minGain), minGain, maxGain);
-    }
-
-    static double perturbGain(double gain, double requestedStep,
-                              double minGain, double maxGain, int direction) {
-        if (direction != -1 && direction != 1) {
-            throw new IllegalArgumentException("Finite-difference direction must be -1 or 1");
-        }
-        double roomBelow = Math.max(0.0, gain - minGain);
-        double roomAbove = Math.max(0.0, maxGain - gain);
-        double symmetricStep = Math.min(requestedStep, Math.min(roomBelow, roomAbove));
-        double step = symmetricStep > 1e-12 ? symmetricStep : requestedStep;
-        return Range.clip(gain + direction * step, minGain, maxGain);
-    }
-
-    static double reducedLearningRate(double learningRate, double minimum) {
-        return Math.max(minimum, learningRate * 0.5);
-    }
-
-    static double relativeImprovement(double oldCost, double newCost) {
-        if (!Double.isFinite(oldCost) || oldCost <= 0.0 || !Double.isFinite(newCost)) {
+    /** Waits for rest without blocking. */
+    private double settle(double velocity) {
+        if (clock.seconds() < BETWEEN_TRIALS || Math.abs(velocity) > config.velocityTolerance) {
             return 0.0;
         }
-        return Math.max(0.0, (oldCost - newCost) / oldCost);
+        direction = nextDirection;
+        nextDirection = -nextDirection;
+        target = position + direction * config.step;
+        validTime = settledTime = errorIntegral = overshoot = saturatedTime = lastTime = 0.0;
+        controller.reset();
+        state = candidateTrials < 0 ? PDSState.TEST_RUNNING : PDSState.TUNING;
+        status = state == PDSState.TEST_RUNNING ? "Running user test" : "Evaluating gains";
+        clock.reset();
+        return 0.0;
     }
 
-    // endregion
-
-    // region Axis-specific configuration
-
-    private double badTrialCost(double target) {
-        return 10.0 * TEST_TIMEOUT_SECONDS * target * target;
-    }
-
-    private double saturationFraction(double elapsed) {
-        return elapsed <= 0.0 ? 0.0 : Range.clip(saturatedSeconds / elapsed, 0.0, 1.0);
-    }
-
-    private double minKp() {
-        return axis == Axis.HEADING ? HEADING_KP_MIN : TRANSLATIONAL_KP_MIN;
-    }
-
-    private double maxKp() {
-        return axis == Axis.HEADING ? HEADING_KP_MAX : TRANSLATIONAL_KP_MAX;
-    }
-
-    private double minKd() {
-        return axis == Axis.HEADING ? HEADING_KD_MIN : TRANSLATIONAL_KD_MIN;
-    }
-
-    private double maxKd() {
-        return axis == Axis.HEADING ? HEADING_KD_MAX : TRANSLATIONAL_KD_MAX;
-    }
-
-    private double initialKp() {
-        return axis == Axis.HEADING ? HEADING_INITIAL_KP : TRANSLATIONAL_INITIAL_KP;
-    }
-
-    private double initialKd() {
-        return axis == Axis.HEADING ? HEADING_INITIAL_KD : TRANSLATIONAL_INITIAL_KD;
-    }
-
-    private double errorTolerance() {
-        return axis == Axis.HEADING ? Math.toRadians(2.5) : 0.75;
-    }
-
-    private double velocityTolerance() {
-        return axis == Axis.HEADING ? 0.10 : 1.0;
-    }
-
-    private double safetyLimit() {
-        return axis == Axis.HEADING ? Math.toRadians(110.0) : 36.0;
-    }
-
-    static double trialMagnitudeFor(Axis axis) {
-        return axis == Axis.HEADING ? Math.toRadians(60.0) : 24.0;
-    }
-
-    private static double startingGain(double saved, double fallback,
-                                       double minimum, double maximum) {
-        double candidate = Double.isFinite(saved) && saved > minimum ? saved : fallback;
-        return Range.clip(candidate, minimum, maximum);
-    }
-
-    // endregion
-
-    // region Failure handling, logging, and telemetry
-
-    private void abort(TunerContext context, String reason) {
-        context.getFollower().stop();
-        operatorCheckSummary = "FAILED: " + reason;
-        if (csv != null) { csv.close(); }
-        throw new IllegalStateException(reason + ". See PDS CSV: " + getCsvPath());
-    }
-
-    private void logSample(TunerContext context, double target, double position, double command) {
-        if (csv == null) { return; }
-        double elapsed = state == PDSState.TUNING_PD ? timer.seconds() : 0.0;
-        csv.writeRow(
-                sessionTimer.seconds(), axis, state, iteration,
-                evaluation == null ? "" : evaluation,
-                evaluation == null ? "" : trialRepeat + 1,
-                target, position, target - position, getAxisVelocity(context), command,
-                controller.getCoefficients().kP, controller.getCoefficients().kD,
-                controller.getCoefficients().kS, trialCost, errorZeroCrossings,
-                saturationFraction(elapsed), trialBadReason == null ? "OK" : trialBadReason
-        );
-    }
-
-    private static String percent(double fraction) {
-        return Math.round(fraction * 1000.0) / 10.0 + "%";
-    }
-
-    void reportProgress(TunerContext context) {
-        context.getTelemetry().addLine("Automatic " + axis.toString().toLowerCase() +
-                " tuning in progress");
-        context.getTelemetry().addLine(actionDescription(context));
-        if (state == PDSState.TUNING_PD || state == PDSState.OPERATOR_CHECK) {
-            double position = getRelativePosition(context);
-            if (axis == Axis.HEADING) {
-                context.getTelemetry().addData("Target", round(Math.toDegrees(testTarget), 2) +
-                        " deg");
-                context.getTelemetry().addData("Position", round(Math.toDegrees(position), 2) +
-                        " deg");
-            } else {
-                context.getTelemetry().addData("Target", round(testTarget, 2) + " in");
-                context.getTelemetry().addData("Position", round(position, 2) + " in");
-            }
+    /** Measures one response while rejecting lag-spike time intervals. */
+    private double measure(double velocity) {
+        double now = clock.seconds();
+        double rawDt = now - lastTime;
+        lastTime = now;
+        if (rawDt > 0.15) {
+            // Physics and localization may have advanced discontinuously. Retry this direction;
+            // ignoring only dt would still leave its jumped position embedded in the response.
+            nextDirection = direction;
+            state = PDSState.SETTLING;
+            status = "Lag spike discarded; retrying response";
+            clock.reset();
+            controller.reset();
+            return 0.0;
         }
-        if (!context.isDebugMode()) {
-            context.getTelemetry().update();
+        double dt = rawDt > 0.0 && rawDt <= MAX_VALID_DT ? rawDt : 0.0;
+        error = positionError(target, position, config.angular);
+        if (dt > 0.0) {
+            validTime += dt;
+            double normalized = error / config.step;
+            errorIntegral += normalized * normalized * dt;
+            overshoot = Math.max(overshoot,
+                    Math.max(0.0, direction * positionError(position, target, config.angular)));
+        }
+        boolean inside = Math.abs(error) <= config.tolerance &&
+                Math.abs(velocity) <= config.velocityTolerance;
+        settledTime = inside ? settledTime + dt : 0.0;
+        double raw = controller.calculate(error, -velocity);
+        double command = Range.clip(raw, -COMMAND_LIMIT, COMMAND_LIMIT);
+        if (dt > 0.0 && Math.abs(raw) >= COMMAND_LIMIT) { saturatedTime += dt; }
+        if (settledTime >= SETTLED_TIME || validTime >= TRIAL_TIMEOUT) {
+            finishResponse(settledTime >= SETTLED_TIME);
+            return 0.0;
+        }
+        return command;
+    }
+
+    /** Scores a tuning response or finishes a user test. */
+    private void finishResponse(boolean settled) {
+        double rms = Math.sqrt(errorIntegral / Math.max(validTime, 1e-9));
+        double settling = settled ? Math.max(0.0, validTime - settledTime) : TRIAL_TIMEOUT;
+        double overshootFraction = overshoot / config.step;
+        double finalFraction = Math.abs(error) / config.step;
+        double saturation = saturatedTime / Math.max(validTime, 1e-9);
+        double cost = 5.0 * settling + 5.0 * rms +
+                14.0 * overshootFraction * overshootFraction +
+                10.0 * finalFraction * finalFraction + 0.5 * saturation +
+                (settled ? 0.0 : 30.0);
+        totalTrials++;
+        if (state == PDSState.TEST_RUNNING) {
+            candidateTrials = 0;
+            state = PDSState.TEST_READY;
+            status = "Test complete; X repeats, A accepts";
             return;
         }
-        context.getTelemetry().addData("Step", state.toString().replace('_', ' '));
-        context.getTelemetry().addData("Static guess", search.getGuess());
-        if (evaluation != null) {
-            context.getTelemetry().addData("PD iteration", (iteration + 1) + " / " +
-                    PD_MAX_ITERATIONS);
-            context.getTelemetry().addData("Evaluation", evaluation + " repeat " +
-                    (trialRepeat + 1) + " / " + PD_TRIAL_REPEATS);
-            context.getTelemetry().addData("Evaluation gains",
-                    "kP=" + evaluationKp + ", kD=" + evaluationKd);
-            context.getTelemetry().addData("Current cost", trialCost);
-            context.getTelemetry().addData("Learning rate", learningRate);
-            context.getTelemetry().addData("Normalized gradient",
-                    "kP=" + normalizedGradientP + ", kD=" + normalizedGradientD);
-            context.getTelemetry().addData("Best measured",
-                    "J=" + bestCost + ", kP=" + bestKp + ", kD=" + bestKd);
-            context.getTelemetry().addData("Trial safeguards",
-                    trialBadReason == null ? "OK" : trialBadReason);
+        candidateCost += cost;
+        if (++candidateTrials < TRIALS_PER_CANDIDATE) {
+            state = PDSState.SETTLING;
+            clock.reset();
+            return;
         }
-        if (state == PDSState.OPERATOR_CHECK) {
-            context.getTelemetry().addData("Operator tests completed", completedTestCount);
-            context.getTelemetry().addData("Current test error", testFinalError);
-        }
-        context.getTelemetry().addData("CSV", getCsvPath());
-        context.getTelemetry().addLine(state == PDSState.OPERATOR_CHECK
-                ? "The robot remains stopped until you request or accept a test."
-                : "Keep the OpMode running until automatic tuning finishes.");
-        context.getTelemetry().update();
-    }
-
-    private static double round(double value, int decimalPlaces) {
-        double scale = Math.pow(10.0, decimalPlaces);
-        return Math.round(value * scale) / scale;
-    }
-
-    private String actionDescription(TunerContext context) {
-        switch (state) {
-            case TUNING_KS:
-                return axis == Axis.HEADING
-                        ? "Robot is finding the minimum power needed to turn."
-                        : "Robot is finding the minimum power needed to move.";
-            case SETTLING_BETWEEN_KS:
-            case SETTLING_FOR_PD_TEST:
-            case SETTLING_FOR_OPERATOR_CHECK:
-                return "Robot is stopping before the next test.";
-            case TUNING_PD:
-                return axis == Axis.HEADING
-                        ? "Robot is running repeated closed-loop turns to tune kP and kD."
-                        : "Robot is running repeated closed-loop moves to tune kP and kD.";
-            case OPERATOR_CHECK:
-                if (testActive) {
-                    return axis == Axis.HEADING
-                            ? "Robot is turning to the requested test target."
-                            : "Robot is driving to the requested test target.";
-                }
-                return operatorCheckSummary +
-                        ". Press X to run the next alternating test, A to accept, or B to retune.";
-            default:
-                return "Robot is running the controller test.";
-        }
+        evaluate(candidateCost / TRIALS_PER_CANDIDATE);
     }
 
     // endregion
+    // region Twiddle
 
-    // region Results
+    /** Executes standard +delta/-delta coordinate-descent branching. */
+    private void evaluate(double cost) {
+        if (evaluation == Evaluation.BASELINE) {
+            bestCost = cost;
+            evaluation = Evaluation.PLUS;
+            gains[coordinate] = clip(coordinate, gains[coordinate] + deltas[coordinate]);
+        } else if (evaluation == Evaluation.PLUS && cost < bestCost) {
+            bestCost = cost;
+            deltas[coordinate] *= 1.15;
+            nextCoordinate();
+        } else if (evaluation == Evaluation.PLUS) {
+            gains[coordinate] = clip(coordinate, gains[coordinate] - 2.0 * deltas[coordinate]);
+            evaluation = Evaluation.MINUS;
+        } else if (cost < bestCost) {
+            bestCost = cost;
+            deltas[coordinate] *= 1.15;
+            nextCoordinate();
+        } else {
+            gains[coordinate] = clip(coordinate, gains[coordinate] + deltas[coordinate]);
+            deltas[coordinate] *= 0.55;
+            nextCoordinate();
+        }
+        applyGains();
+        candidateCost = 0.0;
+        candidateTrials = 0;
+        if (coordinateSteps >= MAX_COORDINATE_STEPS || normalizedDelta() < 0.025) {
+            state = PDSState.TEST_READY;
+            status = "Twiddle complete; X tests, A accepts";
+        } else {
+            state = PDSState.SETTLING;
+            clock.reset();
+        }
+    }
 
-    PDSCoefficients getCoefficients() { return controller.getCoefficients(); }
+    /** Advances to the other gain coordinate. */
+    private void nextCoordinate() {
+        coordinate = (coordinate + 1) % 2;
+        coordinateSteps++;
+        evaluation = Evaluation.PLUS;
+        // Never leave an unevaluated +delta applied when this completed coordinate ends tuning.
+        if (coordinateSteps < MAX_COORDINATE_STEPS && normalizedDelta() >= 0.025) {
+            gains[coordinate] = clip(coordinate, gains[coordinate] + deltas[coordinate]);
+        }
+    }
 
-    String getOperatorCheckSummary() { return operatorCheckSummary; }
+    /** Applies the current candidate. */
+    private void applyGains() {
+        controller.setCoefficients(new PDSCoefficients(
+                gains[0], gains[1], controller.getCoefficients().kS));
+    }
 
-    String getCsvPath() { return csv == null ? "Unavailable" : csv.getPath(); }
+    private double clip(int index, double value) {
+        return index == 0 ? Range.clip(value, config.minP, config.maxP)
+                : Range.clip(value, config.minD, config.maxD);
+    }
+
+    private double normalizedDelta() {
+        return deltas[0] / (config.maxP - config.minP) +
+                deltas[1] / (config.maxD - config.minD);
+    }
+
+    // endregion
+    // region Utilities and telemetry
+
+    /** Creates an aggressive under-damped seed; Twiddle performs the real optimization. */
+    static PDSCoefficients modelBasedPd(double kV, double kA, double damping,
+                                        double settlingSeconds, double staticPower) {
+        if (!positive(kV) || !positive(kA) || !positive(damping) || !positive(settlingSeconds)) {
+            throw new IllegalArgumentException("Model seed inputs must be positive");
+        }
+        double frequency = 4.0 / (damping * settlingSeconds);
+        return new PDSCoefficients(kA * frequency * frequency,
+                Math.max(0.0, 2.0 * damping * frequency * kA - kV), staticPower);
+    }
+
+    /** Returns relative position, wrapping heading in radians. */
+    static double relativePosition(double absolute, double origin, boolean angular) {
+        return angular ? Angle.wrap(absolute - origin) : absolute - origin;
+    }
+
+    private static double positionError(double target, double position, boolean angular) {
+        return angular ? Angle.wrap(target - position) : target - position;
+    }
+
+    private static boolean positive(double value) {
+        return Double.isFinite(value) && value > 0.0;
+    }
+
+    /** Reports optimization progress and verification controls. */
+    public void reportProgress(TunerContext context) {
+        context.getTelemetry().addLine("Twiddle " + config.name + " PD tuning");
+        context.getTelemetry().addData("Status", status);
+        context.getTelemetry().addData("P / D", gains[0] + " / " + gains[1]);
+        context.getTelemetry().addData("Best cost", bestCost);
+        context.getTelemetry().addData("Trials", totalTrials);
+        if (state == PDSState.TEST_READY) {
+            context.getTelemetry().addLine("Press X to run a verification step.");
+            context.getTelemetry().addLine("Press A to accept these gains.");
+        }
+        context.getTelemetry().update();
+    }
 
     // endregion
 }

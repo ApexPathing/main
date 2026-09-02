@@ -15,7 +15,16 @@ import paths.movements.Turn;
 public class HeadingPhase extends TuningPhase {
     private enum Coefficient { P, D, S }
 
-    private final PDSRoutine routine;
+    private static final double HEADING_KP_MIN = 0.10;
+    private static final double HEADING_KP_MAX = 32.0;
+    private static final double HEADING_KD_MIN = 0.0;
+    private static final double HEADING_KD_MAX = 2.0;
+    private static final double AUTOMATIC_TEST_ANGLE = Math.toRadians(60.0);
+    private static final double POSITION_TOLERANCE = Math.toRadians(0.75);
+    private static final double SETTLING_ANGULAR_VELOCITY = 0.10;
+    private static final double AUTOMATIC_SAFETY_LIMIT = Math.toRadians(110.0);
+
+    private PDSRoutine routine;
 
     private Coefficient selected = Coefficient.P;
     private double activeTestTarget = 0.0;
@@ -26,8 +35,6 @@ public class HeadingPhase extends TuningPhase {
 
     public HeadingPhase(TunerContext context) {
         super(context);
-
-        routine = new PDSRoutine(context, PDSRoutine.Axis.HEADING);
     }
 
     @Override
@@ -43,19 +50,17 @@ public class HeadingPhase extends TuningPhase {
     protected void showPreRunInstructions() {
         context.getTelemetry().addLine(
                 "Place the robot where it can rotate safely through a 60 degree out-and-back test.");
+        context.getTelemetry().addLine(
+                "Automatic tuning calculates gains from the refined feedforward model, then " +
+                        "checks settling, overshoot, error, and consistency in both directions.");
     }
 
     @Override
     protected void init() {
         positionRobotForSimulation(geometry.Pose.zero());
-        // Clear any motor command left by the previously selected phase before changing which
-        // controllers are allowed to write to the drivetrain.
         context.getFollower().stop();
 
-        // We only want to use the existing heading coefficients if we are in manual mode
         if (manualMode) {
-            // Heading tuning must be a pure point turn. Do not let position hold turn
-            // localization drift into x/y drivetrain power.
             context.getFollower().enableHeadingController();
             context.getFollower().disableDriveController();
             context.getFollower().setHeadingCoefficients(context.constants.angularCoeffs);
@@ -66,18 +71,47 @@ public class HeadingPhase extends TuningPhase {
             return;
         }
 
-        routine.start(context);
+        PDSRoutine.Config config = PDSRoutine.Config.angular(
+                "heading",
+                HEADING_KP_MIN, HEADING_KP_MAX,
+                HEADING_KD_MIN, HEADING_KD_MAX,
+                AUTOMATIC_TEST_ANGLE, POSITION_TOLERANCE,
+                SETTLING_ANGULAR_VELOCITY, AUTOMATIC_SAFETY_LIMIT
+        );
+        routine = new PDSRoutine(
+                config,
+                context.constants.angularKV,
+                context.constants.angularKA,
+                context.constants.angularCoeffs.kS);
+        routine.start();
+        context.getFollower().disableControllers();
     }
 
     @Override
     protected boolean autoTuned() {
-        if (!routine.update(context)) {
-            routine.reportProgress(context);
-            return false;
+        if (routine.isTestReady()) {
+            if (opMode.gamepad1.xWasPressed()) { routine.requestTest(); }
+            if (opMode.gamepad1.aWasPressed()) { routine.accept(); }
+        }
+        if (routine.isComplete()) {
+            context.constants.angularCoeffs = routine.getCoefficients();
+            context.getFollower().setHeadingCoefficients(context.constants.angularCoeffs);
+            return true;
         }
 
-        context.constants.angularCoeffs = routine.getCoefficients();
-        return true;
+        double position = context.getFollower().getPose().getHeading().getRad();
+        double velocity = context.getFollower().getVelocity().getHeading(AngleUnit.RAD);
+        double command;
+        try {
+            command = routine.update(position, velocity);
+        } catch (RuntimeException failure) {
+            context.getFollower().stop();
+            throw failure;
+        }
+
+        context.getFollower().getDrivetrain().moveWithVectors(0.0, 0.0, command);
+        routine.reportProgress(context);
+        return false;
     }
 
     @Override
@@ -148,7 +182,8 @@ public class HeadingPhase extends TuningPhase {
                 selected == Coefficient.S);
         context.getTelemetry().addData("Increment", number(increment));
         context.getTelemetry().addData("Active Test Target", number(activeTestTarget) + " deg");
-        context.getTelemetry().addData("Final error", number(manualMetrics.getFinalError()) + " rad");
+        context.getTelemetry().addData("Final error",
+                number(Math.toDegrees(manualMetrics.getFinalError())) + " deg");
         if (context.isDebugMode()) { reportDetailedManualMetrics("rad", "rad/s"); }
         context.getTelemetry().addLine("Dpad Up/Down: Change value");
         context.getTelemetry().addLine("LB/RB: select Value to tune");
@@ -164,11 +199,6 @@ public class HeadingPhase extends TuningPhase {
         context.getTelemetry().addData("Heading P", number(context.constants.angularCoeffs.kP));
         context.getTelemetry().addData("Heading D", number(context.constants.angularCoeffs.kD));
         context.getTelemetry().addData("Heading S", number(context.constants.angularCoeffs.kS));
-        if (!manualMode && context.isDebugMode()) {
-            context.getTelemetry().addData("Operator check",
-                    routine.getOperatorCheckSummary());
-            context.getTelemetry().addData("PDS response CSV", routine.getCsvPath());
-        }
     }
 
     private void reportDetailedManualMetrics(String positionUnit, String velocityUnit) {

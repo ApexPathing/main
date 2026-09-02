@@ -115,14 +115,14 @@ public class SwerveProfileGenerator extends BaseProfileGenerator {
 
         double tanPow = vel * constants.translationalKV
                 + accel * constants.translationalKA
-                + signedStatic(vel, accel, constants.translationalCoeffs.kS);
+                + signedStatic(vel, accel, constants.translationalFeedforwardKS);
 
         double normPow = vel * vel * kappa * constants.kCentripetal;
 
         double omega = fPrime * vel;
         double alpha = fDoublePrime * (vel * vel) + fPrime * accel;
 
-        double headingKs = signedStatic(omega, alpha, constants.angularCoeffs.kS);
+        double headingKs = signedStatic(omega, alpha, constants.angularFeedforwardKS);
         double heading = omega * constants.angularKV + alpha * constants.angularKA + headingKs;
 
         // Swerve can point the traction vector, so translation combines as vector magnitude.

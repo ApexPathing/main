@@ -13,8 +13,9 @@ import geometry.Angle;
  * static forces)</li>
  * </ul>
  *
- * <p>The controller uses a soft sign function to smooth the kS term, which helps prevent
- * overshooting and oscillation.
+ * <p>The controller applies the full static-friction term outside a small target deadband and
+ * removes it inside that deadband. This preserves breakaway authority without causing target
+ * jitter.
  *
  * <p>Special thanks to Wolfpack Machina (18438) for inspiration for this controller
  *
@@ -22,10 +23,11 @@ import geometry.Angle;
  * @author DrPixelCat - 7842 alum
  */
 public class PDSController {
-    /** TODO: I checked these on Desmos and it looks good, but they might need to be changed */
-    public static final double LINEAR_SMOOTHING_CONSTANT = 0.7; // In
-    public static final double ANGULAR_SMOOTHING_CONSTANT = 0.07; // Rad
-    private double smoothingConstant = LINEAR_SMOOTHING_CONSTANT;
+    /** Translational error where static-friction compensation turns off, in inches. */
+    public static final double LINEAR_STATIC_DEADBAND = 0.25;
+    /** Angular error where static-friction compensation turns off, in radians. */
+    public static final double ANGULAR_STATIC_DEADBAND = Math.toRadians(0.75);
+    private double staticDeadband = LINEAR_STATIC_DEADBAND;
 
     private PDSCoefficients coeffs;
 
@@ -81,7 +83,7 @@ public class PDSController {
      */
     public void setAngularController() {
         this.angularController = true;
-        this.smoothingConstant = ANGULAR_SMOOTHING_CONSTANT;
+        this.staticDeadband = ANGULAR_STATIC_DEADBAND;
     }
 
     /**
@@ -100,6 +102,11 @@ public class PDSController {
      * @return The control output
      */
     public double calculate(double error) {
+        return calculate(error, true);
+    }
+
+    /** Calculates output while optionally suppressing static-friction compensation. */
+    public double calculate(double error, boolean applyStaticCompensation) {
         long currentNano = System.nanoTime();
 
         // Nanoseconds to seconds
@@ -118,11 +125,42 @@ public class PDSController {
 
         double p = this.coeffs.kP * actualError;
         double d = this.coeffs.kD * (timeAnomaly ? 0.0 : (actualError - lastError) / deltaTime);
-        double s = this.coeffs.kS * (actualError / (Math.abs(actualError) + smoothingConstant));
+        double s = applyStaticCompensation ? staticCompensation(actualError) : 0.0;
 
         lastTimestamp = currentNano;
         lastError = actualError;
 
         return p + d + s;
+    }
+
+    /**
+     * Calculates the output when the error rate is already measured.
+     *
+     * <p>This avoids differentiating noisy samples and is preferable when velocity is available.
+     * For a fixed position target, pass {@code -measuredVelocity} as {@code errorRate}.</p>
+     */
+    public double calculate(double error, double errorRate) {
+        return calculate(error, errorRate, true);
+    }
+
+    /** Uses a measured error rate while optionally suppressing static compensation. */
+    public double calculate(double error, double errorRate, boolean applyStaticCompensation) {
+        double actualError = angularController ? Angle.wrap(error) : error;
+        double p = coeffs.kP * actualError;
+        double d = coeffs.kD * errorRate;
+        double s = applyStaticCompensation ? staticCompensation(actualError) : 0.0;
+
+        lastTimestamp = System.nanoTime();
+        lastError = actualError;
+        firstRun = false;
+        timeAnomaly = false;
+        return p + d + s;
+    }
+
+    /** Returns full static compensation outside the target deadband and zero inside it. */
+    private double staticCompensation(double error) {
+        return Math.abs(error) - staticDeadband > 1e-12
+                ? Math.copySign(coeffs.kS, error)
+                : 0.0;
     }
 }

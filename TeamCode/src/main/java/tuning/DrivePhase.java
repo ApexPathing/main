@@ -18,8 +18,17 @@ import paths.movements.Path;
 public class DrivePhase extends TuningPhase {
     private enum Coefficient { P, D, S }
 
+    private static final double TRANSLATIONAL_KP_MIN = 0.01;
+    private static final double TRANSLATIONAL_KP_MAX = 0.75;
+    private static final double TRANSLATIONAL_KD_MIN = 0.0;
+    private static final double TRANSLATIONAL_KD_MAX = 0.30;
+    private static final double AUTOMATIC_TEST_DISTANCE = 24.0;
+    private static final double POSITION_TOLERANCE = 0.75;
+    private static final double SETTLING_VELOCITY = 1.0;
+    private static final double AUTOMATIC_SAFETY_LIMIT = 36.0;
+
     private final Supplier<Path> testPath;
-    private final PDSRoutine routine;
+    private PDSRoutine routine;
 
     private Coefficient selected = Coefficient.P;
     private double target = 24.0;
@@ -30,8 +39,6 @@ public class DrivePhase extends TuningPhase {
 
     public DrivePhase(TunerContext context) {
         super(context);
-
-        routine = new PDSRoutine(context, PDSRoutine.Axis.DRIVE);
 
         GeometryFactory factory = new GeometryFactory(context.getFollower())
                 .setDistUnit(DistUnit.IN).setAngleUnit(AngleUnit.DEG);
@@ -55,35 +62,63 @@ public class DrivePhase extends TuningPhase {
         context.getTelemetry().addLine(
                 "Place the robot with at least 36 inches clear in front and behind it.");
         context.getTelemetry().addLine(
-                "Automatic tuning runs repeated bounded moves around its start. Response checks " +
-                        "move only when requested afterward.");
+                "Automatic tuning calculates gains from the refined feedforward model, then " +
+                        "checks settling, overshoot, error, and consistency in both directions.");
     }
 
     @Override
     protected void init() {
-        // Both automatic closed-loop trials and the manual test path travel in both directions.
         positionRobotForSimulation(geometry.Pose.zero());
         testPathQueued = false;
         testButtonHeld = opMode.gamepad1.x;
-        // We only want to use the existing drive coefficients if we are in manual mode
+
         if (manualMode) {
             context.getFollower().enableControllers();
             context.getFollower().setDriveCoefficients(context.constants.translationalCoeffs);
             return;
         }
 
-        routine.start(context);
+        PDSRoutine.Config config = PDSRoutine.Config.linear(
+                "drive",
+                TRANSLATIONAL_KP_MIN, TRANSLATIONAL_KP_MAX,
+                TRANSLATIONAL_KD_MIN, TRANSLATIONAL_KD_MAX,
+                AUTOMATIC_TEST_DISTANCE, POSITION_TOLERANCE,
+                SETTLING_VELOCITY, AUTOMATIC_SAFETY_LIMIT
+        );
+        routine = new PDSRoutine(
+                config,
+                context.constants.translationalKV,
+                context.constants.translationalKA,
+                context.constants.translationalCoeffs.kS);
+        routine.start();
+        context.getFollower().disableControllers();
     }
 
     @Override
     protected boolean autoTuned() {
-        if (!routine.update(context)) {
-            routine.reportProgress(context);
-            return false;
+        if (routine.isTestReady()) {
+            if (opMode.gamepad1.xWasPressed()) { routine.requestTest(); }
+            if (opMode.gamepad1.aWasPressed()) { routine.accept(); }
+        }
+        if (routine.isComplete()) {
+            context.constants.translationalCoeffs = routine.getCoefficients();
+            context.getFollower().setDriveCoefficients(context.constants.translationalCoeffs);
+            return true;
         }
 
-        context.constants.translationalCoeffs = routine.getCoefficients();
-        return true;
+        double position = context.getFollower().getPose().getX().getIn();
+        double velocity = context.getFollower().getVelocity().getX().getIn();
+        double command;
+        try {
+            command = routine.update(position, velocity);
+        } catch (RuntimeException failure) {
+            context.getFollower().stop();
+            throw failure;
+        }
+
+        context.getFollower().getDrivetrain().moveWithVectors(command, 0.0, 0.0);
+        routine.reportProgress(context);
+        return false;
     }
 
     @Override
@@ -162,11 +197,6 @@ public class DrivePhase extends TuningPhase {
         context.getTelemetry().addData("Drive P", number(context.constants.translationalCoeffs.kP));
         context.getTelemetry().addData("Drive D", number(context.constants.translationalCoeffs.kD));
         context.getTelemetry().addData("Drive S", number(context.constants.translationalCoeffs.kS));
-        if (!manualMode && context.isDebugMode()) {
-            context.getTelemetry().addData("Operator check",
-                    routine.getOperatorCheckSummary());
-            context.getTelemetry().addData("PDS response CSV", routine.getCsvPath());
-        }
     }
 
     private void reportDetailedManualMetrics() {

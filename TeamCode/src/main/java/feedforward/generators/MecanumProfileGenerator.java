@@ -98,7 +98,7 @@ public class MecanumProfileGenerator extends BaseProfileGenerator {
         // Apply the LUT as power cost multipliers instead of pretending strafe is as efficient.
         double boostedKV = constants.translationalKV * tangentKinematics.velMultiplier;
         double transPower = v * boostedKV
-                + signedStatic(v, 0.0, constants.translationalCoeffs.kS);
+                + signedStatic(v, 0.0, constants.translationalFeedforwardKS);
 
         double latPower = Math.abs(
                 v * v * kappa * constants.kCentripetal * normalKinematics.accelMultiplier
@@ -106,7 +106,7 @@ public class MecanumProfileGenerator extends BaseProfileGenerator {
 
         double omega = fPrime * v;
         double alpha = fDoublePrime * (v * v);
-        double headingKs = signedStatic(omega, alpha, constants.angularCoeffs.kS);
+        double headingKs = signedStatic(omega, alpha, constants.angularFeedforwardKS);
         double rotPower =
                 Math.abs(omega * constants.angularKV + alpha * constants.angularKA + headingKs);
 
@@ -138,12 +138,12 @@ public class MecanumProfileGenerator extends BaseProfileGenerator {
 
         double pForward = v * constants.translationalKV * dirK.velMultiplier
                 + a_t * constants.translationalKA * dirK.accelMultiplier
-                + signedStatic(v, a_t, constants.translationalCoeffs.kS);
+                + signedStatic(v, a_t, constants.translationalFeedforwardKS);
 
         // Centripetal correction is a sideways force, so mecanum inefficiency applies here too.
         double pLateral = v * v * kappa * constants.kCentripetal * normalK.accelMultiplier;
 
-        double headingKs = signedStatic(omega, alpha, constants.angularCoeffs.kS);
+        double headingKs = signedStatic(omega, alpha, constants.angularFeedforwardKS);
         double pHeading = omega * constants.angularKV + alpha * constants.angularKA + headingKs;
 
         outResult.pForward = Math.abs(pForward);

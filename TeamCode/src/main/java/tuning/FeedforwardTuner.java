@@ -5,7 +5,9 @@ import com.qualcomm.robotcore.util.Range;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import geometry.AngleUnit;
 import geometry.Angle;
@@ -25,6 +27,9 @@ import localizers.BaseLocalizer;
 public class FeedforwardTuner extends TuningPhase {
     private static final double QUASISTATIC_TIME = 3.0;
     private static final double DYNAMIC_TIME = 1.25;
+    private static final double BRAKING_TIME = 0.60;
+    private static final double BRAKING_POWER = 0.15;
+    private static final double INTEGRATION_WINDOW_SECONDS = 0.20;
     private static final double CHARACTERIZATION_POWER = 0.70;
     private static final double AUTO_SETTLE_TIME = 0.40;
     private static final double MIN_SAMPLE_TIME = 0.12;
@@ -48,7 +53,7 @@ public class FeedforwardTuner extends TuningPhase {
 
     private enum Axis { ANGULAR, TRANSLATIONAL }
     private enum Excitation { QUASISTATIC, DYNAMIC }
-    private enum AutoStage { PROMPT, RUNNING, SETTLING, FITTING, FAILED, DONE }
+    private enum AutoStage { PROMPT, RUNNING, BRAKING, SETTLING, FITTING, FAILED, DONE }
 
     private static final class AutoRun {
         final Axis axis;
@@ -122,8 +127,56 @@ public class FeedforwardTuner extends TuningPhase {
         }
     }
 
+    /** One derivative-free integral-model observation. */
+    static final class IntegralObservation {
+        final double signTime, distance, velocityChange, powerTime;
+        final boolean braking;
+
+        IntegralObservation(double signTime, double distance, double velocityChange,
+                            double powerTime, boolean braking) {
+            this.signTime = signTime;
+            this.distance = distance;
+            this.velocityChange = velocityChange;
+            this.powerTime = powerTime;
+            this.braking = braking;
+        }
+    }
+
+    /** Diagnostic result for u*dt = kS*sign(v)*dt + kV*dx + kA*dv. */
+    static final class IntegralFitResult {
+        final double kS, kV, kA, accelerationRmse, brakingRmse;
+        final int accelerationWindows, brakingWindows;
+
+        IntegralFitResult(double kS, double kV, double kA, double accelerationRmse,
+                          double brakingRmse, int accelerationWindows, int brakingWindows) {
+            this.kS = kS;
+            this.kV = kV;
+            this.kA = kA;
+            this.accelerationRmse = accelerationRmse;
+            this.brakingRmse = brakingRmse;
+            this.accelerationWindows = accelerationWindows;
+            this.brakingWindows = brakingWindows;
+        }
+
+        /** Requires a physical model with independent acceleration and braking evidence. */
+        boolean isValid() {
+            return Double.isFinite(kS) && kS >= 0.0 && kS < 1.0 &&
+                    Double.isFinite(kV) && kV > 0.0 &&
+                    Double.isFinite(kA) && kA > 0.0 &&
+                    accelerationWindows >= 12 && brakingWindows >= 4 &&
+                    accelerationRmse <= 0.03 && brakingRmse <= 0.03;
+        }
+    }
+
     private final List<Observation> angularObservations = new ArrayList<>();
     private final List<Observation> translationalObservations = new ArrayList<>();
+    private final List<IntegralObservation> angularIntegralObservations = new ArrayList<>();
+    private final List<IntegralObservation> translationalIntegralObservations = new ArrayList<>();
+    private IntegralFitResult angularIntegralFit;
+    private IntegralFitResult translationalIntegralFit;
+    private double windowSignTime, windowDistance, windowVelocityChange, windowPowerTime;
+    private double windowStartVelocity, previousWindowVelocity, previousIntegrationTime;
+    private boolean integrationWindowStarted;
     private AutoStage autoStage = AutoStage.PROMPT;
     private int autoRunIndex = 0;
     private FitResult angularFit;
@@ -207,8 +260,12 @@ public class FeedforwardTuner extends TuningPhase {
         context.getFollower().stop();
         angularObservations.clear();
         translationalObservations.clear();
+        angularIntegralObservations.clear();
+        translationalIntegralObservations.clear();
         angularFit = null;
         translationalFit = null;
+        angularIntegralFit = null;
+        translationalIntegralFit = null;
         validationMessage = "Collecting characterization data";
         csvPath = "Pending";
         csvError = null;
@@ -338,7 +395,11 @@ public class FeedforwardTuner extends TuningPhase {
         // or for one excitation profile without requiring another long robot movement.
         double cvSquaredError = 0.0;
         int cvCount = 0;
-        for (int heldOut = 0; heldOut < 4; heldOut++) {
+        Set<Integer> runs = new LinkedHashSet<>();
+        for (Observation sample : samples) {
+            runs.add(sample.run);
+        }
+        for (int heldOut : runs) {
             double[] foldFit = robustFit(samples, kS, heldOut);
             if (!Double.isFinite(foldFit[0]) || !Double.isFinite(foldFit[1])) { continue; }
             for (Observation sample : samples) {
@@ -407,6 +468,68 @@ public class FeedforwardTuner extends TuningPhase {
         return result;
     }
 
+    /** Fits all three moving-feedforward terms without differentiating velocity. */
+    static IntegralFitResult fitIntegralFeedforward(List<IntegralObservation> samples) {
+        double[][] matrix = new double[3][4];
+        for (IntegralObservation sample : samples) {
+            double[] x = { sample.signTime, sample.distance, sample.velocityChange };
+            for (int row = 0; row < 3; row++) {
+                for (int column = 0; column < 3; column++) {
+                    matrix[row][column] += x[row] * x[column];
+                }
+                matrix[row][3] += x[row] * sample.powerTime;
+            }
+        }
+        double[] fit = solveThreeByThree(matrix);
+        double accelerationError = 0.0;
+        double brakingError = 0.0;
+        int accelerationCount = 0;
+        int brakingCount = 0;
+        for (IntegralObservation sample : samples) {
+            double predicted = fit[0] * sample.signTime + fit[1] * sample.distance +
+                    fit[2] * sample.velocityChange;
+            double error = sample.powerTime - predicted;
+            if (sample.braking) {
+                brakingError += error * error;
+                brakingCount++;
+            } else {
+                accelerationError += error * error;
+                accelerationCount++;
+            }
+        }
+        return new IntegralFitResult(fit[0], fit[1], fit[2],
+                accelerationCount == 0 ? Double.NaN :
+                        Math.sqrt(accelerationError / accelerationCount),
+                brakingCount == 0 ? Double.NaN : Math.sqrt(brakingError / brakingCount),
+                accelerationCount, brakingCount);
+    }
+
+    /** Solves a three-variable augmented matrix with partial pivoting. */
+    private static double[] solveThreeByThree(double[][] matrix) {
+        for (int pivot = 0; pivot < 3; pivot++) {
+            int best = pivot;
+            for (int row = pivot + 1; row < 3; row++) {
+                if (Math.abs(matrix[row][pivot]) > Math.abs(matrix[best][pivot])) { best = row; }
+            }
+            if (Math.abs(matrix[best][pivot]) < 1e-12) {
+                return new double[] { Double.NaN, Double.NaN, Double.NaN };
+            }
+            double[] swap = matrix[pivot];
+            matrix[pivot] = matrix[best];
+            matrix[best] = swap;
+            double scale = matrix[pivot][pivot];
+            for (int column = pivot; column < 4; column++) { matrix[pivot][column] /= scale; }
+            for (int row = 0; row < 3; row++) {
+                if (row == pivot) { continue; }
+                double factor = matrix[row][pivot];
+                for (int column = pivot; column < 4; column++) {
+                    matrix[row][column] -= factor * matrix[pivot][column];
+                }
+            }
+        }
+        return new double[] { matrix[0][3], matrix[1][3], matrix[2][3] };
+    }
+
     @Override
     protected boolean manualTuned() {
         if (opMode.gamepad1.leftBumperWasPressed()) {
@@ -438,6 +561,11 @@ public class FeedforwardTuner extends TuningPhase {
                         0.0, context.constants.translationalKA + change
                 );
             }
+            context.getFollower().setFeedforwardGains(
+                    context.constants.translationalKV,
+                    context.constants.translationalKA,
+                    context.constants.angularKV,
+                    context.constants.angularKA);
         }
 
         Pose velocity = context.getFollower().getVelocity();
@@ -496,7 +624,7 @@ public class FeedforwardTuner extends TuningPhase {
                 currentVel = angularVel;
                 double angularPow = manualAngularPower(
                         context.constants.angularKV, context.constants.angularKA,
-                        context.constants.angularCoeffs.kS,
+                        context.constants.angularFeedforwardKS,
                         angularProfile.getVel(time_sec),
                         angularProfile.getAccel(time_sec), angularDirection);
                 double appliedAngularPower = clipManualPower(angularPow);
@@ -511,7 +639,7 @@ public class FeedforwardTuner extends TuningPhase {
                 double drivePow =
                         context.constants.translationalKV * targetVel +
                                 context.constants.translationalKA * driveProfile.getAccel(time_sec) +
-                                context.constants.translationalCoeffs.kS;
+                                context.constants.translationalFeedforwardKS;
                 double direction = isForward ? 1.0 : -1.0;
                 double rawDrivePower = drivePow * direction;
                 double appliedDrivePower = clipManualPower(rawDrivePower);
@@ -631,14 +759,22 @@ public class FeedforwardTuner extends TuningPhase {
             translationalFit = fitFeedforward(
                     translationalObservations,
                     Math.abs(context.constants.translationalCoeffs.kS));
+            angularIntegralFit = fitIntegralFeedforward(angularIntegralObservations);
+            translationalIntegralFit = fitIntegralFeedforward(translationalIntegralObservations);
 
-            boolean angularValid = angularFit.isValid();
-            boolean translationalValid = translationalFit.isValid();
+            boolean angularValid = angularIntegralFit.isValid();
+            boolean translationalValid = translationalIntegralFit.isValid();
             if (angularValid && translationalValid) {
-                context.constants.angularKV = angularFit.kV;
-                context.constants.angularKA = angularFit.kA;
-                context.constants.translationalKV = translationalFit.kV;
-                context.constants.translationalKA = translationalFit.kA;
+                context.constants.angularFeedforwardKS = angularIntegralFit.kS;
+                context.constants.angularKV = angularIntegralFit.kV;
+                context.constants.angularKA = angularIntegralFit.kA;
+                context.constants.translationalFeedforwardKS = translationalIntegralFit.kS;
+                context.constants.translationalKV = translationalIntegralFit.kV;
+                context.constants.translationalKA = translationalIntegralFit.kA;
+                context.getFollower().setFeedforwardGains(
+                        translationalIntegralFit.kS, translationalIntegralFit.kV,
+                        translationalIntegralFit.kA, angularIntegralFit.kS,
+                        angularIntegralFit.kV, angularIntegralFit.kA);
             }
             validationMessage = "Angular " + (angularValid ? "PASSED" : "FAILED") +
                     "; Translation " + (translationalValid ? "PASSED" : "FAILED");
@@ -646,6 +782,7 @@ public class FeedforwardTuner extends TuningPhase {
                 validationMessage += "; no candidate values applied";
             }
             writeCharacterizationCsv();
+            writeIntegralDiagnosticsCsv();
             autoStage = angularValid && translationalValid ? AutoStage.DONE : AutoStage.FAILED;
             return autoStage == AutoStage.DONE;
         }
@@ -683,6 +820,7 @@ public class FeedforwardTuner extends TuningPhase {
                         Vector.of(stagingX, 0.0, DistUnit.IN), Angle.fromRad(0.0)));
                 commandPowerFilter.reset();
                 lastAppliedCharacterizationPower = 0.0;
+                resetIntegrationWindow();
                 timer.reset();
                 autoStage = AutoStage.RUNNING;
             }
@@ -696,10 +834,15 @@ public class FeedforwardTuner extends TuningPhase {
             double duration = run.excitation == Excitation.QUASISTATIC
                     ? QUASISTATIC_TIME : DYNAMIC_TIME;
             if (elapsed >= duration) {
-                context.getFollower().stop();
-                lastAppliedCharacterizationPower = 0.0;
+                resetIntegrationWindow();
                 timer.reset();
-                autoStage = AutoStage.SETTLING;
+                if (run.excitation == Excitation.DYNAMIC) {
+                    autoStage = AutoStage.BRAKING;
+                } else {
+                    context.getFollower().stop();
+                    lastAppliedCharacterizationPower = 0.0;
+                    autoStage = AutoStage.SETTLING;
+                }
             } else {
                 // Preserve the legacy power-window alignment only when the compatibility moving
                 // average is selected. Kalman state estimates are current-time estimates and must
@@ -742,6 +885,32 @@ public class FeedforwardTuner extends TuningPhase {
                                 ? angularObservations : translationalObservations).add(observation);
                     }
                 }
+                recordIntegralSample(run, alignedPower, rawVelocity, elapsed, false);
+            }
+        } else if (autoStage == AutoStage.BRAKING) {
+            double alignedPower = commandPowerFilter.update(
+                    lastAppliedCharacterizationPower).value();
+            double directedPower = -BRAKING_POWER;
+            double signedPower = run.forward ? directedPower : -directedPower;
+            if (run.axis == Axis.ANGULAR) {
+                context.getFollower().getDrivetrain().moveWithVectors(0.0, 0.0, signedPower);
+            } else {
+                context.getFollower().getDrivetrain().moveWithVectors(signedPower, 0.0, 0.0);
+            }
+            lastAppliedCharacterizationPower = directedPower;
+
+            Pose velocity = context.getFollower().getVelocity();
+            double rawVelocity = run.axis == Axis.ANGULAR
+                    ? velocity.getHeading(AngleUnit.RAD) : velocity.getX().getIn();
+            recordIntegralSample(run, alignedPower, rawVelocity, elapsed, true);
+            double directedVelocity = rawVelocity * (run.forward ? 1.0 : -1.0);
+            double velocityFloor = run.axis == Axis.ANGULAR ? 0.02 : 0.25;
+            if (elapsed >= BRAKING_TIME || directedVelocity <= velocityFloor) {
+                context.getFollower().stop();
+                lastAppliedCharacterizationPower = 0.0;
+                resetIntegrationWindow();
+                timer.reset();
+                autoStage = AutoStage.SETTLING;
             }
         } else if (autoStage == AutoStage.SETTLING) {
             context.getFollower().stop();
@@ -767,12 +936,72 @@ public class FeedforwardTuner extends TuningPhase {
         return false;
     }
 
+    /** Starts a fresh derivative-free integration window. */
+    private void resetIntegrationWindow() {
+        windowSignTime = 0.0;
+        windowDistance = 0.0;
+        windowVelocityChange = 0.0;
+        windowPowerTime = 0.0;
+        integrationWindowStarted = false;
+        previousIntegrationTime = Double.NaN;
+    }
+
+    /** Accumulates one aligned command/velocity sample and emits a 0.2-second model window. */
+    private void recordIntegralSample(AutoRun run, double directedPower,
+                                      double rawVelocity, double elapsed, boolean braking) {
+        double velocity = rawVelocity * (run.forward ? 1.0 : -1.0);
+        double velocityFloor = run.axis == Axis.ANGULAR ? 0.02 : 0.25;
+        if (!Double.isFinite(velocity) || velocity < velocityFloor) {
+            resetIntegrationWindow();
+            previousIntegrationTime = elapsed;
+            return;
+        }
+        if (!Double.isFinite(previousIntegrationTime) || !integrationWindowStarted) {
+            windowStartVelocity = velocity;
+            previousWindowVelocity = velocity;
+            previousIntegrationTime = elapsed;
+            integrationWindowStarted = true;
+            return;
+        }
+
+        double dt = elapsed - previousIntegrationTime;
+        previousIntegrationTime = elapsed;
+        if (dt <= 0.0 || dt > 0.10) {
+            resetIntegrationWindow();
+            previousIntegrationTime = elapsed;
+            return;
+        }
+
+        windowPowerTime += directedPower * dt;
+        windowSignTime += dt;
+        windowDistance += 0.5 * (previousWindowVelocity + velocity) * dt;
+        windowVelocityChange = velocity - windowStartVelocity;
+        previousWindowVelocity = velocity;
+
+        if (windowSignTime >= INTEGRATION_WINDOW_SECONDS) {
+            IntegralObservation observation = new IntegralObservation(
+                    windowSignTime, windowDistance, windowVelocityChange,
+                    windowPowerTime, braking);
+            (run.axis == Axis.ANGULAR
+                    ? angularIntegralObservations : translationalIntegralObservations)
+                    .add(observation);
+            resetIntegrationWindow();
+            previousIntegrationTime = elapsed;
+            windowStartVelocity = velocity;
+            previousWindowVelocity = velocity;
+            integrationWindowStarted = true;
+        }
+    }
+
     private boolean usesMovingAverageVelocity() {
         return context.getFollower().getLocalizer().getVelocityFilterMode()
                 == BaseLocalizer.VelocityFilterMode.MOVING_AVERAGE;
     }
 
     private String feedforwardActionDescription(AutoRun run) {
+        if (autoStage == AutoStage.BRAKING) {
+            return "Robot is applying controlled braking for the feedforward model.";
+        }
         if (autoStage == AutoStage.SETTLING) {
             return "Robot is stopping before the next feedforward run.";
         }
@@ -788,7 +1017,20 @@ public class FeedforwardTuner extends TuningPhase {
     private void reportFitDiagnostics() {
         reportFitDiagnostics("Angular", angularFit);
         reportFitDiagnostics("Translation", translationalFit);
+        reportIntegralDiagnostics("Angular integral", angularIntegralFit);
+        reportIntegralDiagnostics("Translation integral", translationalIntegralFit);
         context.getTelemetry().addData("Characterization CSV", csvPath);
+    }
+
+    /** Reports the parallel integral model without applying its constants. */
+    private void reportIntegralDiagnostics(String axis, IntegralFitResult fit) {
+        if (fit == null) { return; }
+        context.getTelemetry().addData(axis + " kS / kV / kA",
+                fit.kS + " / " + fit.kV + " / " + fit.kA);
+        context.getTelemetry().addData(axis + " accel / brake RMSE",
+                fit.accelerationRmse + " / " + fit.brakingRmse);
+        context.getTelemetry().addData(axis + " accel / brake windows",
+                fit.accelerationWindows + " / " + fit.brakingWindows);
     }
 
     private void reportFitDiagnostics(String axis, FitResult fit) {
@@ -835,6 +1077,33 @@ public class FeedforwardTuner extends TuningPhase {
                     fit == null ? Double.NaN : fit.kV,
                     fit == null ? Double.NaN : fit.kA
             );
+        }
+    }
+
+    /** Writes the parallel integral fit so it can be evaluated before becoming active. */
+    private void writeIntegralDiagnosticsCsv() {
+        TuningCsvWriter writer = TuningCsvWriter.open(
+                "feedforward_integral_diagnostic",
+                "axis", "mode", "sign_time_s", "distance", "velocity_change",
+                "power_time", "predicted_power_time", "residual",
+                "fit_kS", "fit_kV", "fit_kA"
+        );
+        writeIntegralAxis(writer, "ANGULAR", angularIntegralObservations, angularIntegralFit);
+        writeIntegralAxis(writer, "TRANSLATIONAL", translationalIntegralObservations,
+                translationalIntegralFit);
+        writer.close();
+    }
+
+    /** Writes every integrated observation with its model prediction. */
+    private static void writeIntegralAxis(TuningCsvWriter writer, String axis,
+                                          List<IntegralObservation> observations,
+                                          IntegralFitResult fit) {
+        for (IntegralObservation sample : observations) {
+            double predicted = fit.kS * sample.signTime + fit.kV * sample.distance +
+                    fit.kA * sample.velocityChange;
+            writer.writeRow(axis, sample.braking ? "BRAKING" : "ACCELERATING",
+                    sample.signTime, sample.distance, sample.velocityChange, sample.powerTime,
+                    predicted, sample.powerTime - predicted, fit.kS, fit.kV, fit.kA);
         }
     }
 

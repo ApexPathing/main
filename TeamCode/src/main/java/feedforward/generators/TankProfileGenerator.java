@@ -84,11 +84,11 @@ public class TankProfileGenerator extends BaseProfileGenerator {
      */
     private double evaluatePower(double v, double fPrime, double fDoublePrime) {
         double transPower = Math.abs(v * constants.translationalKV +
-                        signedStatic(v, 0.0, constants.translationalCoeffs.kS));
+                        signedStatic(v, 0.0, constants.translationalFeedforwardKS));
 
         double omega = fPrime * v;
         double alpha = fDoublePrime * (v * v) + fPrime * 0.0;
-        double headingKs = signedStatic(omega, alpha, constants.angularCoeffs.kS);
+        double headingKs = signedStatic(omega, alpha, constants.angularFeedforwardKS);
 
         double rotPower = Math.abs(omega * constants.angularKV + alpha *
                 constants.angularKA + headingKs);
@@ -114,9 +114,9 @@ public class TankProfileGenerator extends BaseProfileGenerator {
         double alpha = fDoublePrime * (v * v) + fPrime * a_t;
 
         double pForward = v * constants.translationalKV + a_t * constants.translationalKA
-                        + signedStatic(v, a_t, constants.translationalCoeffs.kS);
+                        + signedStatic(v, a_t, constants.translationalFeedforwardKS);
 
-        double headingKs = signedStatic(omega, alpha, constants.angularCoeffs.kS);
+        double headingKs = signedStatic(omega, alpha, constants.angularFeedforwardKS);
         double pHeading = omega * constants.angularKV + alpha * constants.angularKA + headingKs;
 
         outResult.pForward = Math.abs(pForward);

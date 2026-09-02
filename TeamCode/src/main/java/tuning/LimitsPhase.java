@@ -53,6 +53,8 @@ public class LimitsPhase extends TuningPhase {
     private static final double MAX_TRANSLATION_TRAVEL = 60.0;
     private static final double MAX_ANGULAR_TRAVEL = Math.PI * 2.0;
     private static final double SIM_STAGING_OFFSET = 55.0;
+    private static final double TEMPORARY_HEADING_KP = 1.0;
+    private static final double TEMPORARY_HEADING_KD = 0.10;
     public static final double MARGIN_MULTIPLIER = 0.95;
 
     private final ElapsedTime timer = new ElapsedTime();
@@ -102,7 +104,10 @@ public class LimitsPhase extends TuningPhase {
 
     @Override
     protected void init() {
-        headingHoldController = new PDSController(context.constants.angularCoeffs);
+        headingHoldController = new PDSController(new PDSController.PDSCoefficients(
+                TEMPORARY_HEADING_KP,
+                TEMPORARY_HEADING_KD,
+                context.constants.angularCoeffs.kS));
         headingHoldController.setAngularController();
         stage = LimitStage.PROMPT;
         trial = 0;
@@ -322,10 +327,6 @@ public class LimitsPhase extends TuningPhase {
         context.constants.angularVelLimitRad = fullAngularVelocity * MARGIN_MULTIPLIER;
         context.constants.angularAccelLimitRad = fullAngularAcceleration * MARGIN_MULTIPLIER;
 
-        context.constants.translationalKV = 1.0 / fullForwardVelocity;
-        context.constants.translationalKA = 1.0 / fullForwardAcceleration;
-        context.constants.angularKV = 1.0 / fullAngularVelocity;
-        context.constants.angularKA = 1.0 / fullAngularAcceleration;
     }
 
     @Override
@@ -396,9 +397,5 @@ public class LimitsPhase extends TuningPhase {
         context.getTelemetry().addData("Angular Velocity", number(context.constants.angularVelLimitRad));
         context.getTelemetry()
                 .addData("Angular Acceleration", number(context.constants.angularAccelLimitRad));
-        context.getTelemetry().addData("Translation kV", number(context.constants.translationalKV));
-        context.getTelemetry().addData("Translation kA", number(context.constants.translationalKA));
-        context.getTelemetry().addData("Angular kV", number(context.constants.angularKV));
-        context.getTelemetry().addData("Angular kA", number(context.constants.angularKA));
     }
 }

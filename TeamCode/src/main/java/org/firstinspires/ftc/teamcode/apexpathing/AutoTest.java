@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import java.util.Arrays;
 
 import core.ApexStorage;
 import core.Follower;
@@ -51,6 +52,18 @@ public class AutoTest extends LinearOpMode {
     private String outboundVelocityCsvPath = "Not started";
     private String outboundVelocityCsvError;
     private int outboundVelocityRowsSinceFlush;
+    private static final String[] DEMAND_NAMES = {"cross-track", "tangent correction",
+            "heading correction", "centripetal", "forward velocity", "heading velocity",
+            "drive feedforward", "heading feedforward"};
+    private final double[] peakDemand = new double[DEMAND_NAMES.length];
+    private final int[] dominantSaturationFrames = new int[DEMAND_NAMES.length];
+    private long demandSamples;
+    private long saturatedDemandSamples;
+    private double squaredTotalDemand;
+    private double peakTotalDemand;
+    private final double[] stagePeakDemand = new double[3];
+    private final double[] stageSquaredDemand = new double[3];
+    private final long[] stageSaturatedSamples = new long[3];
 
     enum AutoState {
         OUTBOUND_CURVE,
@@ -64,6 +77,7 @@ public class AutoTest extends LinearOpMode {
 
     @Override
     public void runOpMode() {
+        resetRunState();
         Follower follower = new Follower(new Constants(), hardwareMap);
         path = new ExampleAutoPath(follower, GeometryFactory.PoseMirror.NONE);
 
@@ -80,6 +94,7 @@ public class AutoTest extends LinearOpMode {
 
         while (opModeIsActive()) {
             follower.update();
+            sampleCommandDemand(follower);
             logOutboundVelocitySample(follower);
             Pose pose = follower.getPose();
             maximumCrossTrackError = Math.max(maximumCrossTrackError,
@@ -111,6 +126,7 @@ public class AutoTest extends LinearOpMode {
             telemetry.addData("Last maximum cross-track error (in)",
                     lastMaximumCrossTrackError);
             telemetry.addData("Outbound velocity CSV", outboundVelocityCsvPath);
+            telemetry.addData("Command demand", getCommandDemandReport());
             if (outboundVelocityCsvError != null) {
                 telemetry.addData("Velocity CSV warning", outboundVelocityCsvError);
             }
@@ -220,6 +236,78 @@ public class AutoTest extends LinearOpMode {
     public String getOutboundVelocityCsvPath() { return outboundVelocityCsvPath; }
 
     public String getOutboundVelocityCsvError() { return outboundVelocityCsvError; }
+
+    /** Summarizes raw controller demand before command normalization. */
+    public String getCommandDemandReport() {
+        double rms = demandSamples == 0 ? 0.0 :
+                Math.sqrt(squaredTotalDemand / demandSamples);
+        StringBuilder report = new StringBuilder(String.format(Locale.US,
+                "samples=%d, saturated=%.1f%%, total peak=%.3f, total RMS=%.3f",
+                demandSamples, demandSamples == 0 ? 0.0 :
+                        100.0 * saturatedDemandSamples / demandSamples,
+                peakTotalDemand, rms));
+        for (int i = 0; i < DEMAND_NAMES.length; i++) {
+            report.append(String.format(Locale.US, ", %s peak=%.3f, dominant=%d",
+                    DEMAND_NAMES[i], peakDemand[i], dominantSaturationFrames[i]));
+        }
+        String[] stageNames = {"corrective", "velocity", "feedforward"};
+        for (int i = 0; i < stageNames.length; i++) {
+            double stageRms = demandSamples == 0 ? 0.0 :
+                    Math.sqrt(stageSquaredDemand[i] / demandSamples);
+            report.append(String.format(Locale.US,
+                    ", %s stage peak=%.3f RMS=%.3f over-capacity=%.1f%%",
+                    stageNames[i], stagePeakDemand[i], stageRms,
+                    demandSamples == 0 ? 0.0 :
+                            100.0 * stageSaturatedSamples[i] / demandSamples));
+        }
+        return report.toString();
+    }
+
+    private void sampleCommandDemand(Follower follower) {
+        Follower.CommandDemand demand = follower.getLastCommandDemand();
+        if (!demand.available) { return; }
+        double[] components = {demand.crossTrack, demand.tangentCorrection,
+                demand.headingCorrection, demand.centripetal, demand.forwardVelocity,
+                demand.headingVelocity, demand.driveFeedforward, demand.headingFeedforward};
+        double[] stages = {demand.correctiveTotal, demand.velocityTotal,
+                demand.feedforwardTotal};
+        demandSamples++;
+        squaredTotalDemand += demand.total * demand.total;
+        peakTotalDemand = Math.max(peakTotalDemand, demand.total);
+        int dominant = 0;
+        for (int i = 0; i < components.length; i++) {
+            peakDemand[i] = Math.max(peakDemand[i], components[i]);
+            if (components[i] > components[dominant]) { dominant = i; }
+        }
+        if (demand.total > 1.0) {
+            saturatedDemandSamples++;
+            dominantSaturationFrames[dominant]++;
+        }
+        for (int i = 0; i < stages.length; i++) {
+            stagePeakDemand[i] = Math.max(stagePeakDemand[i], stages[i]);
+            stageSquaredDemand[i] += stages[i] * stages[i];
+            if (stages[i] > 1.0) { stageSaturatedSamples[i]++; }
+        }
+    }
+
+    private void resetRunState() {
+        closeOutboundVelocityCsv();
+        currentState = AutoState.OUTBOUND_CURVE;
+        failureReason = "None";
+        passedStages = 0;
+        lastPositionError = lastHeadingError = maximumCrossTrackError =
+                lastMaximumCrossTrackError = 0.0;
+        outboundVelocityCsvPath = "Not started";
+        outboundVelocityCsvError = null;
+        outboundVelocityRowsSinceFlush = 0;
+        demandSamples = saturatedDemandSamples = 0;
+        squaredTotalDemand = peakTotalDemand = 0.0;
+        Arrays.fill(peakDemand, 0.0);
+        Arrays.fill(dominantSaturationFrames, 0);
+        Arrays.fill(stagePeakDemand, 0.0);
+        Arrays.fill(stageSquaredDemand, 0.0);
+        Arrays.fill(stageSaturatedSamples, 0);
+    }
 
     private void openOutboundVelocityCsv() {
         if (!path.testPath.isProfiled()) {
