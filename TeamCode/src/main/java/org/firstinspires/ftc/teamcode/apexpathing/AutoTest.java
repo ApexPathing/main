@@ -35,6 +35,9 @@ public class AutoTest extends LinearOpMode {
     private static final double STAGE_TIMEOUT_SECONDS = 50.0;
     private static final double POSITION_TOLERANCE_INCHES = 3.0;
     private static final double HEADING_TOLERANCE_DEGREES = 5.0;
+    private static final double TELEMETRY_INTERVAL_SECONDS = 0.10;
+    private static final double VELOCITY_LOG_INTERVAL_SECONDS = 0.02;
+    private static final long CONTROL_LOOP_NANOS = 20_000_000L;
     // This is a coarse stress-test curve, not the endpoint acceptance tolerance. Leave enough
     // margin for the measured transient (~7.2 in in FTCodeSim) while still catching gross drift.
     private static final double CROSS_TRACK_TOLERANCE_INCHES = 15;
@@ -42,6 +45,7 @@ public class AutoTest extends LinearOpMode {
     ExampleAutoPath path;
     AutoState currentState = AutoState.OUTBOUND_CURVE;
     private final ElapsedTime stageTimer = new ElapsedTime();
+    private final ElapsedTime telemetryTimer = new ElapsedTime();
     private String failureReason = "None";
     private int passedStages;
     private double lastPositionError;
@@ -52,6 +56,7 @@ public class AutoTest extends LinearOpMode {
     private String outboundVelocityCsvPath = "Not started";
     private String outboundVelocityCsvError;
     private int outboundVelocityRowsSinceFlush;
+    private double lastOutboundVelocityLogSeconds = Double.NEGATIVE_INFINITY;
     private static final String[] DEMAND_NAMES = {"cross-track", "tangent correction",
             "heading correction", "centripetal", "forward velocity", "heading velocity",
             "drive feedforward", "heading feedforward"};
@@ -95,6 +100,7 @@ public class AutoTest extends LinearOpMode {
         startStage(follower, currentState);
 
         while (opModeIsActive()) {
+            long loopStartedNanos = System.nanoTime();
             follower.update();
             sampleCommandDemand(follower);
             logOutboundVelocitySample(follower);
@@ -111,33 +117,37 @@ public class AutoTest extends LinearOpMode {
                 }
             }
 
-            if (currentState == AutoState.COMPLETE) {
-                telemetry.addLine("PASS: all Apex follower checks completed.");
-            } else if (currentState == AutoState.FAILED) {
-                telemetry.addLine("FAIL: " + failureReason);
-            }
+            if (telemetryTimer.seconds() >= TELEMETRY_INTERVAL_SECONDS ||
+                    isTerminal(currentState)) {
+                if (currentState == AutoState.COMPLETE) {
+                    telemetry.addLine("PASS: all Apex follower checks completed.");
+                } else if (currentState == AutoState.FAILED) {
+                    telemetry.addLine("FAIL: " + failureReason);
+                }
 
-            telemetry.addData("Current check", currentState);
-            telemetry.addData("Passed checks", passedStages + " / 5");
-            telemetry.addData("Stage time (s)", stageTimer.seconds());
-            telemetry.addData("Follower busy", follower.isBusy());
-            telemetry.addData("Callback state", path.callbackMessage);
-            telemetry.addData("Last endpoint position error (in)", lastPositionError);
-            telemetry.addData("Last endpoint heading error (deg)", lastHeadingError);
-            telemetry.addData("Current maximum cross-track error (in)",
-                    maximumCrossTrackError);
-            telemetry.addData("Last maximum cross-track error (in)",
-                    lastMaximumCrossTrackError);
-            telemetry.addData("Outbound velocity CSV", outboundVelocityCsvPath);
-            telemetry.addData("Command demand", getCommandDemandReport());
-            if (outboundVelocityCsvError != null) {
-                telemetry.addData("Velocity CSV warning", outboundVelocityCsvError);
+                telemetry.addData("Current check", currentState);
+                telemetry.addData("Passed checks", passedStages + " / 5");
+                telemetry.addData("Stage time (s)", stageTimer.seconds());
+                telemetry.addData("Follower busy", follower.isBusy());
+                telemetry.addData("Callback state", path.callbackMessage);
+                telemetry.addData("Last endpoint position error (in)", lastPositionError);
+                telemetry.addData("Last endpoint heading error (deg)", lastHeadingError);
+                telemetry.addData("Current maximum cross-track error (in)",
+                        maximumCrossTrackError);
+                telemetry.addData("Last maximum cross-track error (in)",
+                        lastMaximumCrossTrackError);
+                telemetry.addData("Outbound velocity CSV", outboundVelocityCsvPath);
+                telemetry.addData("Command demand", getCommandDemandReport());
+                if (outboundVelocityCsvError != null) {
+                    telemetry.addData("Velocity CSV warning", outboundVelocityCsvError);
+                }
+                telemetry.addData("X (in)", pose.getX().getIn());
+                telemetry.addData("Y (in)", pose.getY().getIn());
+                telemetry.addData("Heading (deg)", pose.getHeading().getDeg());
+                telemetry.update();
+                telemetryTimer.reset();
             }
-            telemetry.addData("X (in)", pose.getX().getIn());
-            telemetry.addData("Y (in)", pose.getY().getIn());
-            telemetry.addData("Heading (deg)", pose.getHeading().getDeg());
-            telemetry.update();
-            sleep(20);
+            waitForNextControlLoop(loopStartedNanos);
         }
 
         closeOutboundVelocityCsv();
@@ -248,6 +258,19 @@ public class AutoTest extends LinearOpMode {
         return total;
     }
 
+    /** Yields to hardware while maintaining a complete 20 ms control-loop period. */
+    private void waitForNextControlLoop(long loopStartedNanos) {
+        long deadline = loopStartedNanos + CONTROL_LOOP_NANOS;
+        if (deadline - System.nanoTime() > 6_000_000L) { sleep(5); }
+        while (opModeIsActive() && System.nanoTime() < deadline) { Thread.yield(); }
+    }
+
+    /** Returns the average active follower update period in milliseconds. */
+    public double getAverageLoopMilliseconds() {
+        return demandSamples == 0 ? 0.0 :
+                1000.0 * getTotalMovementTimeSeconds() / demandSamples;
+    }
+
     /** Returns a concise timing breakdown for performance regression tests. */
     public String getMovementTimingReport() {
         return String.format(Locale.US,
@@ -258,7 +281,8 @@ public class AutoTest extends LinearOpMode {
                 movementDurations[1], settlingDelay(1),
                 movementDurations[2], settlingDelay(2),
                 movementDurations[3], settlingDelay(3),
-                movementDurations[4], settlingDelay(4), getTotalMovementTimeSeconds());
+                movementDurations[4], settlingDelay(4),
+                getTotalMovementTimeSeconds());
     }
 
     private double settlingDelay(int stage) {
@@ -345,6 +369,8 @@ public class AutoTest extends LinearOpMode {
         outboundVelocityCsvPath = "Not started";
         outboundVelocityCsvError = null;
         outboundVelocityRowsSinceFlush = 0;
+        lastOutboundVelocityLogSeconds = Double.NEGATIVE_INFINITY;
+        telemetryTimer.reset();
         demandSamples = saturatedDemandSamples = 0;
         squaredTotalDemand = peakTotalDemand = 0.0;
         Arrays.fill(peakDemand, 0.0);
@@ -374,7 +400,8 @@ public class AutoTest extends LinearOpMode {
             outboundVelocityCsvPath = file.getAbsolutePath();
             outboundVelocityCsv.write(
                     "elapsed_s,path_distance_in,target_velocity_in_s,raw_velocity_in_s," +
-                            "kalman_velocity_in_s,heading_error_rad,command_power,saturated\n");
+                            "kalman_velocity_in_s,cross_track_error_in,curvature_in_inv," +
+                            "heading_error_rad,command_power,saturated\n");
         } catch (IOException e) {
             outboundVelocityCsv = null;
             outboundVelocityCsvPath = "Unavailable";
@@ -384,6 +411,9 @@ public class AutoTest extends LinearOpMode {
 
     private void logOutboundVelocitySample(Follower follower) {
         if (outboundVelocityCsv == null || currentState != AutoState.OUTBOUND_CURVE) { return; }
+        double elapsed = stageTimer.seconds();
+        if (elapsed - lastOutboundVelocityLogSeconds < VELOCITY_LOG_INTERVAL_SECONDS) { return; }
+        lastOutboundVelocityLogSeconds = elapsed;
 
         PathSegment segment = path.testPath.getParametricPath();
         double t = follower.getBestT();
@@ -396,6 +426,8 @@ public class AutoTest extends LinearOpMode {
         double kalmanVelocity = follower.getVelocity().getVec().dot(tangent).getIn();
         double headingError = follower.getPose().getHeading().getShortestAngleTo(
                 path.testPath.getEndPose().getHeading()).getRad();
+        double crossTrackError = follower.getCrossTrackErrorIn();
+        double curvature = segment.getSignedCurvature(t);
         double commandPower = Math.max(Math.max(
                         Math.abs(follower.getDrivetrain().getLastFlPower()),
                         Math.abs(follower.getDrivetrain().getLastFrPower())),
@@ -404,9 +436,11 @@ public class AutoTest extends LinearOpMode {
 
         try {
             outboundVelocityCsv.write(String.format(
-                    Locale.US, "%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%s%n",
-                    stageTimer.seconds(), traveled, target.getTangentialVel(), rawVelocity,
-                    kalmanVelocity, headingError, commandPower, commandPower >= 0.98));
+                    Locale.US,
+                    "%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%s%n",
+                    elapsed, traveled, target.getTangentialVel(), rawVelocity,
+                    kalmanVelocity, crossTrackError, curvature, headingError,
+                    commandPower, commandPower >= 0.98));
             outboundVelocityRowsSinceFlush++;
             if (outboundVelocityRowsSinceFlush >= 25) {
                 outboundVelocityCsv.flush();

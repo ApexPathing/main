@@ -54,7 +54,10 @@ public class Follower {
     private static final double PROFILED_HEADING_CAPTURE_RADIANS = Math.toRadians(10.0);
     private static final double SETTLED_LINEAR_VELOCITY_SQ = 64.0;
     private static final double SETTLED_ANGULAR_VELOCITY = 0.25;
-    private static final double COMPLETION_DWELL_SECONDS = 0.20;
+    private static final double COMPLETION_DWELL_SECONDS = 0.10;
+    private static final double MAX_CENTRIPETAL_POWER = 0.65;
+    private static final double PROGRESS_VELOCITY_FILTER_SECONDS = 0.08;
+    private static final double MAX_PROGRESS_SAMPLE_SECONDS = 0.10;
     private static final double MIN_COMPLETION_DISTANCE_INCHES = 1.0;
     private static final double MIN_COMPLETION_HEADING_RADIANS = Math.toRadians(2.0);
     private final FollowerConstants constants;
@@ -101,6 +104,9 @@ public class Follower {
     private Vector centripetalCorrection = Vector.zero();
     private CommandDemand lastCommandDemand = CommandDemand.ZERO;
     private long completionToleranceEnteredNanos;
+    private double previousPathDistanceIn = Double.NaN;
+    private double pathProgressVelocityIn;
+    private long previousPathProgressNanos;
 
     /** Raw controller demand from the most recent holonomic update, before normalization. */
     public static final class CommandDemand {
@@ -294,6 +300,29 @@ public class Follower {
         return (now - completionToleranceEnteredNanos) * 1e-9 >= COMPLETION_DWELL_SECONDS;
     }
 
+    /** Estimates useful along-path speed while rejecting discontinuous timing samples. */
+    private double updatePathProgressVelocity(double distanceTraveled,
+                                              double measuredTangentialVelocity) {
+        long now = System.nanoTime();
+        if (!Double.isFinite(previousPathDistanceIn) || previousPathProgressNanos == 0L) {
+            previousPathDistanceIn = distanceTraveled;
+            previousPathProgressNanos = now;
+            pathProgressVelocityIn = measuredTangentialVelocity;
+            return pathProgressVelocityIn;
+        }
+        double dt = (now - previousPathProgressNanos) * 1e-9;
+        double distanceDelta = distanceTraveled - previousPathDistanceIn;
+        previousPathDistanceIn = distanceTraveled;
+        previousPathProgressNanos = now;
+        if (dt <= 1e-4 || dt > MAX_PROGRESS_SAMPLE_SECONDS || distanceDelta < 0.0) {
+            return pathProgressVelocityIn;
+        }
+        double sample = distanceDelta / dt;
+        double alpha = dt / (PROGRESS_VELOCITY_FILTER_SECONDS + dt);
+        pathProgressVelocityIn += alpha * (sample - pathProgressVelocityIn);
+        return pathProgressVelocityIn;
+    }
+
     // endregion
     // Public methods
 
@@ -465,7 +494,9 @@ public class Follower {
             HolonomicDriveModel driveModel = getActiveHolonomicDriveModel();
 
 // Localizers report field-axis velocity. Project it directly onto the path tangent;
-            double robotTangentialVel = robotVel.dot(unitTangent).getIn();
+            double measuredTangentialVelocity = robotVel.dot(unitTangent).getIn();
+            double robotTangentialVel = updatePathProgressVelocity(
+                    distanceTraveled, measuredTangentialVelocity);
 
 // Calculate heading power allocation
             Angle headingTarg = path.getInterpolator().getHeadingTarg(s, velVec, endTangent);
@@ -614,20 +645,23 @@ public class Follower {
                     Math.abs(feedbackRobot.getY().getIn()) + Math.abs(headingFeedback)
                     : feedbackRobot.getMag().getIn() + Math.abs(headingFeedback);
 
-            // Stage 2: propulsion and angular feedforward receive the remaining power.
+            // Stage 2: translational propulsion receives the remaining power first.
             Vector feedforwardRobot = unitTangent.times(totalTangentPower)
                     .rotate(Angle.fromRad(-currentHeading.getRad()));
-            double feedforwardDemand = anisotropic
-                    ? Math.abs(feedforwardRobot.getX().getIn()) +
-                    Math.abs(feedforwardRobot.getY().getIn()) + Math.abs(headingFF)
-                    : feedforwardRobot.getMag().getIn() + Math.abs(headingFF);
             double rawHeadingFeedforwardDemand = Math.abs(headingFF);
+            double driveFeedforwardDemand = anisotropic
+                    ? Math.abs(feedforwardRobot.getX().getIn()) +
+                    Math.abs(feedforwardRobot.getY().getIn())
+                    : feedforwardRobot.getMag().getIn();
+            double feedforwardDemand = driveFeedforwardDemand + Math.abs(headingFF);
             double remaining = Math.max(0.0, 1.0 - feedbackDemand);
-            double feedforwardScale = remainingScale(feedforwardDemand, remaining);
-            feedforwardRobot = feedforwardRobot.times(feedforwardScale);
-            headingFF *= feedforwardScale;
+            double driveFeedforwardScale = remainingScale(driveFeedforwardDemand, remaining);
+            feedforwardRobot = feedforwardRobot.times(driveFeedforwardScale);
+            remaining = Math.max(0.0,
+                    remaining - driveFeedforwardDemand * driveFeedforwardScale);
 
-            // Stage 3: forward and heading velocity feedback share the leftover capacity.
+            // Stage 3: forward and heading velocity feedback share the capacity left by
+            // corrective control and translational propulsion.
             Vector velocityFeedbackRobot = unitTangent.times(tangentVelocityFeedback)
                     .rotate(Angle.fromRad(-currentHeading.getRad()));
             double velocityFeedbackDemand = anisotropic
@@ -637,11 +671,15 @@ public class Follower {
                     : velocityFeedbackRobot.getMag().getIn() +
                     Math.abs(headingVelocityFeedback);
             double rawHeadingVelocityDemand = Math.abs(headingVelocityFeedback);
-            remaining = Math.max(0.0,
-                    remaining - feedforwardDemand * feedforwardScale);
             double velocityFeedbackScale = remainingScale(velocityFeedbackDemand, remaining);
             velocityFeedbackRobot = velocityFeedbackRobot.times(velocityFeedbackScale);
             headingVelocityFeedback *= velocityFeedbackScale;
+
+            // Predictive angular power uses only capacity left after correction, propulsion,
+            // and velocity tracking.
+            remaining = Math.max(0.0,
+                    remaining - velocityFeedbackDemand * velocityFeedbackScale);
+            headingFF *= remainingScale(Math.abs(headingFF), remaining);
 
             lastCommandDemand = new CommandDemand(true,
                     crossTrackCorrection.getMag().getIn(), Math.abs(tangentFeedback),
@@ -777,6 +815,9 @@ public class Follower {
 
         this.currentMovement = movement;
         this.completionToleranceEnteredNanos = 0L;
+        this.previousPathDistanceIn = Double.NaN;
+        this.previousPathProgressNanos = 0L;
+        this.pathProgressVelocityIn = 0.0;
         this.currentMovement.setStarted(true);
         this.currentMovement.setEnded(false);
         this.targetHeading = movement.getEndPose().getHeading();
@@ -826,6 +867,9 @@ public class Follower {
         this.turnDirection = 0.0;
         this.turnTotalDisplacement = 0.0;
         this.completionToleranceEnteredNanos = 0L;
+        this.previousPathDistanceIn = Double.NaN;
+        this.previousPathProgressNanos = 0L;
+        this.pathProgressVelocityIn = 0.0;
 
         diagnostics.clearCurrentPath();
 
@@ -1025,7 +1069,7 @@ public class Follower {
                                                   double gain) {
         double magnitude = tangentialVelocity * tangentialVelocity *
                 Math.abs(signedCurvature) * gain;
-        return principalNormal.times(magnitude);
+        return principalNormal.times(Math.min(magnitude, MAX_CENTRIPETAL_POWER));
     }
 
     /** Uses acceleration to select static-friction direction while a profile starts from rest. */

@@ -23,7 +23,7 @@ import controllers.PDSController.PDSCoefficients;
 import paths.movements.Path;
 
 public class AutoTestSimulationTest {
-    private static final double MAX_TOTAL_MOVEMENT_SECONDS = 36.0;
+    private static final double MAX_TOTAL_MOVEMENT_SECONDS = 30.0;
 
     @Test(timeout = 130_000L)
     public void autoTestCompletesEveryMovement() throws Exception {
@@ -49,6 +49,7 @@ public class AutoTestSimulationTest {
             }
             Path outbound = auto.getOutboundPath();
             assertTrue("Auto Test did not finish building its outbound path", outbound != null);
+            long routeStartedNanos = System.nanoTime();
             SimLinearOpModeBridge.start(session);
             long deadline = System.nanoTime() + 100_000_000_000L;
             while (!latest(frames).contains("Current check COMPLETE") &&
@@ -58,14 +59,22 @@ public class AutoTestSimulationTest {
             }
 
             String frame = latest(frames);
+            double routeRunSeconds = (System.nanoTime() - routeStartedNanos) * 1e-9;
             assertFalse("Auto Test failed after its outbound path:\n" + frame,
                     frame.contains("Current check FAILED"));
             assertTrue("Auto Test did not complete every movement:\n" + frame,
                     frame.contains("Current check COMPLETE"));
             System.out.println("AUTO TEST COMMAND DEMAND: " + auto.getCommandDemandReport());
             System.out.println("AUTO TEST TIMING: " + auto.getMovementTimingReport());
-            assertTrue("Auto Test following regressed: " + auto.getMovementTimingReport(),
-                    auto.getTotalMovementTimeSeconds() <= MAX_TOTAL_MOVEMENT_SECONDS);
+            System.out.println("AUTO TEST EXTERNAL RUNTIME: " + routeRunSeconds + " s");
+            System.out.println("AUTO TEST LOOP: " + auto.getAverageLoopMilliseconds() + " ms");
+            assertTrue("Auto Test loop was not approximately 20 ms: " +
+                            auto.getAverageLoopMilliseconds(),
+                    auto.getAverageLoopMilliseconds() >= 17.0 &&
+                            auto.getAverageLoopMilliseconds() <= 23.0);
+            assertTrue("Auto Test following regressed: external=" + routeRunSeconds +
+                            "s, internal=" + auto.getMovementTimingReport(),
+                    routeRunSeconds <= MAX_TOTAL_MOVEMENT_SECONDS);
             if (outbound.isProfiled()) {
                 File velocityCsv = new File(auto.getOutboundVelocityCsvPath());
                 assertTrue("Profiled outbound velocity CSV was not created: path=" +
