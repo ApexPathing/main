@@ -3,9 +3,13 @@ package tuning;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import geometry.AngleUnit;
+import geometry.Dist;
 import geometry.DistUnit;
 import geometry.GeometryFactory;
+import geometry.PathPoint;
 import geometry.Pose;
+import paths.constraint.PathConstraint;
+import paths.constraint.TranslationalConstraint;
 import paths.heading.InterpolationStyle;
 import paths.movements.Path;
 
@@ -17,10 +21,13 @@ import paths.movements.Path;
  * @author Dylan B. - 18597 RoboClovers - Delta
  */
 public class CentripetalPhase extends TuningPhase {
-    private static final double LEG_TIMEOUT_SECONDS = 15.0;
+    private static final double LEG_TIMEOUT_SECONDS = 25.0;
     private static final double TURNAROUND_PROGRESS = 0.985;
     private static final double TURNAROUND_DISTANCE_INCHES = 1.5;
     private static final double TURNAROUND_SPEED_INCHES_PER_SECOND = 6.0;
+    private static final double TEST_POWER_FRACTION = 0.55;
+    private static final double ERROR_DEADBAND_INCHES = 0.15;
+    private static final int TRIALS_PER_GAIN = 1;
 
     private BinarySearch search;
     private Path forwardArc;
@@ -32,6 +39,8 @@ public class CentripetalPhase extends TuningPhase {
     private double averageError;
     private boolean trialRunning;
     private int trialNumber;
+    private int candidateTrials;
+    private double candidateErrorSum;
     private TuningCsvWriter manualCsv;
     private String manualCsvPath = "Not started";
     private final ElapsedTime legTimer = new ElapsedTime();
@@ -76,11 +85,20 @@ public class CentripetalPhase extends TuningPhase {
 
         double fullStrafeAcceleration = context.constants.strafeAccelLimitIn /
                 LimitsPhase.MARGIN_MULTIPLIER;
+        double nominalGain = 1.0 / fullStrafeAcceleration;
         double seed = context.constants.kCentripetal > 0.0 ?
-                context.constants.kCentripetal : 1.0 / fullStrafeAcceleration;
-        double upper = Math.max(seed * 2.0, 2.0 / fullStrafeAcceleration);
+                context.constants.kCentripetal : nominalGain;
+        double lower = 0.25 * nominalGain;
+        double upper = 1.25 * nominalGain;
 
-        search = new BinarySearch(0.0, upper, upper / 64.0);
+        double testVelocity = safeTestVelocity(forwardArc, upper,
+                context.constants.forwardVelLimitIn);
+        forwardArc.addConstraint(new TranslationalConstraint(0.0,
+                PathConstraint.Type.VELOCITY, Dist.fromIn(testVelocity)));
+        backwardArc.addConstraint(new TranslationalConstraint(0.0,
+                PathConstraint.Type.VELOCITY, Dist.fromIn(testVelocity)));
+
+        search = new BinarySearch(lower, upper, (upper - lower) / 64.0);
         context.constants.kCentripetal = manualMode ? seed : search.current();
 
         if (manualMode) {
@@ -92,6 +110,8 @@ public class CentripetalPhase extends TuningPhase {
                     "trial", "time_s", "gain", "direction", "path_t", "signed_error_in");
             manualCsvPath = manualCsv.getPath();
         } else {
+            candidateTrials = 0;
+            candidateErrorSum = 0.0;
             resetTrial();
         }
     }
@@ -222,16 +242,53 @@ public class CentripetalPhase extends TuningPhase {
             return false;
         }
 
-        search.advance(averageError > 0.0 ? BinarySearch.SearchDirection.HIGHER : BinarySearch.SearchDirection.LOWER);
+        candidateErrorSum += averageError;
+        candidateTrials++;
+        if (candidateTrials < TRIALS_PER_GAIN) {
+            resetTrial();
+            return false;
+        }
+
+        averageError = candidateErrorSum / candidateTrials;
+        search.advance(searchDirection(averageError));
         context.constants.kCentripetal = search.current();
         context.getFollower().setCentripetal(context.constants.kCentripetal);
         if (!search.hasConverged()) {
+            candidateTrials = 0;
+            candidateErrorSum = 0.0;
             resetTrial();
         } else {
             return true;
         }
 
         return false;
+    }
+
+    /** Chooses a test speed that keeps every candidate below centripetal saturation. */
+    static double safeTestVelocity(Path path, double maximumGain, double velocityLimit) {
+        double maximumCurvature = 0.0;
+        for (PathPoint point : path.getGeneratedPoints()) {
+            if (point.getT() < 0.20 || point.getT() > 0.80) { continue; }
+            double curvature = Math.abs(point.getSignedCurvature());
+            if (Double.isFinite(curvature)) {
+                maximumCurvature = Math.max(maximumCurvature, curvature);
+            }
+        }
+        if (maximumCurvature <= 1e-9 || maximumGain <= 1e-9) {
+            return velocityLimit;
+        }
+        double curvatureLimited = Math.sqrt(
+                TEST_POWER_FRACTION / (maximumCurvature * maximumGain));
+        if (!Double.isFinite(curvatureLimited)) { return 0.25 * velocityLimit; }
+        return Math.max(0.35 * velocityLimit,
+                Math.min(0.60 * velocityLimit, curvatureLimited));
+    }
+
+    /** Treats small residual error as adequate and favors the less aggressive gain. */
+    static BinarySearch.SearchDirection searchDirection(double signedError) {
+        return signedError > ERROR_DEADBAND_INCHES
+                ? BinarySearch.SearchDirection.HIGHER
+                : BinarySearch.SearchDirection.LOWER;
     }
 
     @Override

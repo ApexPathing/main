@@ -586,8 +586,13 @@ public class Follower {
                     double maxVel = commandedForwardVelocity;
                     double velError = maxVel - robotTangentialVel;
                     tangentVelocityFeedback = velError * velocityFeedbackGain;
+                    double propulsionStatic = Math.abs(robotTangentialVel) <
+                            ENDPOINT_STALLED_VELOCITY_IN_PER_SECOND
+                            ? Math.max(constants.translationalFeedforwardKS,
+                            constants.translationalCoeffs.kS)
+                            : constants.translationalFeedforwardKS;
                     double feedforwardPower = maxVel * translationalKV
-                            + Math.signum(maxVel) * constants.translationalFeedforwardKS;
+                            + Math.signum(maxVel) * propulsionStatic;
                     double accelPower = feedforwardPower + tangentVelocityFeedback;
 
                     if (decelPower <= accelPower) {
