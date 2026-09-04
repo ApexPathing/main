@@ -113,7 +113,8 @@ public class TankProfileGenerator extends BaseProfileGenerator {
         double omega = fPrime * v;
         double alpha = fDoublePrime * (v * v) + fPrime * a_t;
 
-        double pForward = v * constants.translationalKV + a_t * constants.translationalKA
+        double pForward = v * constants.translationalKV +
+                a_t * constants.getTranslationalKA(v, a_t)
                         + signedStatic(v, a_t, constants.translationalFeedforwardKS);
 
         double headingKs = signedStatic(omega, alpha, constants.angularFeedforwardKS);

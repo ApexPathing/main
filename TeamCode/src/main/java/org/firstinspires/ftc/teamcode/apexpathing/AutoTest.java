@@ -400,8 +400,13 @@ public class AutoTest extends LinearOpMode {
             outboundVelocityCsvPath = file.getAbsolutePath();
             outboundVelocityCsv.write(
                     "elapsed_s,path_distance_in,target_velocity_in_s,raw_velocity_in_s," +
-                            "kalman_velocity_in_s,cross_track_error_in,curvature_in_inv," +
-                            "heading_error_rad,command_power,saturated\n");
+                            "kalman_velocity_in_s,target_accel_in_s2,target_omega_rad_s," +
+                            "target_alpha_rad_s2,profile_power,cross_track_error_in," +
+                            "curvature_in_inv,target_heading_rad,heading_error_rad," +
+                            "cross_track_power,tangent_correction_power,heading_correction_power," +
+                            "centripetal_power,forward_velocity_power,heading_velocity_power," +
+                            "drive_feedforward_power,heading_feedforward_power,total_demand," +
+                            "command_power,saturated\n");
         } catch (IOException e) {
             outboundVelocityCsv = null;
             outboundVelocityCsvPath = "Unavailable";
@@ -424,10 +429,14 @@ public class AutoTest extends LinearOpMode {
         Vector tangent = segment.getFirstDerivative(t).normalize();
         double rawVelocity = follower.getRawVelocity().getVec().dot(tangent).getIn();
         double kalmanVelocity = follower.getVelocity().getVec().dot(tangent).getIn();
+        Vector finalTangent = segment.getFirstDerivative(1.0).normalize();
+        double targetHeading = path.testPath.getInterpolator()
+                .getHeadingTarg(remaining, segment.getFirstDerivative(t), finalTangent).getRad();
         double headingError = follower.getPose().getHeading().getShortestAngleTo(
-                path.testPath.getEndPose().getHeading()).getRad();
+                geometry.Angle.fromRad(targetHeading)).getRad();
         double crossTrackError = follower.getCrossTrackErrorIn();
         double curvature = segment.getSignedCurvature(t);
+        Follower.CommandDemand demand = follower.getLastCommandDemand();
         double commandPower = Math.max(Math.max(
                         Math.abs(follower.getDrivetrain().getLastFlPower()),
                         Math.abs(follower.getDrivetrain().getLastFrPower())),
@@ -437,9 +446,16 @@ public class AutoTest extends LinearOpMode {
         try {
             outboundVelocityCsv.write(String.format(
                     Locale.US,
-                    "%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%s%n",
+                    "%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f," +
+                            "%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f," +
+                            "%.6f,%.6f,%.6f,%.6f,%s%n",
                     elapsed, traveled, target.getTangentialVel(), rawVelocity,
-                    kalmanVelocity, crossTrackError, curvature, headingError,
+                    kalmanVelocity, target.getTangentialAccel(), target.getAngularVel(),
+                    target.getAngularAccel(), target.getMotorPower(), crossTrackError, curvature,
+                    targetHeading, headingError, demand.crossTrack, demand.tangentCorrection,
+                    demand.headingCorrection, demand.centripetal, demand.forwardVelocity,
+                    demand.headingVelocity, demand.driveFeedforward, demand.headingFeedforward,
+                    demand.total,
                     commandPower, commandPower >= 0.98));
             outboundVelocityRowsSinceFlush++;
             if (outboundVelocityRowsSinceFlush >= 25) {

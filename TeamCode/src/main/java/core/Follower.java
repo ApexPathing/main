@@ -49,16 +49,20 @@ public class Follower {
     };
     private static volatile FollowerDiagnostics diagnostics = NO_DIAGNOSTICS;
 
-    private static final double PROFILED_ENDPOINT_CAPTURE_DISTANCE_INCHES = 4.0;
+    private static final double PROFILED_ENDPOINT_CAPTURE_DISTANCE_INCHES = 8.0;
     private static final double ENDPOINT_STALLED_VELOCITY_IN_PER_SECOND = 0.25;
     private static final double PROFILED_HEADING_CAPTURE_RADIANS = Math.toRadians(10.0);
     private static final double SETTLED_LINEAR_VELOCITY_SQ = 64.0;
     private static final double SETTLED_ANGULAR_VELOCITY = 0.25;
+    /** Point turns need a tighter stop gate than moving paths to avoid coasting after completion. */
+    private static final double TURN_SETTLED_ANGULAR_VELOCITY = 0.10;
     private static final double COMPLETION_DWELL_SECONDS = 0.10;
     private static final double MAX_CENTRIPETAL_POWER = 0.65;
     private static final double PROGRESS_VELOCITY_FILTER_SECONDS = 0.08;
     private static final double MAX_PROGRESS_SAMPLE_SECONDS = 0.10;
-    private static final double MIN_COMPLETION_DISTANCE_INCHES = 1.0;
+    /** Keep spatial profiles commanding enough propulsion to avoid becoming pinned at rest. */
+    private static final double MIN_PROFILE_MOVEMENT_VELOCITY_IN_PER_SECOND = 6.0;
+    private static final double MIN_COMPLETION_DISTANCE_INCHES = 1.5;
     private static final double MIN_COMPLETION_HEADING_RADIANS = Math.toRadians(2.0);
     private final FollowerConstants constants;
     private final BaseDrivetrain<?> drivetrain;
@@ -94,6 +98,8 @@ public class Follower {
     private Vector targetTurnPoseVec;
     private double turnDirection;
     private double turnTotalDisplacement;
+    private double turnProfileElapsedSeconds;
+    private long turnProfileLastUpdateNanos;
     private double crossTrackError;
     private double centripetalError;
     private double t;
@@ -384,6 +390,13 @@ public class Follower {
             Turn turn = (Turn) currentMovement;
             double headingError = currentHeading.getShortestAngleTo(targetHeading).getRad();
 
+            long turnNow = System.nanoTime();
+            if (turnProfileLastUpdateNanos != 0L) {
+                turnProfileElapsedSeconds += Math.max(
+                        0.0, (turnNow - turnProfileLastUpdateNanos) * 1e-9);
+            }
+            turnProfileLastUpdateNanos = turnNow;
+
             // Process angular callbacks (-1 s value is used to indicate a turn)
             processCallbacks(-1.0, currentHeading);
 
@@ -392,8 +405,13 @@ public class Follower {
             double currentAngularVel = localizer.getVel().getHeading().getRad();
             boolean turnInsideTolerance = Math.abs(headingError) < Math.max(
                     headingTol, MIN_COMPLETION_HEADING_RADIANS);
-            if (completionReady(turnInsideTolerance,
-                    Math.abs(currentAngularVel) < SETTLED_ANGULAR_VELOCITY)) {
+            // A turn must satisfy both gates. The path completion dwell intentionally permits a
+            // continuously accurate moving path to finish, but applying that fallback here can
+            // cut motor power while the chassis still carries significant angular momentum.
+            boolean turnProfileComplete = turn.getFeedforwardLut() == null ||
+                    turnProfileElapsedSeconds >= turn.getFeedforwardLut().getDurationSeconds();
+            if (turnProfileComplete && turnInsideTolerance &&
+                    Math.abs(currentAngularVel) < TURN_SETTLED_ANGULAR_VELOCITY) {
                 this.stop();
                 return;
             }
@@ -404,14 +422,14 @@ public class Follower {
                         headingError, currentAngularVel,
                         Math.max(headingTol, MIN_COMPLETION_HEADING_RADIANS));
             } else {
-                double signedTravel = turn.getStartPose().getHeading()
-                        .getShortestAngleTo(currentHeading).getRad() * turnDirection;
-                double angularDisplacement = Range.clip(
-                        signedTravel, 0.0, turnTotalDisplacement);
                 MotionParameters turnTargets = turn.getFeedforwardLut()
-                        .getFFParams(angularDisplacement);
+                        .getFFParamsByTime(turnProfileElapsedSeconds);
+                Angle profileHeading = turn.getStartPose().getHeading().plus(
+                        Angle.fromRad(turnDirection * turnTargets.getDistAlongCurve()));
+                double profileHeadingError = currentHeading
+                        .getShortestAngleTo(profileHeading).getRad();
                 totalTurnPower = turnController.calculateProfiled(
-                        headingError,
+                        profileHeadingError,
                         turnDirection,
                         turnTargets,
                         currentAngularVel
@@ -477,7 +495,6 @@ public class Follower {
             Vector robotVel = localizer.getVel().getVec();
             double distanceRemaining = segment.getDistanceToEndIn(targetPoseVec, t);
             double kappa = segment.getSignedCurvature(t);
-            double dKappa = segment.getCurvatureDerivative(t);
 
             boolean isProfiled = path.isProfiled();
             double distanceTraveled = path.getParametricPath().getLengthIn() - s;
@@ -500,17 +517,17 @@ public class Follower {
 
 // Calculate heading power allocation
             Angle headingTarg = path.getInterpolator().getHeadingTarg(s, velVec, endTangent);
-            double fPrime = path.getInterpolator().getHeadingFirstDerivative(s, kappa, endTangent);
-            double fDoublePrime = path.getInterpolator().getHeadingSecondDerivative(s, dKappa,
-                    endTangent);
-
             double omegaTarget = 0.0;
             double headingFF = 0.0;
             if (isProfiled) {
-                omegaTarget = fPrime * targets.getTangentialVel();
-                double alphaTarget = fDoublePrime *
-                        (targets.getTangentialVel() * targets.getTangentialVel()) +
-                        fPrime * targets.getTangentialAccel();
+                double headingTimeScale = headingFeedforwardTimeScale(
+                        targets.getTangentialVel(), robotTangentialVel);
+                // Consume the angular state that the profile generator actually power-limited.
+                // Recomputing it from continuous curvature derivatives here bypasses the LUT's
+                // smoothing and can create enormous alpha spikes at spline segment boundaries.
+                omegaTarget = targets.getAngularVel() * headingTimeScale;
+                double alphaTarget = targets.getAngularAccel() *
+                        headingTimeScale * headingTimeScale;
 
                 headingFF = omegaTarget * angularKV + alphaTarget * angularKA;
                 if (Math.abs(omegaTarget) > 1e-6) {
@@ -545,6 +562,17 @@ public class Follower {
             double lateralFeedbackMag = driveControllerEnabled
                     ? driveController.calculateCrossTrack(
                     crossTrackError, applyCorrectiveStatic) : 0.0;
+            if (driveControllerEnabled) {
+                double measuredLateralVelocity = robotVel.dot(lateralNormal).getIn();
+                lateralFeedbackMag = ensureEndpointBreakawayPower(
+                        lateralFeedbackMag,
+                        crossTrackError,
+                        measuredLateralVelocity,
+                        constants.translationalCoeffs.kS,
+                        PDSController.LINEAR_STATIC_DEADBAND,
+                        distanceRemaining
+                );
+            }
             crossTrackCorrection = lateralNormal.times(lateralFeedbackMag);
 
             centripetalCorrection = calculateCentripetalCorrection(
@@ -555,20 +583,22 @@ public class Follower {
             double tangentVelocityFeedback = 0.0;
             if (t < 1.0) {
                 if (isProfiled) {
-                    double motionSign = feedforwardMotionSign(
-                            targets.getTangentialVel(), targets.getTangentialAccel());
-                    double feedforward = translationalKV * targets.getTangentialVel() +
-                            translationalKA * targets.getTangentialAccel() +
-                            motionSign * constants.translationalFeedforwardKS;
+                    double velocityTarget = Math.max(targets.getTangentialVel(),
+                            MIN_PROFILE_MOVEMENT_VELOCITY_IN_PER_SECOND);
+                    double feedforward = calculateTranslationFeedforward(
+                            velocityTarget, targets.getTangentialAccel(),
+                            translationalKV, translationalKA,
+                            constants.translationalFeedforwardKS);
 
                     // TODO: Verify p only feedback performance, compare to SquID
-                    tangentVelocityFeedback = (targets.getTangentialVel() - robotTangentialVel) *
+                    tangentVelocityFeedback = (velocityTarget - robotTangentialVel) *
                             velocityFeedbackGain;
                     totalTangentPower = feedforward;
 
                     if (path.isAccelBoosted()) {
                         double decelPower =
-                                driveController.calculateEndDistance(distanceRemaining);
+                                driveController.calculateEndDistance(
+                                        distanceRemaining, -measuredTangentialVelocity);
                         if (decelPower <= totalTangentPower + tangentVelocityFeedback) {
                             tangentFeedback = decelPower;
                             tangentVelocityFeedback = 0.0;
@@ -582,7 +612,8 @@ public class Follower {
                     double endDistanceError = distanceRemaining <
                             PROFILED_ENDPOINT_CAPTURE_DISTANCE_INCHES
                             ? signedEndpointError : distanceRemaining;
-                    double decelPower = driveController.calculateEndDistance(endDistanceError);
+                    double decelPower = driveController.calculateEndDistance(
+                            endDistanceError, -measuredTangentialVelocity);
                     double maxVel = commandedForwardVelocity;
                     double velError = maxVel - robotTangentialVel;
                     tangentVelocityFeedback = velError * velocityFeedbackGain;
@@ -611,12 +642,14 @@ public class Follower {
             } else {
                 // Apply reverse feedback if robot drifts past the final point
                 tangentFeedback = isProfiled ? 0.0 :
-                        driveController.calculateEndDistance(signedEndpointError);
+                        driveController.calculateEndDistance(
+                                signedEndpointError, -measuredTangentialVelocity);
                 totalTangentPower = 0.0;
             }
 
             if (isProfiled) {
-                double endpointPower = driveController.calculateEndDistance(signedEndpointError);
+                double endpointPower = driveController.calculateEndDistance(
+                        signedEndpointError, -measuredTangentialVelocity);
                 endpointPower = ensureEndpointBreakawayPower(
                         endpointPower, signedEndpointError, robotTangentialVel,
                         constants.translationalCoeffs.kS,
@@ -629,6 +662,23 @@ public class Follower {
                         endpointPower * endpointBlend;
                 tangentVelocityFeedback *= 1.0 - endpointBlend;
                 totalTangentPower *= 1.0 - endpointBlend;
+            }
+
+            // Feedforward and velocity feedback act on the same tangential axis. When they
+            // oppose one another, net them before allocating command capacity. Otherwise an
+            // overspeed brake is treated as an additional lower-priority load: propulsion
+            // consumes the budget first and the very correction that should cancel it is
+            // clipped. Preserve any residual correction as velocity feedback so its priority
+            // remains unchanged when it is strong enough to reverse the requested effort.
+            if (totalTangentPower * tangentVelocityFeedback < 0.0) {
+                double netTangentPower = totalTangentPower + tangentVelocityFeedback;
+                if (netTangentPower * totalTangentPower >= 0.0) {
+                    totalTangentPower = netTangentPower;
+                    tangentVelocityFeedback = 0.0;
+                } else {
+                    totalTangentPower = 0.0;
+                    tangentVelocityFeedback = netTangentPower;
+                }
             }
 
 // Stage 1: position, heading, and centripetal corrections share equal priority.
@@ -823,6 +873,8 @@ public class Follower {
         this.previousPathDistanceIn = Double.NaN;
         this.previousPathProgressNanos = 0L;
         this.pathProgressVelocityIn = 0.0;
+        this.turnProfileElapsedSeconds = 0.0;
+        this.turnProfileLastUpdateNanos = System.nanoTime();
         this.currentMovement.setStarted(true);
         this.currentMovement.setEnded(false);
         this.targetHeading = movement.getEndPose().getHeading();
@@ -871,6 +923,8 @@ public class Follower {
         this.targetTurnPoseVec = null;
         this.turnDirection = 0.0;
         this.turnTotalDisplacement = 0.0;
+        this.turnProfileElapsedSeconds = 0.0;
+        this.turnProfileLastUpdateNanos = 0L;
         this.completionToleranceEnteredNanos = 0L;
         this.previousPathDistanceIn = Double.NaN;
         this.previousPathProgressNanos = 0L;
@@ -892,6 +946,7 @@ public class Follower {
     /** Halts the current movement temporarily without clearing the target state */
     public void pause() {
         this.paused = true;
+        this.turnProfileLastUpdateNanos = 0L;
         this.drivetrain.stop();
     }
 
@@ -899,6 +954,7 @@ public class Follower {
     public void resume() {
         if (this.paused) {
             this.paused = false;
+            this.turnProfileLastUpdateNanos = System.nanoTime();
         }
     }
 
@@ -930,7 +986,8 @@ public class Follower {
 
         double minimumPower = Math.min(1.0, Math.abs(staticGain));
         if (Math.abs(requestedPower) >= minimumPower) { return requestedPower; }
-        return Math.copySign(minimumPower, endpointError);
+        return Range.clip(
+                requestedPower + Math.copySign(minimumPower, endpointError), -1.0, 1.0);
     }
 
     static double ensureAngularEndpointBreakawayPower(double requestedPower, double headingError,
@@ -1082,6 +1139,36 @@ public class Follower {
         if (Math.abs(targetVelocity) > 1e-6) { return Math.signum(targetVelocity); }
         if (Math.abs(targetAcceleration) > 1e-6) { return Math.signum(targetAcceleration); }
         return 0.0;
+    }
+
+    /**
+     * Returns the local time-dilation factor for path-parameterized heading feedforward.
+     *
+     * <p>If translation achieves only {@code lambda} of the profiled path speed, heading velocity
+     * scales by {@code lambda} and heading acceleration by {@code lambda^2}. Overspeed is clamped
+     * so it cannot demand more angular power than the generated profile reserved.
+     */
+    static double headingFeedforwardTimeScale(double targetTangentialVelocity,
+                                              double measuredTangentialVelocity) {
+        if (!Double.isFinite(targetTangentialVelocity) ||
+                !Double.isFinite(measuredTangentialVelocity) ||
+                targetTangentialVelocity <= 1e-6) {
+            return 0.0;
+        }
+        return Range.clip(measuredTangentialVelocity / targetTangentialVelocity, 0.0, 1.0);
+    }
+
+    /** Uses acceleration feedforward only while speeding up; velocity feedback owns braking. */
+    static double calculateTranslationFeedforward(double targetVelocity,
+                                                  double targetAcceleration,
+                                                  double kV, double accelerationKA,
+                                                  double kS) {
+        double motionSign = feedforwardMotionSign(targetVelocity, targetAcceleration);
+        if (motionSign == 0.0) { return 0.0; }
+
+        double acceleratingFF = targetVelocity * targetAcceleration > 0.0
+                ? accelerationKA * targetAcceleration : 0.0;
+        return kV * targetVelocity + acceleratingFF + motionSign * kS;
     }
 
     public void setVelocityFeedback(double velocityFeedbackGain,

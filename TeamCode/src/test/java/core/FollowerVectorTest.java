@@ -82,6 +82,25 @@ public class FollowerVectorTest {
     }
 
     @Test
+    public void headingFeedforwardUsesLocalTrajectoryTimeScaling() {
+        assertEquals(1.0, Follower.headingFeedforwardTimeScale(40.0, 40.0), 1e-9);
+        assertEquals(0.5, Follower.headingFeedforwardTimeScale(40.0, 20.0), 1e-9);
+        assertEquals(0.0, Follower.headingFeedforwardTimeScale(40.0, -2.0), 1e-9);
+        assertEquals(1.0, Follower.headingFeedforwardTimeScale(40.0, 50.0), 1e-9);
+        assertEquals(0.0, Follower.headingFeedforwardTimeScale(0.0, 10.0), 1e-9);
+    }
+
+    @Test
+    public void brakingFeedforwardLeavesDecelerationToVelocityFeedback() {
+        assertEquals(0.34, Follower.calculateTranslationFeedforward(
+                30.0, -100.0, 0.008, 0.007, 0.10), 1e-9);
+        assertEquals(-0.34, Follower.calculateTranslationFeedforward(
+                -30.0, 100.0, 0.008, 0.007, 0.10), 1e-9);
+        assertEquals(1.04, Follower.calculateTranslationFeedforward(
+                30.0, 100.0, 0.008, 0.007, 0.10), 1e-9);
+    }
+
+    @Test
     public void profiledEndpointCaptureSuppliesPowerAfterVelocityProfileStops() {
         assertEquals(0.0, Follower.blendProfiledEndpointPower(0.0, 0.25, 4.0), 1e-9);
         assertEquals(0.125, Follower.blendProfiledEndpointPower(0.0, 0.25, 2.0), 1e-9);
@@ -100,9 +119,9 @@ public class FollowerVectorTest {
 
     @Test
     public void stalledEndpointCommandClearsStaticFrictionDeadband() {
-        assertEquals(0.24375, Follower.ensureEndpointBreakawayPower(
+        assertEquals(0.42375, Follower.ensureEndpointBreakawayPower(
                 0.18, 0.60, 0.0, 0.24375, 0.50, 0.0), 1e-9);
-        assertEquals(-0.24375, Follower.ensureEndpointBreakawayPower(
+        assertEquals(-0.42375, Follower.ensureEndpointBreakawayPower(
                 -0.18, -0.60, 0.0, 0.24375, 0.50, 0.0), 1e-9);
 
         // Never inject breakaway power after reaching tolerance or while already moving.
@@ -110,6 +129,18 @@ public class FollowerVectorTest {
                 0.18, 0.40, 0.0, 0.24375, 0.50, 0.0), 1e-9);
         assertEquals(0.18, Follower.ensureEndpointBreakawayPower(
                 0.18, 0.60, 1.0, 0.24375, 0.50, 0.0), 1e-9);
+    }
+
+    @Test
+    public void stalledCrossTrackEndpointCommandAddsStaticFriction() {
+        assertEquals(0.37125, Follower.ensureEndpointBreakawayPower(
+                0.14, 1.14, 0.0, 0.23125,
+                controllers.PDSController.LINEAR_STATIC_DEADBAND, 0.04), 1e-9);
+
+        // Inside the PDS deadband, no breakaway command should be injected.
+        assertEquals(0.02, Follower.ensureEndpointBreakawayPower(
+                0.02, 0.20, 0.0, 0.23125,
+                controllers.PDSController.LINEAR_STATIC_DEADBAND, 0.04), 1e-9);
     }
 
     @Test

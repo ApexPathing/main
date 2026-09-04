@@ -24,6 +24,12 @@ public class PDSRoutineTest {
     }
 
     @Test
+    public void trialTargetsStayAnchoredDespiteStoppingError() {
+        assertEquals(24.0, PDSRoutine.anchoredTarget(1.0, 24.0), 0.0);
+        assertEquals(0.0, PDSRoutine.anchoredTarget(-1.0, 24.0), 0.0);
+    }
+
+    @Test
     public void configRejectsUnsafeInputs() {
         assertThrows(IllegalArgumentException.class,
                 () -> PDSRoutine.Config.linear(

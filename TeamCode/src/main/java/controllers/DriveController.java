@@ -89,6 +89,14 @@ public class DriveController {
 
     public double calculateEndDistance(double error) { return endDistancePDS.calculate(error); }
 
+    /**
+     * Calculates endpoint power using a measured error rate instead of differentiating projected
+     * path distance. For a fixed endpoint, pass the negative measured tangential velocity.
+     */
+    public double calculateEndDistance(double error, double errorRate) {
+        return endDistancePDS.calculate(error, errorRate);
+    }
+
     /** Allocates one field-centric stage using mecanum direction-dependent wheel demand. */
     public AllocatedCommand allocateMecanum(Vector fieldCommand, Angle currentHeading,
                                              double availablePower) {

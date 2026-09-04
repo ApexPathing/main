@@ -485,8 +485,12 @@ public class VelocityFeedbackPhase extends TuningPhase {
         }
         boolean heldOutImprovement = candidate.returnRms <= incumbent.returnRms * 0.95;
         boolean directionallyConsistent = candidate.directionDifferenceRatio() <= 0.20;
+        // Compare against the incumbent rather than imposing an absolute 10% ceiling. Profiled
+        // tests may legitimately spend more than 10% of their samples near full motor power; the
+        // old ceiling then made every candidate impossible to accept, even when it reduced both
+        // RMS error and saturation substantially.
         boolean notSaturationDependent = candidate.saturationRate <=
-                Math.min(0.10, Math.max(0.02, incumbent.saturationRate + 0.02));
+                incumbent.saturationRate + 0.02;
         return heldOutImprovement && directionallyConsistent && notSaturationDependent;
     }
 

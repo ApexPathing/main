@@ -114,7 +114,7 @@ public class SwerveProfileGenerator extends BaseProfileGenerator {
         double fDoublePrime = path.getInterpolator().getHeadingSecondDerivative(s, dKappa, finalTangent);
 
         double tanPow = vel * constants.translationalKV
-                + accel * constants.translationalKA
+                + accel * constants.getTranslationalKA(vel, accel)
                 + signedStatic(vel, accel, constants.translationalFeedforwardKS);
 
         double normPow = vel * vel * kappa * constants.kCentripetal;

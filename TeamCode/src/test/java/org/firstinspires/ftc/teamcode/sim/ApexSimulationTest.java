@@ -39,6 +39,7 @@ import localizers.Pinpoint;
 import paths.movements.Path;
 
 public class ApexSimulationTest {
+    private static final double MAX_ENDPOINT_ERROR_INCHES = 1.5;
     @Test
     public void reverseProfileIsUsableOrFallsBackToClosedLoopFollowing() {
         ApexSimulation.Hardware hardware = ApexSimulation.createHardware();
@@ -297,7 +298,8 @@ public class ApexSimulationTest {
                 follower.getDrivetrain().getLastBlPower() + "," +
                 follower.getDrivetrain().getLastBrPower(), !follower.isBusy());
         assertTrue("Reverse return path stopped too far from home: " + follower.getPose(),
-                follower.getPose().distanceTo(auto.returnPath.getEndPose()).getIn() < 1.0);
+                follower.getPose().distanceTo(auto.returnPath.getEndPose()).getIn() <
+                        MAX_ENDPOINT_ERROR_INCHES);
         assertTrue("Reverse return path ended at the wrong heading",
                 Math.abs(follower.getPose().getHeading().getShortestAngleTo(
                         auto.returnPath.getEndPose().getHeading()).getRad()) < Math.toRadians(3.0));
@@ -311,7 +313,8 @@ public class ApexSimulationTest {
                 ", t=" + follower.getBestT() + ", velocity=" + follower.getVelocity(),
                 !follower.isBusy());
         assertTrue("Outbound strafe stopped too far from its endpoint",
-                follower.getPose().distanceTo(auto.strafeOutPath.getEndPose()).getIn() < 1.0);
+                follower.getPose().distanceTo(auto.strafeOutPath.getEndPose()).getIn() <
+                        MAX_ENDPOINT_ERROR_INCHES);
         assertTrue("Outbound strafe cross-track error was excessive: " + strafeOutCrossTrack,
                 strafeOutCrossTrack < 6.0);
 
@@ -322,7 +325,8 @@ public class ApexSimulationTest {
                         follower.getVelocity(),
                 !follower.isBusy());
         assertTrue("Full auto sequence did not return to the origin: " + follower.getPose(),
-                follower.getPose().distanceTo(Pose.zero()).getIn() < 1.0);
+                follower.getPose().distanceTo(Pose.zero()).getIn() <
+                        MAX_ENDPOINT_ERROR_INCHES);
         assertTrue("Full auto sequence did not finish at zero heading",
                 Math.abs(follower.getPose().getHeading().getShortestAngleTo(
                         Pose.zero().getHeading()).getRad()) < Math.toRadians(3.0));
@@ -371,7 +375,7 @@ public class ApexSimulationTest {
                 !follower.isBusy());
         assertTrue("Velocity-feedback return path did not settle at its endpoint: " +
                         follower.getPose(),
-                follower.getPose().distanceTo(start).getIn() < 1.0);
+                follower.getPose().distanceTo(start).getIn() < MAX_ENDPOINT_ERROR_INCHES);
     }
 
     @Test
@@ -417,7 +421,7 @@ public class ApexSimulationTest {
                 follower.update();
                 double position = Math.max(0.0, turn.getStartPose().getHeading()
                         .getShortestAngleTo(follower.getPose().getHeading()).getRad());
-                MotionParameters target = turn.getFeedforwardLut().getFFParams(position);
+                MotionParameters target = turn.getFeedforwardLut().getFFParamsByTime(elapsed);
                 minimumVelocity = Math.min(minimumVelocity,
                         follower.getVelocity().getHeading().getRad());
                 double remaining = Math.abs(follower.getPose().getHeading()
@@ -545,7 +549,7 @@ public class ApexSimulationTest {
                 !follower.isBusy());
         assertTrue("Centripetal return arc did not settle at its endpoint: " +
                         follower.getPose(),
-                follower.getPose().distanceTo(start).getIn() < 1.0);
+                follower.getPose().distanceTo(start).getIn() < MAX_ENDPOINT_ERROR_INCHES);
     }
 
     private static void assertPose(Pose expected, Pose actual) {

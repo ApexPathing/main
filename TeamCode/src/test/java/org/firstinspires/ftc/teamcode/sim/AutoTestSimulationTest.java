@@ -23,7 +23,7 @@ import controllers.PDSController.PDSCoefficients;
 import paths.movements.Path;
 
 public class AutoTestSimulationTest {
-    private static final double MAX_TOTAL_MOVEMENT_SECONDS = 30.0;
+    private static final double MAX_TOTAL_MOVEMENT_SECONDS = 18.0;
 
     @Test(timeout = 130_000L)
     public void autoTestCompletesEveryMovement() throws Exception {
@@ -136,6 +136,11 @@ public class AutoTestSimulationTest {
             System.setProperty(ApexStorage.DIRECTORY_PROPERTY, directory.getAbsolutePath());
         }
         FollowerConstants constants = FollowerConstants.getInstance();
+        if ("true".equalsIgnoreCase(
+                System.getenv("APEX_USE_SAVED_TUNER_CONSTANTS"))) {
+            constants.reload();
+            return;
+        }
         constants.angularCoeffs = new PDSCoefficients(2.40, 0.45, 0.236);
         constants.translationalCoeffs = new PDSCoefficients(0.20, 0.04, 0.235);
         constants.angularKV = 0.03729620016302293;
@@ -143,8 +148,9 @@ public class AutoTestSimulationTest {
         constants.angularFeedforwardKS = 0.2571326953727573;
         constants.translationalKV = 0.007985735155227602;
         constants.translationalKA = 0.006869366751688844;
+        constants.translationalBrakeKA = 0.0;
         constants.translationalFeedforwardKS = 0.10800918318444208;
-        constants.kCentripetal = 0.008830155935013819;
+        constants.kCentripetal = 0.002846477691686655;
         constants.velocityFeedbackGain = 0.08273740189064561;
         constants.angularVelocityFeedbackGain = 0.25;
         constants.forwardVelLimitIn = 64.82715934849021;

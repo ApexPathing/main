@@ -30,8 +30,8 @@ import paths.movements.Path;
  */
 public abstract class BaseProfileGenerator {
     protected static final double EPSILON = 1e-6;
-    /** Normalized full power. Values above this mean the model predicts saturation. */
-    private static final double UTILIZATION_LIMIT = 1.0;
+    /** Reserve motor authority for closed-loop position, heading, and velocity corrections. */
+    private static final double UTILIZATION_LIMIT = 0.80;
     /** Small allowance so floating point noise does not create endless pinning. */
     private static final double UTILIZATION_TOLERANCE = 1e-3;
     /** Binary-search depth for local velocity caps. */

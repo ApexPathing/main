@@ -156,7 +156,11 @@ public final class PDSRoutine {
         if (Double.isNaN(origin)) { origin = absolutePosition; }
         position = relativePosition(absolutePosition, origin, config.angular);
         if (Math.abs(position) > config.safetyLimit) {
-            throw new IllegalStateException("PDS tuner exceeded its safe travel limit");
+            throw new IllegalStateException(
+                    "PDS tuner exceeded its safe travel limit: position=" + position +
+                            ", limit=" + config.safetyLimit + ", target=" + target +
+                            ", velocity=" + velocity + ", state=" + state
+            );
         }
         if (state == PDSState.SETTLING) { return settle(velocity); }
         if (state == PDSState.TUNING || state == PDSState.TEST_RUNNING) {
@@ -172,7 +176,10 @@ public final class PDSRoutine {
         }
         direction = nextDirection;
         nextDirection = -nextDirection;
-        target = position + direction * config.step;
+        // Always exercise the same two physical endpoints. Building the next target from the
+        // measured stopping position accumulates residual error over dozens of trials and can
+        // walk an otherwise stable out-and-back test beyond its original safety envelope.
+        target = anchoredTarget(direction, config.step);
         validTime = settledTime = errorIntegral = overshoot = saturatedTime = lastTime = 0.0;
         controller.reset();
         state = candidateTrials < 0 ? PDSState.TEST_RUNNING : PDSState.TUNING;
@@ -326,6 +333,11 @@ public final class PDSRoutine {
     /** Returns relative position, wrapping heading in radians. */
     static double relativePosition(double absolute, double origin, boolean angular) {
         return angular ? Angle.wrap(absolute - origin) : absolute - origin;
+    }
+
+    /** Returns one of the two fixed out-and-back endpoints in origin-relative coordinates. */
+    static double anchoredTarget(double direction, double step) {
+        return direction >= 0.0 ? step : 0.0;
     }
 
     private static double positionError(double target, double position, boolean angular) {

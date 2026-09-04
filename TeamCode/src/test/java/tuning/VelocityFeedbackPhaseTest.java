@@ -51,6 +51,12 @@ public class VelocityFeedbackPhaseTest {
                 result(1.0, 1.0, 0.0), result(0.85, 0.90, 0.25)));
     }
 
+    @Test
+    public void automaticCandidateCanImproveAHighlySaturatedIncumbent() {
+        assertTrue(VelocityFeedbackPhase.acceptsCandidate(
+                result(1.0, 1.0, 0.80), result(0.85, 0.90, 0.60)));
+    }
+
     private static VelocityFeedbackPhase.CandidateResult result(
             double outbound, double returning, double saturation) {
         return new VelocityFeedbackPhase.CandidateResult(

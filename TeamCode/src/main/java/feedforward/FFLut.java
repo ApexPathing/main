@@ -73,6 +73,30 @@ public class FFLut {
         return copyOf(last);
     }
 
+    /** Returns a trajectory state interpolated by elapsed time. */
+    public MotionParameters getFFParamsByTime(double timeSeconds) {
+        if (params.length == 1 || timeSeconds <= params[0].getTimeSeconds()) {
+            return copyOf(params[0]);
+        }
+        MotionParameters last = params[params.length - 1];
+        if (timeSeconds >= last.getTimeSeconds()) { return copyOf(last); }
+
+        for (int i = 1; i < params.length; i++) {
+            if (timeSeconds <= params[i].getTimeSeconds()) {
+                MotionParameters before = params[i - 1];
+                MotionParameters after = params[i];
+                double dt = after.getTimeSeconds() - before.getTimeSeconds();
+                if (dt <= 1e-9) { return copyOf(after); }
+                double fraction = (timeSeconds - before.getTimeSeconds()) / dt;
+                return interpolate(before, fraction, after);
+            }
+        }
+        return copyOf(last);
+    }
+
+    /** @return final elapsed-time key, or zero for a displacement-only profile */
+    public double getDurationSeconds() { return params[params.length - 1].getTimeSeconds(); }
+
     /**
      * Blends two neighboring rows of the lookup table.
      *
@@ -85,6 +109,14 @@ public class FFLut {
     private static MotionParameters getFFParams(MotionParameters params1,
                                                 double interpolationFraction,
                                                 MotionParameters params2, double progression) {
+        MotionParameters result = interpolate(params1, interpolationFraction, params2);
+        result.setDistAlongCurve(progression);
+        return result;
+    }
+
+    private static MotionParameters interpolate(MotionParameters params1,
+                                                double interpolationFraction,
+                                                MotionParameters params2) {
         double interpTransVel = params1.getTangentialVel() + interpolationFraction *
                         (params2.getTangentialVel() - params1.getTangentialVel());
         double interpTransAccel = params1.getTangentialAccel() + interpolationFraction *
@@ -94,15 +126,24 @@ public class FFLut {
         double interpAngAccel = params1.getAngularAccel() + interpolationFraction *
                         (params2.getAngularAccel() - params1.getAngularAccel());
 
-        return new MotionParameters(
-                interpTransVel, interpTransAccel, interpAngVel, interpAngAccel, progression
-        );
+        double interpProgression = params1.getProgression() + interpolationFraction *
+                (params2.getProgression() - params1.getProgression());
+        double interpTime = params1.getTimeSeconds() + interpolationFraction *
+                (params2.getTimeSeconds() - params1.getTimeSeconds());
+        double interpMotorPower = params1.getMotorPower() + interpolationFraction *
+                (params2.getMotorPower() - params1.getMotorPower());
+        MotionParameters result = new MotionParameters(interpTransVel, interpTransAccel,
+                interpAngVel, interpAngAccel, interpProgression).setTimeSeconds(interpTime);
+        result.setMotorPower(interpMotorPower);
+        return result;
     }
 
     private static MotionParameters copyOf(MotionParameters params) {
-        return new MotionParameters(
+        MotionParameters result = new MotionParameters(
                 params.getTangentialVel(), params.getTangentialAccel(), params.getAngularVel(),
                 params.getAngularAccel(), params.getProgression()
-        );
+        ).setTimeSeconds(params.getTimeSeconds());
+        result.setMotorPower(params.getMotorPower());
+        return result;
     }
 }

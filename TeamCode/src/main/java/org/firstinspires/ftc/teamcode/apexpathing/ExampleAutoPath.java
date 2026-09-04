@@ -29,7 +29,6 @@ public class ExampleAutoPath {
                 .setDistUnit(DistUnit.IN)
                 .setAngleUnit(AngleUnit.DEG)
                 .setPoseMirror(mirror);
-
         build();
     }
 
@@ -56,27 +55,21 @@ public class ExampleAutoPath {
                         factory.arcPose(-30, 30, 7),
                         factory.pose(30, 30, -90)
                 )
-                .interpolateWith(InterpolationStyle.TANGENT_FORWARD)
+                .interpolateWith(InterpolationStyle.TANGENT_OPTIMAL)
                 .addDistanceCallback(0.5, this::exampleDistanceCallback)
                 .profiledBuild();
-
         testTurn = factory.turn(testPath.getEndPose())
                 .turnTo(factory.angle(0))
                 .addAngularCallback(factory.angle(-45), this::exampleAngularCallback)
                 .quickBuild();
-
-        // Exercise reverse tangent following on a profiled curve and bring the robot home. This
-        // catches backward-heading and terminal-profile regressions that the outbound path cannot.
         returnPath = factory.path(testTurn.getEndPose(),
                         factory.pose(0, 30),
                         startPose
                 )
                 .interpolateWith(InterpolationStyle.TANGENT_BACKWARD)
+                .setDistanceToStartFinalTurn(factory.dist(30))
                 .addDistanceCallback(0.5, this::exampleReturnCallback)
                 .profiledBuild();
-
-        // Finish with pure lateral travel in both directions. Curved paths can hide a broken
-        // strafe sign or weak lateral controller because their forward component still progresses.
         Pose strafeEnd = factory.pose(0, 24, 0);
         strafeOutPath = factory.path(startPose, strafeEnd)
                 .interpolateWith(InterpolationStyle.CONSTANT_START_HEADING)

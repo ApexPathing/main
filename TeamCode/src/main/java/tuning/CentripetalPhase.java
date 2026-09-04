@@ -10,6 +10,7 @@ import geometry.PathPoint;
 import geometry.Pose;
 import paths.constraint.PathConstraint;
 import paths.constraint.TranslationalConstraint;
+import paths.builders.PathBuilder;
 import paths.heading.InterpolationStyle;
 import paths.movements.Path;
 
@@ -25,8 +26,10 @@ public class CentripetalPhase extends TuningPhase {
     private static final double TURNAROUND_PROGRESS = 0.985;
     private static final double TURNAROUND_DISTANCE_INCHES = 1.5;
     private static final double TURNAROUND_SPEED_INCHES_PER_SECOND = 6.0;
-    private static final double TEST_POWER_FRACTION = 0.55;
-    private static final double ERROR_DEADBAND_INCHES = 0.15;
+    private static final double TEST_TOTAL_POWER_FRACTION = 0.75;
+    private static final double TEST_CENTRIPETAL_POWER_FRACTION = 0.20;
+    private static final double TEST_ARC_RADIUS_INCHES = 32.0;
+    private static final int TEST_ARC_POINT_COUNT = 7;
     private static final int TRIALS_PER_GAIN = 1;
 
     private BinarySearch search;
@@ -70,19 +73,14 @@ public class CentripetalPhase extends TuningPhase {
                 .setAngleUnit(AngleUnit.DEG);
 
         // Center the complete 32x32 test footprint on the field, not merely its starting point.
-        Pose start = factory.pose(-16, -16, 0);
-        Pose middle = factory.pose(16, -16, 0);
-        Pose end = factory.pose(16, 16, 90);
+        Pose[] forwardPoints = createTestArc(factory);
+        Pose[] backwardPoints = reverse(forwardPoints);
+        Pose start = forwardPoints[0];
         if (Boolean.getBoolean("apex.simulation.unlockTunerPhases")) {
             positionRobotForSimulation(start);
         } else {
             context.getFollower().setPose(start);
         }
-        forwardArc = factory.path(start, middle, end)
-                .interpolateWith(InterpolationStyle.TANGENT_FORWARD).quickBuild();
-        backwardArc = factory.path(end, middle, start)
-                .interpolateWith(InterpolationStyle.TANGENT_BACKWARD).quickBuild();
-
         double fullStrafeAcceleration = context.constants.strafeAccelLimitIn /
                 LimitsPhase.MARGIN_MULTIPLIER;
         double nominalGain = 1.0 / fullStrafeAcceleration;
@@ -91,12 +89,29 @@ public class CentripetalPhase extends TuningPhase {
         double lower = 0.25 * nominalGain;
         double upper = 1.25 * nominalGain;
 
-        double testVelocity = safeTestVelocity(forwardArc, upper,
-                context.constants.forwardVelLimitIn);
-        forwardArc.addConstraint(new TranslationalConstraint(0.0,
-                PathConstraint.Type.VELOCITY, Dist.fromIn(testVelocity)));
-        backwardArc.addConstraint(new TranslationalConstraint(0.0,
-                PathConstraint.Type.VELOCITY, Dist.fromIn(testVelocity)));
+        Path geometry = factory.path(forwardPoints).quickBuild();
+        double testVelocity = safeTestVelocity(geometry, upper,
+                context.constants.forwardVelLimitIn, context.constants.translationalKV,
+                context.constants.translationalFeedforwardKS);
+        double savedGain = context.constants.kCentripetal;
+        context.constants.kCentripetal = upper;
+        try {
+            PathBuilder<?> forwardBuilder = factory.path(forwardPoints)
+                    .interpolateWith(InterpolationStyle.TANGENT_FORWARD);
+            forwardBuilder.addConstraint(new TranslationalConstraint(0.0,
+                    PathConstraint.Type.VELOCITY, Dist.fromIn(testVelocity)));
+            forwardArc = forwardBuilder.profiledBuild();
+
+            PathBuilder<?> backwardBuilder = factory.path(backwardPoints)
+                    .interpolateWith(InterpolationStyle.TANGENT_BACKWARD);
+            backwardBuilder.addConstraint(new TranslationalConstraint(0.0,
+                    PathConstraint.Type.VELOCITY, Dist.fromIn(testVelocity)));
+            backwardArc = backwardBuilder.profiledBuild();
+        } finally {
+            // Generate both profiles against the worst search candidate without changing the
+            // value that manual mode seeds from or automatic mode will evaluate first.
+            context.constants.kCentripetal = savedGain;
+        }
 
         search = new BinarySearch(lower, upper, (upper - lower) / 64.0);
         context.constants.kCentripetal = manualMode ? seed : search.current();
@@ -264,8 +279,30 @@ public class CentripetalPhase extends TuningPhase {
         return false;
     }
 
-    /** Chooses a test speed that keeps every candidate below centripetal saturation. */
-    static double safeTestVelocity(Path path, double maximumGain, double velocityLimit) {
+    /** Builds a nearly constant-curvature, 32-inch-radius quarter circle. */
+    static Pose[] createTestArc(GeometryFactory factory) {
+        Pose[] points = new Pose[TEST_ARC_POINT_COUNT];
+        for (int i = 0; i < points.length; i++) {
+            double fraction = i / (double) (points.length - 1);
+            double angle = -Math.PI / 2.0 + fraction * Math.PI / 2.0;
+            double x = -16.0 + TEST_ARC_RADIUS_INCHES * Math.cos(angle);
+            double y = 16.0 + TEST_ARC_RADIUS_INCHES * Math.sin(angle);
+            points[i] = factory.pose(x, y, fraction * 90.0);
+        }
+        return points;
+    }
+
+    private static Pose[] reverse(Pose[] input) {
+        Pose[] result = new Pose[input.length];
+        for (int i = 0; i < input.length; i++) {
+            result[i] = input[input.length - 1 - i];
+        }
+        return result;
+    }
+
+    /** Chooses a speed with explicit budgets for total and centripetal motor power. */
+    static double safeTestVelocity(Path path, double maximumGain, double velocityLimit,
+                                   double translationalKV, double staticPower) {
         double maximumCurvature = 0.0;
         for (PathPoint point : path.getGeneratedPoints()) {
             if (point.getT() < 0.20 || point.getT() > 0.80) { continue; }
@@ -274,19 +311,35 @@ public class CentripetalPhase extends TuningPhase {
                 maximumCurvature = Math.max(maximumCurvature, curvature);
             }
         }
-        if (maximumCurvature <= 1e-9 || maximumGain <= 1e-9) {
-            return velocityLimit;
+        double lateralCoefficient = maximumCurvature * Math.max(0.0, maximumGain);
+        double centripetalLimited = lateralCoefficient > 1e-9
+                ? Math.sqrt(TEST_CENTRIPETAL_POWER_FRACTION / lateralCoefficient)
+                : Double.POSITIVE_INFINITY;
+
+        double availableDynamicPower = Math.max(0.0,
+                TEST_TOTAL_POWER_FRACTION - Math.abs(staticPower));
+        double totalPowerLimited;
+        double linearCoefficient = Math.abs(translationalKV);
+        if (lateralCoefficient > 1e-9) {
+            double discriminant = linearCoefficient * linearCoefficient +
+                    4.0 * lateralCoefficient * availableDynamicPower;
+            totalPowerLimited = (-linearCoefficient +
+                    Math.sqrt(Math.max(0.0, discriminant))) /
+                    (2.0 * lateralCoefficient);
+        } else if (linearCoefficient > 1e-9) {
+            totalPowerLimited = availableDynamicPower / linearCoefficient;
+        } else {
+            totalPowerLimited = velocityLimit;
         }
-        double curvatureLimited = Math.sqrt(
-                TEST_POWER_FRACTION / (maximumCurvature * maximumGain));
-        if (!Double.isFinite(curvatureLimited)) { return 0.25 * velocityLimit; }
-        return Math.max(0.35 * velocityLimit,
-                Math.min(0.60 * velocityLimit, curvatureLimited));
+
+        double selected = Math.min(0.75 * velocityLimit,
+                Math.min(centripetalLimited, totalPowerLimited));
+        return Double.isFinite(selected) ? Math.max(0.0, selected) : 0.25 * velocityLimit;
     }
 
-    /** Treats small residual error as adequate and favors the less aggressive gain. */
+    /** Positive outward error needs more centripetal gain; inward error needs less. */
     static BinarySearch.SearchDirection searchDirection(double signedError) {
-        return signedError > ERROR_DEADBAND_INCHES
+        return signedError > 0.0
                 ? BinarySearch.SearchDirection.HIGHER
                 : BinarySearch.SearchDirection.LOWER;
     }

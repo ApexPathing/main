@@ -7,7 +7,6 @@ import geometry.Angle;
 import geometry.PathPoint;
 import geometry.Vector;
 import paths.movements.Path;
-import geometry.DistUnit;
 
 /**
  * Generates holonomic profiles for mecanum drives, including direction-specific limits.
@@ -49,10 +48,6 @@ public class MecanumProfileGenerator extends BaseProfileGenerator {
                 finalTangent);
 
         DirectionalKinematics dirK = limitCalculator.getKinematics(tangent, headingAtPoint);
-        DirectionalKinematics normalK = limitCalculator.getKinematics(getNormalVector(point),
-                headingAtPoint);
-
-        // Mecanum limits depend on robot-relative direction, so tangent and normal loads differ.
         double maxPhysicalVel = dirK.maxVel;
 
         double effectiveAngVelLimit = Math.min(constants.angularVelLimitRad, maxAngVel);
@@ -78,7 +73,7 @@ public class MecanumProfileGenerator extends BaseProfileGenerator {
         for (int i = 0; i < VELOCITY_SEARCH_ITERATIONS; i++) {
             double mid_v = (min_v + max_v) / 2.0;
 
-            if (evaluatePower(mid_v, kappa, fPrime, fDoublePrime, dirK, normalK) > 1.0) {
+            if (evaluatePower(mid_v, kappa, fPrime, fDoublePrime, dirK) > 1.0) {
                 max_v = mid_v;
             } else { min_v = mid_v; }
         }
@@ -89,20 +84,20 @@ public class MecanumProfileGenerator extends BaseProfileGenerator {
     /**
      * Estimates normalized mecanum power for a local state.
      *
-     * <p>Tangential and centripetal terms use different directional multipliers because the robot
-     * may be efficient along the tangent and inefficient along the normal, or vice versa.
+     * <p>The tangential term uses the direction-dependent mecanum velocity multiplier. The
+     * centripetal coefficient already represents the drivetrain's lateral acceleration authority.
      */
     private double evaluatePower(double v, double kappa, double fPrime,
-                                 double fDoublePrime, DirectionalKinematics tangentKinematics,
-                                 DirectionalKinematics normalKinematics) {
+                                 double fDoublePrime, DirectionalKinematics tangentKinematics) {
         // Apply the LUT as power cost multipliers instead of pretending strafe is as efficient.
         double boostedKV = constants.translationalKV * tangentKinematics.velMultiplier;
         double transPower = v * boostedKV
                 + signedStatic(v, 0.0, constants.translationalFeedforwardKS);
 
-        double latPower = Math.abs(
-                v * v * kappa * constants.kCentripetal * normalKinematics.accelMultiplier
-        );
+        // kCentripetal is tuned directly from the drivetrain's full-power lateral acceleration.
+        // Applying the directional acceleration multiplier here would charge the mecanum strafe
+        // penalty twice and make every curved profile unnecessarily slow.
+        double latPower = Math.abs(v * v * kappa * constants.kCentripetal);
 
         double omega = fPrime * v;
         double alpha = fDoublePrime * (v * v);
@@ -126,9 +121,6 @@ public class MecanumProfileGenerator extends BaseProfileGenerator {
 
         DirectionalKinematics dirK = limitCalculator.getKinematics(current.getFirstDerivative(),
                 robotHeading);
-        DirectionalKinematics normalK = limitCalculator.getKinematics(getNormalVector(current),
-                robotHeading);
-
         double fPrime = path.getInterpolator().getHeadingFirstDerivative(s, kappa, finalTangent);
         double fDoublePrime = path.getInterpolator().getHeadingSecondDerivative(s, dKappa,
                 finalTangent);
@@ -137,11 +129,11 @@ public class MecanumProfileGenerator extends BaseProfileGenerator {
         double alpha = fDoublePrime * (v * v) + fPrime * a_t;
 
         double pForward = v * constants.translationalKV * dirK.velMultiplier
-                + a_t * constants.translationalKA * dirK.accelMultiplier
+                + a_t * constants.getTranslationalKA(v, a_t) * dirK.accelMultiplier
                 + signedStatic(v, a_t, constants.translationalFeedforwardKS);
 
-        // Centripetal correction is a sideways force, so mecanum inefficiency applies here too.
-        double pLateral = v * v * kappa * constants.kCentripetal * normalK.accelMultiplier;
+        // kCentripetal already maps lateral acceleration to motor power for this drivetrain.
+        double pLateral = v * v * kappa * constants.kCentripetal;
 
         double headingKs = signedStatic(omega, alpha, constants.angularFeedforwardKS);
         double pHeading = omega * constants.angularKV + alpha * constants.angularKA + headingKs;
@@ -208,20 +200,4 @@ public class MecanumProfileGenerator extends BaseProfileGenerator {
         return Math.min(maxPhysicalAccel, Math.max(0.0, angularLimitedAccel));
     }
 
-    /**
-     * Returns a unit-ish normal direction for centripetal acceleration at this point. The sign of
-     * curvature decides which side of the tangent points toward the curve center.
-     */
-    private Vector getNormalVector(PathPoint point) {
-        double kappa = point.getSignedCurvature();
-        if (Math.abs(kappa) < EPSILON) {
-            return Vector.zero();
-        }
-
-        // Normal force points toward the curve center; sign follows signed curvature.
-        double vx = point.getFirstDerivative().getX().getIn();
-        double vy = point.getFirstDerivative().getY().getIn();
-        if (kappa < 0.0) { return Vector.of(vy, -vx, DistUnit.IN); }
-        return Vector.of(-vy, vx, DistUnit.IN);
-    }
 }
