@@ -39,6 +39,10 @@ public class FollowerTuner extends LinearOpMode {
         STATIC_FRICTION(StaticFrictionPhase::new, constants ->
                 constants.angularCoeffs.kS != 0.0 &&
                         constants.translationalCoeffs.kS != 0.0),
+        HEADING(HeadingPhase::new, constants ->
+                constants.angularCoeffs.kP != 0.0),
+        DRIVE(DrivePhase::new, constants ->
+                constants.translationalCoeffs.kP != 0.0),
         LIMITS(LimitsPhase::new, constants ->
                 constants.forwardVelLimitIn != 0.0 &&
                         constants.forwardAccelLimitIn != 0.0 &&
@@ -51,10 +55,6 @@ public class FollowerTuner extends LinearOpMode {
                         constants.angularKA != 0.0 &&
                         constants.translationalKV != 0.0 &&
                         constants.translationalKA != 0.0),
-        HEADING(HeadingPhase::new, constants ->
-                constants.angularCoeffs.kP != 0.0),
-        DRIVE(DrivePhase::new, constants ->
-                constants.translationalCoeffs.kP != 0.0),
         CENTRIPETAL(CentripetalPhase::new, constants ->
                 constants.kCentripetal != 0.0),
         VELOCITY_FEEDBACK(VelocityFeedbackPhase::new, constants ->
@@ -121,6 +121,10 @@ public class FollowerTuner extends LinearOpMode {
         while (opModeIsActive() && !isPhaseSelected) {
             context.updateDebugMode(true);
             isPhaseSelected = phaseSelector();
+            if (!isPhaseSelected) {
+                context.getFollower().update();
+                context.getFollower().manual(gamepad1);
+            }
             sleep(20);
         }
         if (!opModeIsActive()) {
@@ -185,7 +189,7 @@ public class FollowerTuner extends LinearOpMode {
         telemetry.clearAll();
         context.addInterfaceHeader();
         telemetry.addLine("Select a tuning phase");
-        telemetry.addLine("Use Dpad Up and Down to choose a phase, then press B to select it.");
+        telemetry.addLine("Use Dpad Up and Down to choose a phase, then press A to select it.");
         telemetry.addLine("Completed phases can be selected again for retuning.");
         telemetry.addLine();
 
@@ -203,7 +207,7 @@ public class FollowerTuner extends LinearOpMode {
         } else if (gamepad1.dpadDownWasPressed()) {
             selectedPhaseOrdinal = phases[
                     (selectedPhaseOrdinal.ordinal() + 1) % phaseAmount];
-        } else if (gamepad1.bWasPressed() && phaseAvailable(selectedPhaseOrdinal)) {
+        } else if (gamepad1.aWasPressed() && phaseAvailable(selectedPhaseOrdinal)) {
             selectPhase();
             return true;
         }

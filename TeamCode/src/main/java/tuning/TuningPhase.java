@@ -42,14 +42,19 @@ public abstract class TuningPhase {
 
             switch (state) {
                 case SELECT_MODE:
+                    context.getFollower().update();
                     showModeSelector();
                     if (manualTuneIsPossible() && autoTuneIsPossible() &&
-                            opMode.gamepad1.bWasPressed()) {
+                            (opMode.gamepad1.dpadLeftWasPressed() ||
+                                    opMode.gamepad1.dpadRightWasPressed())) {
                         manualMode = !manualMode;
                     }
                     if (opMode.gamepad1.aWasPressed()) {
                         init();
                         state = TuningState.TUNING;
+                    }
+                    if (state == TuningState.SELECT_MODE) {
+                        context.getFollower().manual(opMode.gamepad1);
                     }
                     break;
                 case TUNING:
@@ -63,13 +68,17 @@ public abstract class TuningPhase {
                     if (complete) {
                         context.getFollower().stop();
                         state = TuningState.RESULTS;
+                    } else if (!routineMotionActive()) {
+                        context.getFollower().manual(opMode.gamepad1);
                     }
                     break;
                 case RESULTS:
+                    context.getFollower().update();
                     showResults();
-                    if (opMode.gamepad1.bWasPressed()) {
+                    if (opMode.gamepad1.aWasPressed()) {
                         return true;
                     }
+                    context.getFollower().manual(opMode.gamepad1);
                     break;
             }
 
@@ -88,7 +97,8 @@ public abstract class TuningPhase {
     private void showModeSelector() {
         context.getTelemetry().addLine(getPhaseName() + " phase initialized");
         if (manualTuneIsPossible() && autoTuneIsPossible()) {
-            context.getTelemetry().addLine("Press B to toggle automatic and manual tuning.");
+            context.getTelemetry().addLine(
+                    "Use Dpad Left/Right to choose automatic or manual tuning.");
             context.getTelemetry().addData("Selected Mode:", manualMode ? "Manual" : "Automatic");
         } else {
             manualMode = manualTuneIsPossible();
@@ -105,9 +115,15 @@ public abstract class TuningPhase {
     private void showResults() {
         context.getTelemetry().addLine(getPhaseName() + " phase complete with results:");
         reportResults();
-        context.getTelemetry().addLine("Press B to continue.");
+        context.getTelemetry().addLine("Press A to continue.");
         context.getTelemetry().update();
     }
+
+    /**
+     * Returns whether this phase currently owns drivetrain output. Idle screens return false so
+     * the shared loop can pass the gamepad sticks through to the follower.
+     */
+    protected boolean routineMotionActive() { return context.getFollower().isBusy(); }
 
     /** Displays a compact editable value list without spending a separate line on selection. */
     protected void addTunableValue(String label, double value, boolean selected) {

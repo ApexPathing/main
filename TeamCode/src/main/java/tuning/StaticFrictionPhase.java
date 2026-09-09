@@ -119,6 +119,9 @@ public final class StaticFrictionPhase extends TuningPhase {
     @Override
     protected boolean manualTuned() { return false; }
 
+    @Override
+    protected boolean routineMotionActive() { return stage == Stage.RUNNING; }
+
     /** Displays both measured breakaway powers. */
     @Override
     protected void reportResults() {

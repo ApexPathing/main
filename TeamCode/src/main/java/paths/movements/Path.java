@@ -4,15 +4,29 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import core.FollowerConstants;
+import drivetrains.BaseDrivetrain;
 import feedforward.FFLut;
+import feedforward.MotionParameters;
+import feedforward.generators.BaseProfileGenerator;
+import feedforward.generators.MecanumProfileGenerator;
+import feedforward.generators.SwerveProfileGenerator;
+import feedforward.generators.TankProfileGenerator;
+import geometry.Angle;
+import geometry.AngleUnit;
+import geometry.Dist;
+import geometry.ParametricSegment;
 import geometry.PathPoint;
 import geometry.PathSegment;
 import geometry.Pose;
+import geometry.Vector;
 import paths.Callback;
+import paths.constraint.AngularConstraint;
 import paths.constraint.PathConstraint;
 import paths.constraint.PathConstraint.Type;
 import paths.constraint.TranslationalConstraint;
 import paths.heading.HeadingInterpolator;
+import paths.heading.ReversedHeadingInterpolator;
 
 /**
  * Represents a complete, navigable geometric route for the robot to follow.
@@ -25,9 +39,9 @@ import paths.heading.HeadingInterpolator;
  */
 public class Path extends FollowerMovement {
     public enum PathType { HOLONOMIC, TANK }
+    public enum BuildMode { QUICK, PROFILED }
 
     private final List<String> buildWarnings = new ArrayList<String>();
-    private final ArrayList<Callback> callbacks = new ArrayList<Callback>();
     private final ArrayList<PathConstraint> constraints = new ArrayList<PathConstraint>();
     private final PathType pathType;
 
@@ -35,6 +49,8 @@ public class Path extends FollowerMovement {
     private HeadingInterpolator interpolator;
     private FFLut FFLut;
     private boolean isAccelBoosted = false;
+    private BuildMode buildMode = BuildMode.QUICK;
+    private boolean reverseConstraintProgress;
 
     /**
      * Creates a path object for the robot to follow
@@ -43,11 +59,17 @@ public class Path extends FollowerMovement {
      */
     public Path(PathType pathType) { this.pathType = pathType; }
 
-    /** Attaches an executable action to this path. */
-    public void addCallback(Callback callback) { callbacks.add(callback); }
+    /** Attaches a distance callback to this traversal and returns the path for chaining. */
+    public Path addDistanceCallback(double progress, Runnable action) {
+        addCallback(new Callback(progress, action));
+        return this;
+    }
 
-    /** @return An array of callbacks scheduled along the path. */
-    public Callback[] getCallbacks() { return callbacks.toArray(new Callback[0]); }
+    /** Attaches a heading callback to this traversal and returns the path for chaining. */
+    public Path addAngularCallback(Angle heading, Runnable action) {
+        addCallback(new Callback(heading, action));
+        return this;
+    }
 
     /** @param constraint The kinematic constraint to apply */
     public void addConstraint(PathConstraint constraint) { constraints.add(constraint); }
@@ -64,6 +86,7 @@ public class Path extends FollowerMovement {
      * @return The active velocity limit in inches per second.
      */
     public double getQuickVelocityLimit(double t, double defaultLimit) {
+        double constraintProgress = constraintProgress(t);
         double currentLimit = defaultLimit;
         double highestS = -1.0;
 
@@ -71,7 +94,8 @@ public class Path extends FollowerMovement {
             if (baseConstraint instanceof TranslationalConstraint) {
                 TranslationalConstraint constraint = (TranslationalConstraint) baseConstraint;
                 if (constraint.getType() == Type.VELOCITY) {
-                    if (t >= constraint.getS() && constraint.getS() > highestS) {
+                    if (constraintProgress >= constraint.getS() &&
+                            constraint.getS() > highestS) {
                         currentLimit = constraint.getValueIn();
                         highestS = constraint.getS();
                     }
@@ -122,6 +146,15 @@ public class Path extends FollowerMovement {
     /** @return true if built with profiledBuild(), false if built with quickBuild() */
     public boolean isProfiled() { return FFLut != null; }
 
+    public BuildMode getBuildMode() { return buildMode; }
+
+    public void setBuildMode(BuildMode buildMode) { this.buildMode = buildMode; }
+
+    /** Maps traversal progress into the coordinate system used by the constraint schedule. */
+    public double constraintProgress(double traversalProgress) {
+        return reverseConstraintProgress ? 1.0 - traversalProgress : traversalProgress;
+    }
+
     /** Determines if this path should be followed with boosted acceleration. */
     public void useBoostedAccel() { isAccelBoosted = true; }
 
@@ -143,4 +176,104 @@ public class Path extends FollowerMovement {
 
     /** @return A read-only list of warning strings. */
     public List<String> getWarnings() { return Collections.unmodifiableList(buildWarnings); }
+
+    /**
+     * Returns a fresh path over the same field geometry in the opposite direction. Callbacks are
+     * deliberately not copied because they are side effects belonging to a specific traversal.
+     */
+    @Override
+    public Path reversed() {
+        final PathSegment sourceSegment = parametricPath;
+        PathSegment reversedSegment = new PathSegment(new ParametricSegment() {
+            @Override
+            public Vector getPosition(double t) {
+                return sourceSegment.getPosition(1.0 - t);
+            }
+
+            @Override
+            public Vector getFirstDerivative(double t) {
+                return sourceSegment.getFirstDerivative(1.0 - t).times(-1.0);
+            }
+
+            @Override
+            public Vector getSecondDerivative(double t) {
+                return sourceSegment.getSecondDerivative(1.0 - t);
+            }
+        });
+
+        Path result = new Path(pathType);
+        result.setParametricPath(reversedSegment);
+        result.setInterpolator(new ReversedHeadingInterpolator(
+                interpolator, sourceSegment.getLengthIn(),
+                sourceSegment.getFirstDerivative(1.0)));
+
+        Vector endTangent = reversedSegment.getFirstDerivative(1.0);
+        Angle endHeading = result.getInterpolator().getHeadingTarg(
+                0.0, endTangent, endTangent);
+        result.setEndPose(new Pose(reversedSegment.getPosition(1.0), endHeading));
+
+        for (PathConstraint constraint : constraints) {
+            result.addConstraint(copyConstraint(constraint));
+        }
+        result.reverseConstraintProgress = !reverseConstraintProgress;
+        result.isAccelBoosted = isAccelBoosted;
+        result.buildMode = buildMode;
+        for (String warning : buildWarnings) { result.addWarning(warning); }
+        result.rebuildMotionProfile();
+        return result;
+    }
+
+    /** Regenerates the profile appropriate to this path's drivetrain and build mode. */
+    public void rebuildMotionProfile() {
+        FollowerConstants constants = FollowerConstants.getInstance();
+        if (pathType == PathType.TANK) {
+            TankProfileGenerator generator = new TankProfileGenerator(constants, this);
+            if (buildMode == BuildMode.QUICK) {
+                setFeedforwardLut(generator.generateQuick(constants));
+            } else {
+                setFeedforwardLut(new FFLut(generator.generate()));
+            }
+            return;
+        }
+
+        if (buildMode == BuildMode.QUICK) {
+            setFeedforwardLut(null);
+            return;
+        }
+
+        BaseProfileGenerator generator = constants.drivetrainType ==
+                BaseDrivetrain.DrivetrainType.COAXIAL_SWERVE
+                ? new SwerveProfileGenerator(constants, this)
+                : new MecanumProfileGenerator(constants, this);
+        MotionParameters[] profile = generator.generate();
+        if (hasUsableStartup(profile)) {
+            setFeedforwardLut(new FFLut(profile));
+        } else {
+            setFeedforwardLut(null);
+            addWarning("APEX WARNING: Motion profile contained no movement; falling back " +
+                    "to closed-loop quick following.");
+        }
+    }
+
+    private static boolean hasUsableStartup(MotionParameters[] profile) {
+        if (profile == null || profile.length == 0) { return false; }
+        MotionParameters start = profile[0];
+        return start != null && (Math.abs(start.getTangentialVel()) > 1e-6 ||
+                Math.abs(start.getTangentialAccel()) > 1e-6);
+    }
+
+    private static PathConstraint copyConstraint(PathConstraint constraint) {
+        if (constraint instanceof TranslationalConstraint) {
+            TranslationalConstraint translational = (TranslationalConstraint) constraint;
+            return new TranslationalConstraint(translational.getS(), translational.getType(),
+                    Dist.fromIn(translational.getValueIn()));
+        }
+        if (constraint instanceof AngularConstraint) {
+            AngularConstraint angular = (AngularConstraint) constraint;
+            return new AngularConstraint(angular.getS(), angular.getType(),
+                    Angle.of(angular.getValueRad(), AngleUnit.RAD));
+        }
+        throw new IllegalArgumentException("Unsupported path constraint type: " +
+                constraint.getClass().getName());
+    }
 }

@@ -84,18 +84,19 @@ public final class PDSRoutine {
     private int candidateTrials, coordinate, coordinateSteps, totalTrials;
     private String status = "Not started";
 
-    /** Creates a Twiddle tuner; the feedforward model supplies only its initial guess. */
-    public PDSRoutine(Config config, double kV, double kA, double staticPower) {
+    /** Creates a Twiddle tuner from generic axis-specific PD guesses. */
+    public PDSRoutine(Config config, double initialP, double initialD, double staticPower) {
         this.config = config;
-        if (!positive(kV) || !positive(kA) || !Double.isFinite(staticPower) ||
+        if (!Double.isFinite(initialP) || initialP < 0.0 ||
+                !Double.isFinite(initialD) || initialD < 0.0 ||
+                !Double.isFinite(staticPower) ||
                 staticPower < 0.0 || staticPower >= COMMAND_LIMIT) {
             throw new IllegalArgumentException("Invalid PDS tuning seed");
         }
         controller = new PDSController(new PDSCoefficients(0.0, 0.0, staticPower));
         if (config.angular) { controller.setAngularController(); }
-        PDSCoefficients seed = modelBasedPd(kV, kA, 0.75, 0.75, staticPower);
-        gains[0] = Range.clip(seed.kP, config.minP, config.maxP);
-        gains[1] = Range.clip(seed.kD, config.minD, config.maxD);
+        gains[0] = Range.clip(initialP, config.minP, config.maxP);
+        gains[1] = Range.clip(initialD, config.minD, config.maxD);
         deltas[0] = Math.max(gains[0] * 0.35, (config.maxP - config.minP) * 0.025);
         deltas[1] = Math.max(gains[1] * 0.35, (config.maxD - config.minD) * 0.025);
     }
@@ -318,17 +319,6 @@ public final class PDSRoutine {
 
     // endregion
     // region Utilities and telemetry
-
-    /** Creates an aggressive under-damped seed; Twiddle performs the real optimization. */
-    static PDSCoefficients modelBasedPd(double kV, double kA, double damping,
-                                        double settlingSeconds, double staticPower) {
-        if (!positive(kV) || !positive(kA) || !positive(damping) || !positive(settlingSeconds)) {
-            throw new IllegalArgumentException("Model seed inputs must be positive");
-        }
-        double frequency = 4.0 / (damping * settlingSeconds);
-        return new PDSCoefficients(kA * frequency * frequency,
-                Math.max(0.0, 2.0 * damping * frequency * kA - kV), staticPower);
-    }
 
     /** Returns relative position, wrapping heading in radians. */
     static double relativePosition(double absolute, double origin, boolean angular) {

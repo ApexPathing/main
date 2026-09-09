@@ -8,7 +8,6 @@ import core.FollowerConstants;
 import feedforward.generators.TurnProfileGenerator;
 import geometry.Angle;
 import geometry.Pose;
-import paths.Callback;
 import paths.movements.Turn;
 
 /**
@@ -80,7 +79,7 @@ public class TurnBuilder {
                         "of this turn.");
             }
 
-            turn.addCallback(new Callback(angle, action));
+            turn.addAngularCallback(angle, action);
         });
 
         return this;
@@ -128,7 +127,8 @@ public class TurnBuilder {
                     "Use .turnTo().");
         }
 
-        Turn turn = new Turn(startPose, targetHeading);
+        Turn turn = new Turn(startPose, targetHeading, angularVelLimitRad,
+                angularAccelLimitRad);
         for (Consumer<Turn> task : buildTasks) { task.accept(turn); }
 
         return turn;

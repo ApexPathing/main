@@ -53,8 +53,6 @@ public class LimitsPhase extends TuningPhase {
     private static final double MAX_TRANSLATION_TRAVEL = 60.0;
     private static final double MAX_ANGULAR_TRAVEL = Math.PI * 2.0;
     private static final double SIM_STAGING_OFFSET = 55.0;
-    private static final double TEMPORARY_HEADING_KP = 1.0;
-    private static final double TEMPORARY_HEADING_KD = 0.10;
     public static final double MARGIN_MULTIPLIER = 0.95;
 
     private final ElapsedTime timer = new ElapsedTime();
@@ -105,8 +103,8 @@ public class LimitsPhase extends TuningPhase {
     @Override
     protected void init() {
         headingHoldController = new PDSController(new PDSController.PDSCoefficients(
-                TEMPORARY_HEADING_KP,
-                TEMPORARY_HEADING_KD,
+                context.constants.angularCoeffs.kP,
+                context.constants.angularCoeffs.kD,
                 context.constants.angularCoeffs.kS));
         headingHoldController.setAngularController();
         stage = LimitStage.PROMPT;
@@ -386,6 +384,9 @@ public class LimitsPhase extends TuningPhase {
 
     @Override
     protected boolean manualTuned() { return true; }
+
+    @Override
+    protected boolean routineMotionActive() { return stage != LimitStage.PROMPT; }
 
     @Override
     protected void reportResults() {

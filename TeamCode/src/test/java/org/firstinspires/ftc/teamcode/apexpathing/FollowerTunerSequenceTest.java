@@ -20,19 +20,21 @@ public class FollowerTunerSequenceTest {
     }
 
     @Test
-    public void workflowEstablishesDependenciesBeforeControllerTuning() {
+    public void controllerTuningRunsBetweenBreakawayAndLimits() {
         assertArrayEquals(new FollowerTuner.Phase[] {
                         FollowerTuner.Phase.STATIC_FRICTION,
-                        FollowerTuner.Phase.LIMITS,
-                        FollowerTuner.Phase.FEEDFORWARD,
                         FollowerTuner.Phase.HEADING,
                         FollowerTuner.Phase.DRIVE,
+                        FollowerTuner.Phase.LIMITS,
+                        FollowerTuner.Phase.FEEDFORWARD,
                         FollowerTuner.Phase.CENTRIPETAL,
                         FollowerTuner.Phase.VELOCITY_FEEDBACK
                 },
                 FollowerTuner.Phase.values());
         assertEquals(FollowerTuner.Phase.HEADING,
-                FollowerTuner.nextPhase(FollowerTuner.Phase.FEEDFORWARD));
+                FollowerTuner.nextPhase(FollowerTuner.Phase.STATIC_FRICTION));
+        assertEquals(FollowerTuner.Phase.LIMITS,
+                FollowerTuner.nextPhase(FollowerTuner.Phase.DRIVE));
     }
 
     @Test

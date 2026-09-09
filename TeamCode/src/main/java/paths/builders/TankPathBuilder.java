@@ -3,16 +3,12 @@ package paths.builders;
 import java.util.ArrayList;
 import java.util.List;
 
-import core.FollowerConstants;
-import feedforward.FFLut;
-import feedforward.generators.TankProfileGenerator;
 import geometry.Angle;
 import geometry.ArcPose;
 import geometry.BSpline;
 import geometry.PathSegment;
 import geometry.Pose;
 import geometry.Vector;
-import paths.Callback;
 import paths.heading.InterpolationStyle;
 import paths.heading.TankInterpolator;
 import paths.movements.Path;
@@ -48,7 +44,7 @@ public class TankPathBuilder extends PathBuilder<TankPathBuilder> {
 
     @Override
     public TankPathBuilder addAngularCallback(Angle angle, Runnable action) {
-        this.buildTasks.add(() -> path.addCallback(new Callback(angle, action)));
+        this.buildTasks.add(() -> path.addAngularCallback(angle, action));
         return this;
     }
 
@@ -141,26 +137,21 @@ public class TankPathBuilder extends PathBuilder<TankPathBuilder> {
     @Override
     public Path quickBuild() {
         compileGeometry();
-        FollowerConstants constants = FollowerConstants.getInstance();
-        TankProfileGenerator generator = new TankProfileGenerator(constants, path);
-
         if (path.getConstraints().length == 0) {
             // noinspection ConstantExpression
             path.addWarning("APEX WARNING: quickBuild() called on Tank drive with no constraints!" +
                     " The naive profile will attempt maximum speed through all curves.");
         }
-
-        path.setFeedforwardLut(generator.generateQuick(constants));
+        path.setBuildMode(Path.BuildMode.QUICK);
+        path.rebuildMotionProfile();
         return path;
     }
 
     @Override
     public Path profiledBuild() {
         compileGeometry();
-        FollowerConstants constants = FollowerConstants.getInstance();
-        TankProfileGenerator generator = new TankProfileGenerator(constants, path);
-
-        path.setFeedforwardLut(new FFLut(generator.generate()));
+        path.setBuildMode(Path.BuildMode.PROFILED);
+        path.rebuildMotionProfile();
         return path;
     }
 }

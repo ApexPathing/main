@@ -30,10 +30,15 @@ public class FeedforwardTuner extends TuningPhase {
     private static final double SIM_STAGING_OFFSET = 55.0;
     private static final double STATIONARY_LINEAR_SPEED_IN_PER_SEC = 1.0;
     private static final double STATIONARY_ANGULAR_SPEED_RAD_PER_SEC = 0.10;
+    private static final double MANUAL_DRIVE_DISTANCE_INCHES = 48.0;
+    private static final double MANUAL_TURN_ANGLE_RADIANS = Math.PI;
+    private static final double MANUAL_SETTLE_TIMEOUT_SECONDS = 1.5;
+    private static final double MANUAL_DRIVE_CRUISE_BOUND_IN_PER_SEC = 1.0;
+    private static final double MANUAL_ANGULAR_CRUISE_BOUND_RAD_PER_SEC = Math.toRadians(1.0);
 
-    private enum Coefficient { ANGULAR_KV, ANGULAR_KA, TRANSLATIONAL_KV, TRANSLATIONAL_KA }
+    private enum Coefficient { ANGULAR_KV, TRANSLATIONAL_KV, ANGULAR_KA, TRANSLATIONAL_KA }
 
-    private enum ManualState { IDLE, ANGULAR, DRIVE }
+    private enum ManualState { IDLE, DRIVE, SETTLING, ANGULAR }
     private ManualState manualState = ManualState.IDLE;
     private final ElapsedTime timer = new ElapsedTime();
     private TrapezoidProfile driveProfile;
@@ -145,16 +150,13 @@ public class FeedforwardTuner extends TuningPhase {
     private String validationMessage = "Not run";
     private String csvPath = "Not written";
     private String csvError;
-    private boolean isForward = true;
-    private boolean manualDriveHasRun = false;
-    private boolean manualAngularPositive = true;
-    private boolean manualAngularHasRun = false;
     private int manualRunNumber;
-    private int manualSamples;
+    private final ManualErrorMetrics manualDriveMetrics = new ManualErrorMetrics();
+    private final ManualErrorMetrics manualAngularMetrics = new ManualErrorMetrics();
     private int manualSaturatedSamples;
-    private double manualErrorSquared;
     private double manualPeakError;
     private double manualPeakVelocity;
+    private boolean manualSummaryWritten;
     private TuningCsvWriter manualCsv;
     private String manualCsvPath = "Not started";
     private final LowPassFilter commandPowerFilter = new LowPassFilter();
@@ -195,9 +197,9 @@ public class FeedforwardTuner extends TuningPhase {
     @Override
     protected void showPreRunInstructions() {
         context.getTelemetry().addLine(
-                "Manual angular runs alternate counterclockwise and clockwise.");
+                "Manual X tests drive forward 48 inches, settle, then turn around 180 degrees.");
         context.getTelemetry().addLine(
-                "Manual drive runs need at least 72 inches clear in the selected direction.");
+                "Leave a clear 48-inch lane and enough room for an in-place turn.");
     }
 
     @Override
@@ -205,25 +207,26 @@ public class FeedforwardTuner extends TuningPhase {
         // Target half of the physical limits to avoid motor saturation during tuning.
         angularProfile = new TrapezoidProfile(
                 context.constants.angularVelLimitRad / 2,
-                context.constants.angularAccelLimitRad / 2
+                context.constants.angularAccelLimitRad / 2,
+                MANUAL_TURN_ANGLE_RADIANS
         );
         driveProfile = new TrapezoidProfile(
                 context.constants.forwardVelLimitIn / 2,
-                context.constants.forwardAccelLimitIn / 2
+                context.constants.forwardAccelLimitIn / 2,
+                MANUAL_DRIVE_DISTANCE_INCHES
         );
 
         timer.reset();
-        isForward = true;
-        manualDriveHasRun = false;
-        manualAngularPositive = true;
-        manualAngularHasRun = false;
         if (manualMode) {
             manualState = ManualState.IDLE;
             context.getFollower().stop();
             manualRunNumber = 0;
+            manualDriveMetrics.reset();
+            manualAngularMetrics.reset();
             manualCsv = TuningCsvWriter.open("manual_feedforward_response",
-                    "run", "time_s", "axis", "direction", "target_velocity",
-                    "actual_velocity", "error", "raw_power", "applied_power", "saturated");
+                    "record_type", "run", "time_s", "axis", "direction", "target_velocity",
+                    "actual_velocity", "error", "raw_power", "applied_power", "saturated",
+                    "included_in_kv_cruise_rms", "kv_cruise_rms", "ka_whole_run_rms");
             manualCsvPath = manualCsv.getPath();
         } else {
             restartAutomaticCharacterization();
@@ -275,23 +278,32 @@ public class FeedforwardTuner extends TuningPhase {
         private final double tAccelEnd;
         private final double tCruiseEnd;
         private final double tEnd;
+        private final double totalDistance;
 
         public TrapezoidProfile(double vel, double accel) {
+            this(vel, accel, Math.abs(vel) * (Math.abs(vel) / Math.abs(accel) + 1.0));
+        }
+
+        /** Builds an exact-distance trapezoid, falling back to a triangle when required. */
+        public TrapezoidProfile(double vel, double accel, double distance) {
             this.vel = Math.abs(vel);
             this.accel = Math.abs(accel);
+            this.totalDistance = Math.abs(distance);
 
             if (!Double.isFinite(this.vel) || !Double.isFinite(this.accel) ||
-                    this.vel <= 0.0 || this.accel <= 0.0) {
+                    !Double.isFinite(this.totalDistance) || this.vel <= 0.0 ||
+                    this.accel <= 0.0 || this.totalDistance <= 0.0) {
                 throw new IllegalArgumentException(
-                        "Trapezoid profile velocity and acceleration must be finite and positive."
+                        "Trapezoid profile inputs must be finite and positive."
                 );
             }
 
-            // Phase 1: Ramping up (v = at -> t = v/a)
-            this.tAccelEnd = this.vel / this.accel;
-            // Phase 2: Cruising for exactly 1.0 second
-            this.tCruiseEnd = this.tAccelEnd + 1.0;
-            // Phase 3: Ramping down (takes the same time as ramping up)
+            this.tAccelEnd = Math.min(this.vel / this.accel,
+                    Math.sqrt(this.totalDistance / this.accel));
+            double peakVelocity = this.accel * this.tAccelEnd;
+            double cruiseDistance = Math.max(0.0,
+                    this.totalDistance - this.accel * this.tAccelEnd * this.tAccelEnd);
+            this.tCruiseEnd = this.tAccelEnd + cruiseDistance / peakVelocity;
             this.tEnd = this.tCruiseEnd + this.tAccelEnd;
         }
 
@@ -316,10 +328,10 @@ public class FeedforwardTuner extends TuningPhase {
                 return accel * t;
             }
             if (t < tCruiseEnd) {
-                return vel;
+                return accel * tAccelEnd;
             }
             // Deceleration: Max velocity minus what has been lost over time
-            return vel - accel * (t - tCruiseEnd);
+            return accel * tAccelEnd - accel * (t - tCruiseEnd);
         }
 
         public double getTotalTime() {
@@ -335,7 +347,7 @@ public class FeedforwardTuner extends TuningPhase {
         }
 
         public double getTotalDistance() {
-            return vel * tCruiseEnd;
+            return totalDistance;
         }
     }
 
@@ -377,86 +389,86 @@ public class FeedforwardTuner extends TuningPhase {
                     context.constants.angularKA);
         }
 
+        if (coefficientsChanged && manualState != ManualState.IDLE) {
+            context.getFollower().stop();
+            manualState = ManualState.IDLE;
+        }
+
+        if (opMode.gamepad1.xWasPressed()) {
+            context.getFollower().stop();
+            resetManualMetrics();
+            manualState = ManualState.DRIVE;
+            timer.reset();
+        }
+
         Pose velocity = context.getFollower().getVelocity();
         double angularVel = velocity.getHeading(AngleUnit.RAD);
-        double driveVel = Math.abs(velocity.getX().getIn());
-
+        double driveVel = velocity.getX().getIn();
         double time_sec = timer.seconds();
-        boolean working = manualState == ManualState.ANGULAR &&
-                time_sec < angularProfile.getTotalTime() || manualState == ManualState.DRIVE &&
-                time_sec < driveProfile.getTotalTime();
-
-        if (coefficientsChanged && working) {
-            context.getFollower().stop();
-            manualState = ManualState.IDLE;
-            working = false;
-        }
-
-        if (!working && manualState != ManualState.IDLE) {
-            manualState = ManualState.IDLE;
-            context.getFollower().stop();
-        }
-
-        if (opMode.gamepad1.xWasPressed() && !working) {
-            manualState = ManualState.ANGULAR;
-            if (manualAngularHasRun) {
-                manualAngularPositive = !manualAngularPositive;
-            } else {
-                manualAngularHasRun = true;
-            }
-            resetManualMetrics();
-            timer.reset();
-            working = true;
-        } else if (opMode.gamepad1.yWasPressed() && !working) {
-            manualState = ManualState.DRIVE;
-            if (manualDriveHasRun) {
-                isForward = !isForward;
-            } else {
-                manualDriveHasRun = true;
-            }
-            resetManualMetrics();
-            timer.reset();
-            working = true;
-        }
-
-        time_sec = timer.seconds();
         double targetVel = 0.0;
         double currentVel = 0.0;
 
-        switch (working ? manualState : ManualState.IDLE) {
+        switch (manualState) {
             case IDLE:
                 context.getFollower().stop();
                 break;
-            case ANGULAR:
-                double angularDirection = manualAngularPositive ? 1.0 : -1.0;
-                targetVel = angularProfile.getVel(time_sec) * angularDirection;
-                currentVel = angularVel;
-                double angularPow = manualAngularPower(
-                        context.constants.angularKV, context.constants.angularKA,
-                        context.constants.angularFeedforwardKS,
-                        angularProfile.getVel(time_sec),
-                        angularProfile.getAccel(time_sec), angularDirection);
-                double appliedAngularPower = clipManualPower(angularPow);
-                context.getFollower().getDrivetrain().moveWithVectors(
-                        0.0, 0.0, appliedAngularPower);
-                recordManualFeedforwardSample(targetVel, currentVel,
-                        angularPow, appliedAngularPower);
-                break;
             case DRIVE:
+                if (time_sec >= driveProfile.getTotalTime()) {
+                    context.getFollower().stop();
+                    manualState = ManualState.SETTLING;
+                    timer.reset();
+                    break;
+                }
                 targetVel = driveProfile.getVel(time_sec);
                 currentVel = driveVel;
                 double drivePow =
                         context.constants.translationalKV * targetVel +
                                 context.constants.translationalKA * driveProfile.getAccel(time_sec) +
                                 context.constants.translationalFeedforwardKS;
-                double direction = isForward ? 1.0 : -1.0;
-                double rawDrivePower = drivePow * direction;
+                double rawDrivePower = drivePow;
                 double appliedDrivePower = clipManualPower(rawDrivePower);
                 context.getFollower().getDrivetrain().moveWithVectors(
                         appliedDrivePower, 0.0, 0.0
                 );
                 recordManualFeedforwardSample(targetVel, currentVel,
+                        driveProfile.getVel(driveProfile.getAccelEnd()),
+                        time_sec < driveProfile.getCruiseEnd(),
+                        MANUAL_DRIVE_CRUISE_BOUND_IN_PER_SEC,
                         rawDrivePower, appliedDrivePower);
+                break;
+            case SETTLING:
+                context.getFollower().stop();
+                boolean stationary = Math.hypot(
+                        velocity.getX().getIn(), velocity.getY().getIn()) <=
+                        STATIONARY_LINEAR_SPEED_IN_PER_SEC &&
+                        Math.abs(angularVel) <= STATIONARY_ANGULAR_SPEED_RAD_PER_SEC;
+                if ((time_sec >= AUTO_SETTLE_TIME && stationary) ||
+                        time_sec >= MANUAL_SETTLE_TIMEOUT_SECONDS) {
+                    manualState = ManualState.ANGULAR;
+                    timer.reset();
+                }
+                break;
+            case ANGULAR:
+                if (time_sec >= angularProfile.getTotalTime()) {
+                    context.getFollower().stop();
+                    writeManualSummary();
+                    manualState = ManualState.IDLE;
+                    break;
+                }
+                targetVel = angularProfile.getVel(time_sec);
+                currentVel = angularVel;
+                double angularPow = manualAngularPower(
+                        context.constants.angularKV, context.constants.angularKA,
+                        context.constants.angularFeedforwardKS,
+                        targetVel, angularProfile.getAccel(time_sec), 1.0);
+                double appliedAngularPower = clipManualPower(angularPow);
+                context.getFollower().getDrivetrain().moveWithVectors(
+                        0.0, 0.0, appliedAngularPower);
+                recordManualFeedforwardSample(targetVel, currentVel,
+                        angularProfile.getVel(angularProfile.getAccelEnd()),
+                        time_sec < angularProfile.getCruiseEnd(),
+                        MANUAL_ANGULAR_CRUISE_BOUND_RAD_PER_SEC,
+                        angularPow, appliedAngularPower);
                 break;
         }
 
@@ -474,26 +486,28 @@ public class FeedforwardTuner extends TuningPhase {
                 (manualState == ManualState.ANGULAR ? " rad/s" :
                         manualState == ManualState.DRIVE ? " in/s" : ""));
         context.getTelemetry().addData("Velocity error", number(targetVel - currentVel));
+        context.getTelemetry().addData("Drive kV cruise RMS", number(manualDriveMetrics.cruiseRms()));
+        context.getTelemetry().addData("Angular kV cruise RMS", number(manualAngularMetrics.cruiseRms()));
+        context.getTelemetry().addData("Drive kA whole-run RMS", number(manualDriveMetrics.wholeRunRms()));
+        context.getTelemetry().addData("Angular kA whole-run RMS", number(manualAngularMetrics.wholeRunRms()));
         if (context.isDebugMode()) {
-            context.getTelemetry().addData("Direction", manualState == ManualState.ANGULAR
-                    ? (manualAngularPositive ? "COUNTERCLOCKWISE" : "CLOCKWISE")
-                    : (isForward ? "FORWARD" : "BACKWARD"));
-            context.getTelemetry().addData("RMS velocity error", manualSamples == 0
-                    ? Double.NaN : Math.sqrt(manualErrorSquared / manualSamples));
+            context.getTelemetry().addData("Test state", manualState);
             context.getTelemetry().addData("Peak velocity error", manualPeakError);
             context.getTelemetry().addData("Peak measured velocity", manualPeakVelocity);
-            context.getTelemetry().addData("Saturation", manualSamples == 0 ? "0.0%" :
-                    Math.round(1000.0 * manualSaturatedSamples / manualSamples) / 10.0 + "%");
+            int totalSamples = manualDriveMetrics.wholeRunSamples +
+                    manualAngularMetrics.wholeRunSamples;
+            context.getTelemetry().addData("Saturation", totalSamples == 0 ? "0.0%" :
+                    Math.round(1000.0 * manualSaturatedSamples / totalSamples) / 10.0 + "%");
             context.getTelemetry().addData("Response CSV", manualCsvPath);
         }
         context.getTelemetry().addLine("Dpad Up/Down: Change value");
         context.getTelemetry().addLine("LB/RB: select Value to tune");
-        context.getTelemetry().addLine("X: Run and edit angular routine");
-        context.getTelemetry().addLine("Y: Run and edit drive routine");
+        context.getTelemetry().addLine("X: Run/restart 48-inch drive + 180-degree turn test");
         context.getTelemetry().addLine("A: Save");
         context.getTelemetry().update();
         if (opMode.gamepad1.aWasPressed()) {
             context.getFollower().stop();
+            writeManualSummary();
             if (manualCsv != null) { manualCsv.close(); }
             return true;
         }
@@ -502,29 +516,101 @@ public class FeedforwardTuner extends TuningPhase {
 
     private void resetManualMetrics() {
         manualRunNumber++;
-        manualSamples = 0;
+        manualDriveMetrics.reset();
+        manualAngularMetrics.reset();
         manualSaturatedSamples = 0;
-        manualErrorSquared = 0.0;
         manualPeakError = 0.0;
         manualPeakVelocity = 0.0;
+        manualSummaryWritten = false;
     }
 
     private void recordManualFeedforwardSample(double targetVelocity, double actualVelocity,
+                                               double cruiseVelocity, boolean beforeDeceleration,
+                                               double cruiseEntryTolerance,
                                                double rawPower, double appliedPower) {
         if (!Double.isFinite(targetVelocity) || !Double.isFinite(actualVelocity)) { return; }
         double error = targetVelocity - actualVelocity;
-        manualSamples++;
-        manualErrorSquared += error * error;
+        ManualErrorMetrics metrics;
+        if (manualState == ManualState.DRIVE) {
+            metrics = manualDriveMetrics;
+        } else if (manualState == ManualState.ANGULAR) {
+            metrics = manualAngularMetrics;
+        } else {
+            return;
+        }
+        boolean cruiseSample = metrics.record(targetVelocity, actualVelocity, cruiseVelocity,
+                beforeDeceleration, cruiseEntryTolerance);
         manualPeakError = Math.max(manualPeakError, Math.abs(error));
         manualPeakVelocity = Math.max(manualPeakVelocity, Math.abs(actualVelocity));
         boolean saturated = Math.abs(rawPower) >= 1.0;
         if (saturated) { manualSaturatedSamples++; }
         if (manualCsv != null) {
             String direction = manualState == ManualState.ANGULAR
-                    ? (manualAngularPositive ? "COUNTERCLOCKWISE" : "CLOCKWISE")
-                    : (isForward ? "FORWARD" : "BACKWARD");
-            manualCsv.writeRow(manualRunNumber, timer.seconds(), manualState, direction,
-                    targetVelocity, actualVelocity, error, rawPower, appliedPower, saturated);
+                    ? "COUNTERCLOCKWISE" : "FORWARD";
+            manualCsv.writeRow("SAMPLE", manualRunNumber, timer.seconds(), manualState, direction,
+                    targetVelocity, actualVelocity, error, rawPower, appliedPower, saturated,
+                    cruiseSample, metrics.cruiseRms(), metrics.wholeRunRms());
+        }
+    }
+
+    private void writeManualSummary() {
+        if (manualCsv == null || manualSummaryWritten || manualRunNumber == 0) { return; }
+        manualCsv.writeRow("SUMMARY", manualRunNumber, Double.NaN, "DRIVE_KV", "FORWARD",
+                Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, false,
+                false, manualDriveMetrics.cruiseRms(), Double.NaN);
+        manualCsv.writeRow("SUMMARY", manualRunNumber, Double.NaN, "DRIVE_KA", "FORWARD",
+                Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, false,
+                false, Double.NaN, manualDriveMetrics.wholeRunRms());
+        manualCsv.writeRow("SUMMARY", manualRunNumber, Double.NaN, "ANGULAR_KV",
+                "COUNTERCLOCKWISE", Double.NaN, Double.NaN, Double.NaN, Double.NaN,
+                Double.NaN, false, false, manualAngularMetrics.cruiseRms(), Double.NaN);
+        manualCsv.writeRow("SUMMARY", manualRunNumber, Double.NaN, "ANGULAR_KA",
+                "COUNTERCLOCKWISE", Double.NaN, Double.NaN, Double.NaN, Double.NaN,
+                Double.NaN, false, false, Double.NaN, manualAngularMetrics.wholeRunRms());
+        manualSummaryWritten = true;
+    }
+
+    /** Separates kV's reached-cruise evidence from kA's whole-profile evidence. */
+    static final class ManualErrorMetrics {
+        private boolean cruiseReached;
+        private int cruiseSamples;
+        private int wholeRunSamples;
+        private double cruiseErrorSquared;
+        private double wholeRunErrorSquared;
+
+        boolean record(double targetVelocity, double actualVelocity, double cruiseVelocity,
+                       boolean beforeDeceleration, double cruiseEntryTolerance) {
+            double runError = targetVelocity - actualVelocity;
+            wholeRunErrorSquared += runError * runError;
+            wholeRunSamples++;
+            if (!beforeDeceleration) { return false; }
+            if (!cruiseReached &&
+                    Math.abs(actualVelocity - cruiseVelocity) <= cruiseEntryTolerance) {
+                cruiseReached = true;
+            }
+            if (!cruiseReached) { return false; }
+            double cruiseError = cruiseVelocity - actualVelocity;
+            cruiseErrorSquared += cruiseError * cruiseError;
+            cruiseSamples++;
+            return true;
+        }
+
+        double cruiseRms() {
+            return cruiseSamples == 0 ? Double.NaN :
+                    Math.sqrt(cruiseErrorSquared / cruiseSamples);
+        }
+
+        double wholeRunRms() {
+            return wholeRunSamples == 0 ? Double.NaN :
+                    Math.sqrt(wholeRunErrorSquared / wholeRunSamples);
+        }
+
+        void reset() {
+            cruiseReached = false;
+            cruiseSamples = 0;
+            wholeRunSamples = 0;
+            cruiseErrorSquared = 0.0;
+            wholeRunErrorSquared = 0.0;
         }
     }
 
@@ -538,6 +624,12 @@ public class FeedforwardTuner extends TuningPhase {
 
     static double clipManualPower(double rawPower) {
         return Range.clip(rawPower, -1.0, 1.0);
+    }
+
+    @Override
+    protected boolean routineMotionActive() {
+        if (manualMode) { return manualState != ManualState.IDLE; }
+        return autoStage == AutoStage.RUNNING || autoStage == AutoStage.SETTLING;
     }
 
     @Override
@@ -963,6 +1055,10 @@ public class FeedforwardTuner extends TuningPhase {
         context.getTelemetry().addData("Translational KA", number(context.constants.translationalKA));
         context.getTelemetry().addData("Validation", validationMessage);
         if (manualMode) {
+            context.getTelemetry().addData("Drive kV cruise RMS", number(manualDriveMetrics.cruiseRms()));
+            context.getTelemetry().addData("Angular kV cruise RMS", number(manualAngularMetrics.cruiseRms()));
+            context.getTelemetry().addData("Drive kA whole-run RMS", number(manualDriveMetrics.wholeRunRms()));
+            context.getTelemetry().addData("Angular kA whole-run RMS", number(manualAngularMetrics.wholeRunRms()));
             context.getTelemetry().addData("Manual response CSV", manualCsvPath);
             return;
         }

@@ -19,6 +19,8 @@ public class HeadingPhase extends TuningPhase {
     private static final double HEADING_KP_MAX = 32.0;
     private static final double HEADING_KD_MIN = 0.0;
     private static final double HEADING_KD_MAX = 2.0;
+    private static final double HEADING_INITIAL_KP = 0.80;
+    private static final double HEADING_INITIAL_KD = 0.10;
     private static final double AUTOMATIC_TEST_ANGLE = Math.toRadians(60.0);
     private static final double POSITION_TOLERANCE = Math.toRadians(0.75);
     private static final double SETTLING_ANGULAR_VELOCITY = 0.10;
@@ -51,7 +53,7 @@ public class HeadingPhase extends TuningPhase {
         context.getTelemetry().addLine(
                 "Place the robot where it can rotate safely through a 60 degree out-and-back test.");
         context.getTelemetry().addLine(
-                "Automatic tuning calculates gains from the refined feedforward model, then " +
+                "Automatic tuning starts from generic gains, then " +
                         "checks settling, overshoot, error, and consistency in both directions.");
     }
 
@@ -80,8 +82,8 @@ public class HeadingPhase extends TuningPhase {
         );
         routine = new PDSRoutine(
                 config,
-                context.constants.angularKV,
-                context.constants.angularKA,
+                HEADING_INITIAL_KP,
+                HEADING_INITIAL_KD,
                 context.constants.angularCoeffs.kS);
         routine.start();
         context.getFollower().disableControllers();
@@ -199,6 +201,13 @@ public class HeadingPhase extends TuningPhase {
         context.getTelemetry().addData("Heading P", number(context.constants.angularCoeffs.kP));
         context.getTelemetry().addData("Heading D", number(context.constants.angularCoeffs.kD));
         context.getTelemetry().addData("Heading S", number(context.constants.angularCoeffs.kS));
+    }
+
+    @Override
+    protected boolean routineMotionActive() {
+        if (manualMode) { return testTurnQueued || context.getFollower().isBusy(); }
+        return routine != null && routine.getState() != PDSRoutine.PDSState.TEST_READY &&
+                routine.getState() != PDSRoutine.PDSState.COMPLETE;
     }
 
     private void reportDetailedManualMetrics(String positionUnit, String velocityUnit) {

@@ -1,0 +1,86 @@
+> Task :FtcRobotController:preBuild UP-TO-DATE
+> Task :FtcRobotController:preDebugBuild UP-TO-DATE
+> Task :FtcRobotController:generateDebugBuildConfig
+> Task :FtcRobotController:generateDebugResValues
+> Task :FtcRobotController:generateDebugResources
+> Task :FtcRobotController:packageDebugResources
+> Task :FtcRobotController:processDebugJavaRes NO-SOURCE
+> Task :FtcRobotController:javaPreCompileDebug
+> Task :TeamCode:preBuild UP-TO-DATE
+> Task :TeamCode:preDebugBuild UP-TO-DATE
+> Task :TeamCode:javaPreCompileDebug
+> Task :FtcRobotController:parseDebugLocalResources
+> Task :FtcRobotController:writeDebugAarMetadata
+> Task :FtcRobotController:compileDebugLibraryResources
+> Task :TeamCode:generateDebugResValues
+> Task :TeamCode:checkDebugAarMetadata
+> Task :TeamCode:mapDebugSourceSetPaths
+> Task :TeamCode:generateDebugResources
+> Task :FtcRobotController:generateDebugRFile
+> Task :TeamCode:mergeDebugResources
+
+> Task :FtcRobotController:compileDebugJavaWithJavac
+Java compiler version 21 has deprecated support for compiling with source/target version 8.
+Try one of the following options:
+    1. [Recommended] Use Java toolchain with a lower language version
+    2. Set a higher source/target version
+    3. Use a lower version of the JDK running the build (if you're not using Java toolchain)
+For more details on how to configure these settings, see https://developer.android.com/build/jdks.
+To suppress this warning, set android.javaCompile.suppressSourceTargetDeprecationWarning=true in gradle.properties.
+
+> Task :TeamCode:createDebugCompatibleScreenManifests
+warning: [options] source value 8 is obsolete and will be removed in a future release
+warning: [options] target value 8 is obsolete and will be removed in a future release
+warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
+Note: C:\Users\joela\Documents\Apex\ApexPathing\FtcRobotController\src\main\java\org\firstinspires\ftc\robotcontroller\internal\FtcRobotControllerActivity.java uses or overrides a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+3 warnings
+> Task :FtcRobotController:extractDeepLinksDebug
+> Task :FtcRobotController:bundleLibRuntimeToJarDebug
+> Task :FtcRobotController:bundleLibCompileToJarDebug
+> Task :TeamCode:extractDeepLinksDebug
+> Task :TeamCode:preDebugUnitTestBuild UP-TO-DATE
+> Task :TeamCode:javaPreCompileDebugUnitTest
+> Task :TeamCode:processDebugJavaRes NO-SOURCE
+> Task :TeamCode:processDebugUnitTestJavaRes NO-SOURCE
+> Task :FtcRobotController:processDebugManifest
+> Task :TeamCode:processDebugMainManifest
+> Task :TeamCode:processDebugManifest
+> Task :TeamCode:processDebugManifestForPackage
+> Task :TeamCode:processDebugResources
+
+> Task :TeamCode:compileDebugJavaWithJavac
+Java compiler version 21 has deprecated support for compiling with source/target version 8.
+Try one of the following options:
+    1. [Recommended] Use Java toolchain with a lower language version
+    2. Set a higher source/target version
+    3. Use a lower version of the JDK running the build (if you're not using Java toolchain)
+For more details on how to configure these settings, see https://developer.android.com/build/jdks.
+To suppress this warning, set android.javaCompile.suppressSourceTargetDeprecationWarning=true in gradle.properties.
+warning: [options] source value 8 is obsolete and will be removed in a future release
+warning: [options] target value 8 is obsolete and will be removed in a future release
+warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
+3 warnings
+
+> Task :TeamCode:bundleDebugClassesToRuntimeJar
+> Task :TeamCode:bundleDebugClassesToCompileJar
+
+> Task :TeamCode:compileDebugUnitTestJavaWithJavac
+Java compiler version 21 has deprecated support for compiling with source/target version 8.
+Try one of the following options:
+    1. [Recommended] Use Java toolchain with a lower language version
+    2. Set a higher source/target version
+    3. Use a lower version of the JDK running the build (if you're not using Java toolchain)
+For more details on how to configure these settings, see https://developer.android.com/build/jdks.
+To suppress this warning, set android.javaCompile.suppressSourceTargetDeprecationWarning=true in gradle.properties.
+warning: [options] source value 8 is obsolete and will be removed in a future release
+warning: [options] target value 8 is obsolete and will be removed in a future release
+warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
+Note: C:\Users\joela\Documents\Apex\ApexPathing\TeamCode\src\test\java\org\codeblooded\ftcodesim\ascope\ApexAdvantageScopeLayout.java uses or overrides a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+3 warnings
+
+> Task :TeamCode:testDebugUnitTest
+
+BUILD SUCCESSFUL in 33s
+32 actionable tasks: 32 executed

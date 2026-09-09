@@ -30,20 +30,18 @@ public class CentripetalPhase extends TuningPhase {
     private static final double TEST_CENTRIPETAL_POWER_FRACTION = 0.20;
     private static final double TEST_ARC_RADIUS_INCHES = 32.0;
     private static final int TEST_ARC_POINT_COUNT = 7;
-    private static final int TRIALS_PER_GAIN = 1;
+
+    private enum Leg { IDLE, OUTBOUND, RETURN }
 
     private BinarySearch search;
     private Path forwardArc;
     private Path backwardArc;
 
-    private boolean forwardPathRunning;
+    private Leg leg = Leg.IDLE;
     private double errorSum;
     private int samples;
     private double averageError;
-    private boolean trialRunning;
     private int trialNumber;
-    private int candidateTrials;
-    private double candidateErrorSum;
     private TuningCsvWriter manualCsv;
     private String manualCsvPath = "Not started";
     private final ElapsedTime legTimer = new ElapsedTime();
@@ -74,7 +72,6 @@ public class CentripetalPhase extends TuningPhase {
 
         // Center the complete 32x32 test footprint on the field, not merely its starting point.
         Pose[] forwardPoints = createTestArc(factory);
-        Pose[] backwardPoints = reverse(forwardPoints);
         Pose start = forwardPoints[0];
         if (Boolean.getBoolean("apex.simulation.unlockTunerPhases")) {
             positionRobotForSimulation(start);
@@ -101,12 +98,7 @@ public class CentripetalPhase extends TuningPhase {
             forwardBuilder.addConstraint(new TranslationalConstraint(0.0,
                     PathConstraint.Type.VELOCITY, Dist.fromIn(testVelocity)));
             forwardArc = forwardBuilder.profiledBuild();
-
-            PathBuilder<?> backwardBuilder = factory.path(backwardPoints)
-                    .interpolateWith(InterpolationStyle.TANGENT_BACKWARD);
-            backwardBuilder.addConstraint(new TranslationalConstraint(0.0,
-                    PathConstraint.Type.VELOCITY, Dist.fromIn(testVelocity)));
-            backwardArc = backwardBuilder.profiledBuild();
+            backwardArc = forwardArc.reversed();
         } finally {
             // Generate both profiles against the worst search candidate without changing the
             // value that manual mode seeds from or automatic mode will evaluate first.
@@ -119,31 +111,36 @@ public class CentripetalPhase extends TuningPhase {
         if (manualMode) {
             context.getFollower().setCentripetal(context.constants.kCentripetal);
             context.getFollower().stop();
-            trialRunning = false;
+            leg = Leg.IDLE;
             trialNumber = 0;
             manualCsv = TuningCsvWriter.open("manual_centripetal_response",
                     "trial", "time_s", "gain", "direction", "path_t", "signed_error_in");
             manualCsvPath = manualCsv.getPath();
         } else {
-            candidateTrials = 0;
-            candidateErrorSum = 0.0;
-            resetTrial();
+            startTrial();
         }
     }
 
-    private void resetTrial() {
+    private void startTrial() {
         context.getFollower().stop();
-        forwardPathRunning = true;
         errorSum = 0;
         samples = 0;
         averageError = 0;
 
         context.getFollower().setCentripetal(context.constants.kCentripetal);
-        context.getFollower().follow(forwardArc);
-        trialRunning = true;
         trialNumber++;
+        startLeg(Leg.OUTBOUND);
+    }
+
+    private void startLeg(Leg nextLeg) {
+        leg = nextLeg;
+        context.getFollower().follow(nextLeg == Leg.OUTBOUND ? forwardArc : backwardArc);
         legTimer.reset();
     }
+
+    private boolean trialRunning() { return leg != Leg.IDLE; }
+
+    private boolean outbound() { return leg == Leg.OUTBOUND; }
 
     private void sampleError() {
         double t = context.getFollower().getBestT();
@@ -160,7 +157,7 @@ public class CentripetalPhase extends TuningPhase {
         if (manualMode && manualCsv != null) {
             manualCsv.writeRow(trialNumber, legTimer.seconds(),
                     context.constants.kCentripetal,
-                    forwardPathRunning ? "OUTBOUND" : "RETURN", t, error);
+                    outbound() ? "OUTBOUND" : "RETURN", t, error);
         }
     }
 
@@ -173,7 +170,7 @@ public class CentripetalPhase extends TuningPhase {
             if (legTimer.seconds() > LEG_TIMEOUT_SECONDS) {
                 context.getFollower().stop();
                 throw new IllegalStateException(
-                        "Centripetal " + (forwardPathRunning ? "outbound" : "return") +
+                        "Centripetal " + (outbound() ? "outbound" : "return") +
                                 " arc timed out at pose " + context.getFollower().getPose() +
                                 ", t=" + context.getFollower().getBestT() +
                                 ", velocity=" + context.getFollower().getVelocity() +
@@ -186,7 +183,7 @@ public class CentripetalPhase extends TuningPhase {
     }
 
     private boolean readyForTurnaround() {
-        Pose endpoint = forwardPathRunning ? forwardArc.getEndPose() : backwardArc.getEndPose();
+        Pose endpoint = outbound() ? forwardArc.getEndPose() : backwardArc.getEndPose();
         double endpointDistance = context.getFollower().getPose().getVec()
                 .distanceTo(endpoint.getVec()).getIn();
         double speed = context.getFollower().getVelocity().getVec().getMag().getIn();
@@ -204,10 +201,8 @@ public class CentripetalPhase extends TuningPhase {
         // The general follower completion gate may still be waiting on heading settling. End this
         // phase-local leg explicitly so the matching reverse arc can be queued immediately.
         if (context.getFollower().isBusy()) { context.getFollower().stop(); }
-        if (forwardPathRunning) {
-            forwardPathRunning = false;
-            context.getFollower().follow(backwardArc);
-            legTimer.reset();
+        if (outbound()) {
+            startLeg(Leg.RETURN);
             return false;
         }
 
@@ -218,12 +213,13 @@ public class CentripetalPhase extends TuningPhase {
             );
         }
         averageError = errorSum / samples;
+        leg = Leg.IDLE;
         return true;
     }
 
     @Override
     protected boolean autoTuned() {
-        context.getTelemetry().addLine(forwardPathRunning
+        context.getTelemetry().addLine(outbound()
                 ? "Robot is following the outbound test arc."
                 : "Robot is following the return test arc.");
         if (context.isDebugMode()) {
@@ -244,7 +240,7 @@ public class CentripetalPhase extends TuningPhase {
                     context.getFollower().getCentripetalCorrection().toString());
             context.getTelemetry().addData("Average Error", averageError);
             context.getTelemetry().addData("Direction",
-                    forwardPathRunning ? "OUTBOUND" : "RETURN");
+                    outbound() ? "OUTBOUND" : "RETURN");
             context.getTelemetry().addData("Leg elapsed",
                     Math.round(legTimer.seconds() * 10.0) / 10.0 + " / " +
                             LEG_TIMEOUT_SECONDS + " s");
@@ -257,21 +253,11 @@ public class CentripetalPhase extends TuningPhase {
             return false;
         }
 
-        candidateErrorSum += averageError;
-        candidateTrials++;
-        if (candidateTrials < TRIALS_PER_GAIN) {
-            resetTrial();
-            return false;
-        }
-
-        averageError = candidateErrorSum / candidateTrials;
         search.advance(searchDirection(averageError));
         context.constants.kCentripetal = search.current();
         context.getFollower().setCentripetal(context.constants.kCentripetal);
         if (!search.hasConverged()) {
-            candidateTrials = 0;
-            candidateErrorSum = 0.0;
-            resetTrial();
+            startTrial();
         } else {
             return true;
         }
@@ -290,14 +276,6 @@ public class CentripetalPhase extends TuningPhase {
             points[i] = factory.pose(x, y, fraction * 90.0);
         }
         return points;
-    }
-
-    private static Pose[] reverse(Pose[] input) {
-        Pose[] result = new Pose[input.length];
-        for (int i = 0; i < input.length; i++) {
-            result[i] = input[input.length - 1 - i];
-        }
-        return result;
     }
 
     /** Chooses a speed with explicit budgets for total and centripetal motor power. */
@@ -350,21 +328,20 @@ public class CentripetalPhase extends TuningPhase {
         if (change != 0.0) {
             context.constants.kCentripetal = Math.max(0.0, context.constants.kCentripetal + change);
             context.getFollower().setCentripetal(context.constants.kCentripetal);
-            if (trialRunning) { resetTrial(); }
+            if (trialRunning()) { startTrial(); }
         }
 
         if (opMode.gamepad1.xWasPressed()) {
-            resetTrial();
-        } else if (trialRunning && updateTrial()) {
-            trialRunning = false;
+            startTrial();
+        } else if (trialRunning() && updateTrial()) {
             context.getFollower().stop();
         }
 
         reportResults();
         context.getTelemetry().addData("Increment", number(increment));
         if (context.isDebugMode()) {
-            context.getTelemetry().addData("Test state", trialRunning
-                    ? (forwardPathRunning ? "OUTBOUND" : "RETURN")
+            context.getTelemetry().addData("Test state", trialRunning()
+                    ? (outbound() ? "OUTBOUND" : "RETURN")
                     : "IDLE - press X to run");
             context.getTelemetry().addData("Usable samples", samples);
             context.getTelemetry().addData("Response CSV", manualCsvPath);
@@ -386,6 +363,9 @@ public class CentripetalPhase extends TuningPhase {
     protected void reportResults() {
         context.getTelemetry().addData("Centripetal Gain", number(context.constants.kCentripetal));
         context.getTelemetry().addData("Mean signed error",
-                number(trialRunning && samples > 0 ? errorSum / samples : averageError));
+                number(trialRunning() && samples > 0 ? errorSum / samples : averageError));
     }
+
+    @Override
+    protected boolean routineMotionActive() { return trialRunning(); }
 }

@@ -10,6 +10,29 @@ import java.util.List;
 
 public class FeedforwardTunerTest {
     @Test
+    public void exactDistanceProfileUsesRequestedDriveAndTurnDistances() {
+        FeedforwardTuner.TrapezoidProfile drive =
+                new FeedforwardTuner.TrapezoidProfile(24.0, 48.0, 48.0);
+        FeedforwardTuner.TrapezoidProfile turn =
+                new FeedforwardTuner.TrapezoidProfile(4.0, 8.0, Math.PI);
+
+        assertEquals(48.0, drive.getTotalDistance(), 1e-12);
+        assertEquals(Math.PI, turn.getTotalDistance(), 1e-12);
+        assertEquals(0.0, drive.getVel(drive.getTotalTime()), 1e-12);
+        assertEquals(0.0, turn.getVel(turn.getTotalTime()), 1e-12);
+    }
+
+    @Test
+    public void shortExactDistanceProfileBecomesTriangular() {
+        FeedforwardTuner.TrapezoidProfile profile =
+                new FeedforwardTuner.TrapezoidProfile(10.0, 2.0, 2.0);
+
+        assertEquals(2.0, profile.getTotalDistance(), 1e-12);
+        assertEquals(1.0, profile.getAccelEnd(), 1e-12);
+        assertEquals(profile.getAccelEnd(), profile.getCruiseEnd(), 1e-12);
+    }
+
+    @Test
     public void holdingBiasCorrectionOpposesMeasuredError() {
         assertEquals(.184, FeedforwardTuner.correctedHoldingKS(.19, .004, 1.5), 1e-12);
         assertEquals(.196, FeedforwardTuner.correctedHoldingKS(.19, .004, -1.5), 1e-12);
@@ -92,6 +115,35 @@ public class FeedforwardTunerTest {
         assertEquals(0.95, counterclockwise, 1e-12);
         assertEquals(1.0, FeedforwardTuner.clipManualPower(1.4), 0.0);
         assertEquals(-1.0, FeedforwardTuner.clipManualPower(-1.4), 0.0);
+    }
+
+    @Test
+    public void kvCruiseRmsLatchesAtFirstBoundedSampleUntilDeceleration() {
+        FeedforwardTuner.ManualErrorMetrics metrics =
+                new FeedforwardTuner.ManualErrorMetrics();
+
+        assertTrue(!metrics.record(4.0, 4.0, 10.0, true, 1.0));
+        assertTrue(metrics.record(10.0, 9.25, 10.0, true, 1.0));
+        // Once latched, this remains part of kV RMS even though it leaves the entry bound.
+        assertTrue(metrics.record(10.0, 7.0, 10.0, true, 1.0));
+        // Deceleration remains part of whole-run kA RMS but never enters cruise kV RMS.
+        assertTrue(!metrics.record(8.0, 6.0, 10.0, false, 1.0));
+
+        assertEquals(Math.sqrt((.75 * .75 + 3.0 * 3.0) / 2.0),
+                metrics.cruiseRms(), 1e-12);
+        assertEquals(Math.sqrt((0.0 + .75 * .75 + 3.0 * 3.0 + 2.0 * 2.0) / 4.0),
+                metrics.wholeRunRms(), 1e-12);
+    }
+
+    @Test
+    public void kvCruiseRmsRemainsEmptyWhenCruiseTargetIsNeverReached() {
+        FeedforwardTuner.ManualErrorMetrics metrics =
+                new FeedforwardTuner.ManualErrorMetrics();
+
+        assertTrue(!metrics.record(10.0, 8.9, 10.0, true, 1.0));
+        assertTrue(!metrics.record(8.0, 8.0, 10.0, false, 1.0));
+        assertTrue(Double.isNaN(metrics.cruiseRms()));
+        assertEquals(Math.sqrt(1.21 / 2.0), metrics.wholeRunRms(), 1e-12);
     }
 
 }

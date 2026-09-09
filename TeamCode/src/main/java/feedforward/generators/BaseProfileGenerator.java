@@ -333,7 +333,8 @@ public abstract class BaseProfileGenerator {
 
         for (int i = 0; i < points.length; i++) {
             // Constraints are stepwise: the latest constraint whose s has been reached is active.
-            double pctCompleted = 1.0 - points[i].getDistanceToEndIn() / pathLength_in;
+            double pctCompleted = path.constraintProgress(
+                    1.0 - points[i].getDistanceToEndIn() / pathLength_in);
             double currentMaxVel = Double.MAX_VALUE;
             double currentMaxAngVel = Double.MAX_VALUE;
             double currentMaxAngAccel = Double.MAX_VALUE;
@@ -390,7 +391,8 @@ public abstract class BaseProfileGenerator {
                 continue;
             }
 
-            double pctCompleted = 1.0 - points[i + 1].getDistanceToEndIn() / pathLength_in;
+            double pctCompleted = path.constraintProgress(
+                    1.0 - points[i + 1].getDistanceToEndIn() / pathLength_in);
             double currentMaxAccel = Double.MAX_VALUE;
             double currentMaxAngAccel = Double.MAX_VALUE;
 
@@ -448,7 +450,8 @@ public abstract class BaseProfileGenerator {
                 continue;
             }
 
-            double pctCompleted = 1.0 - points[i].getDistanceToEndIn() / pathLength_in;
+            double pctCompleted = path.constraintProgress(
+                    1.0 - points[i].getDistanceToEndIn() / pathLength_in);
             double currentMaxAccel = Double.MAX_VALUE;
             double currentMaxAngAccel = Double.MAX_VALUE;
 

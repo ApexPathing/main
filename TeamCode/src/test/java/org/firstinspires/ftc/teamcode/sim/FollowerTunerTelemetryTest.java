@@ -22,6 +22,61 @@ import core.FollowerConstants;
 
 /** End-to-end coverage for the automatic follower-tuning workflow. */
 public class FollowerTunerTelemetryTest {
+    @Test(timeout = 30_000L)
+    public void idleScreensAllowDrivingAndActiveRoutineOwnsTheDrivetrain() throws Exception {
+        resetFollowerConstants();
+        ApexSimulation.Hardware hardware = ApexSimulation.createHardware();
+        ApexSimTelemetry telemetry = new ApexSimTelemetry(frame -> { });
+        telemetry.setMsTransmissionInterval(0);
+
+        FollowerTuner tuner = new FollowerTuner();
+        tuner.hardwareMap = hardware.hardwareMap;
+        tuner.telemetry = telemetry;
+        tuner.gamepad1 = new Gamepad();
+        tuner.gamepad2 = new Gamepad();
+
+        SimLinearOpModeBridge.Session session = SimLinearOpModeBridge.initialize(tuner, () -> { });
+        try {
+            pump(session, tuner, telemetry, hardware, 60);
+            SimLinearOpModeBridge.start(session);
+
+            tuner.gamepad1.left_stick_y = -1.0f;
+            pump(session, tuner, telemetry, hardware, 80);
+            assertTrue("phase picker should pass through forward stick input",
+                    frontMotorProduct(hardware) > 0.0);
+
+            tuner.gamepad1.left_stick_y = 0.0f;
+            pump(session, tuner, telemetry, hardware, 30);
+            pressA(session, tuner, telemetry, hardware);
+
+            tuner.gamepad1.left_stick_y = -1.0f;
+            pump(session, tuner, telemetry, hardware, 80);
+            assertTrue("mode selector should pass through forward stick input",
+                    frontMotorProduct(hardware) > 0.0);
+
+            tuner.gamepad1.left_stick_y = 0.0f;
+            pump(session, tuner, telemetry, hardware, 30);
+            pressA(session, tuner, telemetry, hardware);
+
+            tuner.gamepad1.left_stick_y = -1.0f;
+            pump(session, tuner, telemetry, hardware, 80);
+            assertTrue("positioning prompt should pass through forward stick input",
+                    frontMotorProduct(hardware) > 0.0);
+
+            tuner.gamepad1.left_stick_y = 0.0f;
+            pump(session, tuner, telemetry, hardware, 30);
+            pressA(session, tuner, telemetry, hardware);
+            tuner.gamepad1.left_stick_y = -1.0f;
+            pump(session, tuner, telemetry, hardware, 80);
+            double[] frontPowers = frontMotorPowers(hardware);
+            assertTrue("active heading routine should override forward stick input: " +
+                            java.util.Arrays.toString(frontPowers),
+                    frontPowers[0] * frontPowers[1] <= 0.0);
+        } finally {
+            SimLinearOpModeBridge.stop(session);
+        }
+    }
+
     @Test(timeout = 420_000L)
     public void automaticWorkflowCompletesFromStaticFrictionThroughFeedback() throws Exception {
         resetFollowerConstants();
@@ -39,9 +94,9 @@ public class FollowerTunerTelemetryTest {
         SimLinearOpModeBridge.Session session = SimLinearOpModeBridge.initialize(tuner, () -> { });
         try {
             pump(session, tuner, telemetry, hardware, 100);
-            tuner.gamepad1.b = true;
+            tuner.gamepad1.a = true;
             pump(session, tuner, telemetry, hardware, 30);
-            tuner.gamepad1.b = false;
+            tuner.gamepad1.a = false;
             SimLinearOpModeBridge.start(session);
 
             long deadline = System.nanoTime() + 390_000_000_000L;
@@ -54,10 +109,6 @@ public class FollowerTunerTelemetryTest {
                     tuner.gamepad1.a = true;
                     pump(session, tuner, telemetry, hardware, 30);
                     tuner.gamepad1.a = false;
-                } else if (frame.contains("Press B to continue.")) {
-                    tuner.gamepad1.b = true;
-                    pump(session, tuner, telemetry, hardware, 30);
-                    tuner.gamepad1.b = false;
                 }
                 pump(session, tuner, telemetry, hardware, 20);
             }
@@ -89,6 +140,28 @@ public class FollowerTunerTelemetryTest {
             telemetry.update();
             Thread.sleep(5);
         }
+    }
+
+    private static void pressA(SimLinearOpModeBridge.Session session, FollowerTuner tuner,
+                               ApexSimTelemetry telemetry, ApexSimulation.Hardware hardware)
+            throws Exception {
+        tuner.gamepad1.a = true;
+        pump(session, tuner, telemetry, hardware, 30);
+        tuner.gamepad1.a = false;
+        pump(session, tuner, telemetry, hardware, 30);
+    }
+
+    private static double frontMotorProduct(ApexSimulation.Hardware hardware) {
+        double[] powers = frontMotorPowers(hardware);
+        return powers[0] * powers[1];
+    }
+
+    private static double[] frontMotorPowers(ApexSimulation.Hardware hardware) {
+        SimMotor left = (SimMotor) hardware.hardwareMap.get(
+                DcMotorEx.class, ApexSimulation.FRONT_LEFT_MOTOR);
+        SimMotor right = (SimMotor) hardware.hardwareMap.get(
+                DcMotorEx.class, ApexSimulation.FRONT_RIGHT_MOTOR);
+        return new double[] { left.getPower(), right.getPower() };
     }
 
     private static void stepPhysics(ApexSimulation.Hardware hardware, double seconds)

@@ -626,6 +626,11 @@ public class VelocityFeedbackPhase extends TuningPhase {
         context.getTelemetry().addData("Response CSV", responseCsvPath);
     }
 
+    @Override
+    protected boolean routineMotionActive() {
+        return manualMode ? manualTestRunning : true;
+    }
+
     private void restartManualTest() {
         context.getFollower().stop();
         manualTestNumber++;

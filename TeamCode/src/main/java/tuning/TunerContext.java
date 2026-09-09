@@ -92,7 +92,10 @@ public class TunerContext {
             getTelemetry().addLine("DEBUG MODE");
             getTelemetry().addLine("Hold Right Stick Button to exit debug mode.");
         }
-        if (debugMode) { getTelemetry().addLine(); }
+        if (opMode.opModeIsActive()) {
+            getTelemetry().addLine("Sticks: field-centric drive while tuner motion is idle.");
+        }
+        if (debugMode || opMode.opModeIsActive()) { getTelemetry().addLine(); }
     }
 
     /** Teleports only FTCodeSim; real hardware must still be positioned by its operator. */

@@ -22,6 +22,8 @@ public class DrivePhase extends TuningPhase {
     private static final double TRANSLATIONAL_KP_MAX = 0.75;
     private static final double TRANSLATIONAL_KD_MIN = 0.0;
     private static final double TRANSLATIONAL_KD_MAX = 0.30;
+    private static final double TRANSLATIONAL_INITIAL_KP = 0.08;
+    private static final double TRANSLATIONAL_INITIAL_KD = 0.02;
     private static final double AUTOMATIC_TEST_DISTANCE = 24.0;
     private static final double POSITION_TOLERANCE = 0.75;
     private static final double SETTLING_VELOCITY = 1.0;
@@ -62,7 +64,7 @@ public class DrivePhase extends TuningPhase {
         context.getTelemetry().addLine(
                 "Place the robot with at least 36 inches clear in front and behind it.");
         context.getTelemetry().addLine(
-                "Automatic tuning calculates gains from the refined feedforward model, then " +
+                "Automatic tuning starts from generic gains, then " +
                         "checks settling, overshoot, error, and consistency in both directions.");
     }
 
@@ -87,8 +89,8 @@ public class DrivePhase extends TuningPhase {
         );
         routine = new PDSRoutine(
                 config,
-                context.constants.translationalKV,
-                context.constants.translationalKA,
+                TRANSLATIONAL_INITIAL_KP,
+                TRANSLATIONAL_INITIAL_KD,
                 context.constants.translationalCoeffs.kS);
         routine.start();
         context.getFollower().disableControllers();
@@ -197,6 +199,13 @@ public class DrivePhase extends TuningPhase {
         context.getTelemetry().addData("Drive P", number(context.constants.translationalCoeffs.kP));
         context.getTelemetry().addData("Drive D", number(context.constants.translationalCoeffs.kD));
         context.getTelemetry().addData("Drive S", number(context.constants.translationalCoeffs.kS));
+    }
+
+    @Override
+    protected boolean routineMotionActive() {
+        if (manualMode) { return testPathQueued || context.getFollower().isBusy(); }
+        return routine != null && routine.getState() != PDSRoutine.PDSState.TEST_READY &&
+                routine.getState() != PDSRoutine.PDSState.COMPLETE;
     }
 
     private void reportDetailedManualMetrics() {
