@@ -192,7 +192,7 @@ public class FollowerTuner extends LinearOpMode {
         for (int i = 0; i < phaseAmount; i++) {
             String cursor = i == selectedPhaseOrdinal.ordinal() ? " <" : "";
             telemetry.addLine(phaseStatus(phases[i]) + " " +
-                    phases[i].name().replace("_", " ") + cursor);
+                    phaseDisplayName(phases[i]) + cursor);
         }
 
         telemetry.update();
@@ -233,6 +233,7 @@ public class FollowerTuner extends LinearOpMode {
     }
 
     private static String phaseDisplayName(Phase phase) {
+        if (phase == Phase.STATIC_FRICTION) { return "BREAKAWAY POWER"; }
         return phase.name().replace('_', ' ');
     }
 

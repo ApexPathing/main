@@ -406,7 +406,8 @@ public class AutoTest extends LinearOpMode {
                             "cross_track_power,tangent_correction_power,heading_correction_power," +
                             "centripetal_power,forward_velocity_power,heading_velocity_power," +
                             "drive_feedforward_power,heading_feedforward_power,total_demand," +
-                            "command_power,saturated\n");
+                            "command_power,saturated,controller_target_in_s,controller_measured_in_s," +
+                            "progress_velocity_in_s,signed_translation_ff,signed_velocity_feedback\n");
         } catch (IOException e) {
             outboundVelocityCsv = null;
             outboundVelocityCsvPath = "Unavailable";
@@ -448,7 +449,7 @@ public class AutoTest extends LinearOpMode {
                     Locale.US,
                     "%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f," +
                             "%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f," +
-                            "%.6f,%.6f,%.6f,%.6f,%s%n",
+                            "%.6f,%.6f,%.6f,%.6f,%s,%.6f,%.6f,%.6f,%.6f,%.6f%n",
                     elapsed, traveled, target.getTangentialVel(), rawVelocity,
                     kalmanVelocity, target.getTangentialAccel(), target.getAngularVel(),
                     target.getAngularAccel(), target.getMotorPower(), crossTrackError, curvature,
@@ -456,7 +457,10 @@ public class AutoTest extends LinearOpMode {
                     demand.headingCorrection, demand.centripetal, demand.forwardVelocity,
                     demand.headingVelocity, demand.driveFeedforward, demand.headingFeedforward,
                     demand.total,
-                    commandPower, commandPower >= 0.98));
+                    commandPower, commandPower >= 0.98,
+                    follower.getTrackingVelocityTarget(), follower.getTrackingMeasuredVelocity(),
+                    follower.getTrackingProgressVelocity(), follower.getTrackingFeedforward(),
+                    follower.getTrackingVelocityFeedback()));
             outboundVelocityRowsSinceFlush++;
             if (outboundVelocityRowsSinceFlush >= 25) {
                 outboundVelocityCsv.flush();

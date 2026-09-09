@@ -17,14 +17,14 @@ import paths.movements.Turn;
 
 /**
  * Tunes the velocity feedback gains for the follower by running a forward and backward path/turn
- * and measuring the RMS error between the desired and actual velocities. The user can also manually
+ * and measuring tracking error, with extra weight on translational overspeed. The user can also manually
  * tune the gains.
  *
  * @author Sohum Arora - 22985 Paraducks
  * @author Dylan B. - 18597 RoboClovers - Delta
  */
 public class VelocityFeedbackPhase extends TuningPhase {
-    private static final int SEARCH_ROUNDS = 2;
+    private static final int SEARCH_ROUNDS = 3;
     private static final double DIRECTION_TIMEOUT_SECONDS = 4.5;
     private static final double SAMPLE_EDGE_FRACTION = 0.10;
     /** Prevents angular velocity feedback from becoming a noisy bang-bang controller. */
@@ -91,7 +91,7 @@ public class VelocityFeedbackPhase extends TuningPhase {
     @Override
     protected void showPreRunInstructions() {
         context.getTelemetry().addLine(
-                "Translation needs a clear 24-inch out-and-back lane.");
+                "Translation needs a clear 48-inch out-and-back lane.");
         context.getTelemetry().addLine(
                 "Angular feedback needs room for a 45-degree out-and-back turn.");
         context.getTelemetry().addLine(
@@ -117,9 +117,9 @@ public class VelocityFeedbackPhase extends TuningPhase {
         GeometryFactory factory = new GeometryFactory(context.getFollower())
                 .setDistUnit(DistUnit.IN).setAngleUnit(AngleUnit.DEG);
 
-        // Short profiles expose velocity-loop quality without spending minutes at endpoints.
-        Pose start = factory.pose(-12, 0, 0);
-        Pose end = factory.pose(12, 0, 0);
+        // Include meaningful braking distance before endpoint capture takes over.
+        Pose start = factory.pose(-24, 0, 0);
+        Pose end = factory.pose(24, 0, 0);
         if (Boolean.getBoolean("apex.simulation.unlockTunerPhases")) {
             positionRobotForSimulation(start);
         } else {
@@ -130,7 +130,7 @@ public class VelocityFeedbackPhase extends TuningPhase {
         backwardPath = factory.path(end, start)
                 .interpolateWith(InterpolationStyle.CONSTANT_START_HEADING).profiledBuild();
 
-        Pose turned = factory.pose(-12, 0, 45);
+        Pose turned = factory.pose(-24, 0, 45);
         forwardTurn = factory.turn(start).turnTo(turned.getHeading()).profiledBuild();
         backwardTurn = factory.turn(turned).turnTo(start.getHeading()).profiledBuild();
 
@@ -173,10 +173,9 @@ public class VelocityFeedbackPhase extends TuningPhase {
                         MAX_ANGULAR_FEEDBACK_GAIN);
         center = incumbentGain;
         incumbentResult = null;
-        double feedforward = (axis == FeedbackAxis.TRANSLATION) ?
-                context.constants.translationalKV : context.constants.angularKV;
-
-        step = Math.max(center * 0.5, Math.max(feedforward * 0.25, 0.00001));
+        // Explore the safe range before refining locally; kV is not a feedback gain scale.
+        step = (axis == FeedbackAxis.TRANSLATION ? MAX_TRANSLATION_FEEDBACK_GAIN
+                : MAX_ANGULAR_FEEDBACK_GAIN) * .5;
         if (center <= 0.0) { center = step; }
 
         round = 0;
@@ -188,7 +187,8 @@ public class VelocityFeedbackPhase extends TuningPhase {
             // Always establish a zero-gain control and repeat the incumbent before exploring.
             gains[0] = 0.0;
             gains[1] = incumbentGain;
-            gains[2] = incumbentGain + step;
+            gains[2] = axis == FeedbackAxis.TRANSLATION ? MAX_TRANSLATION_FEEDBACK_GAIN
+                    : MAX_ANGULAR_FEEDBACK_GAIN;
         } else {
             gains[0] = Math.max(0.0, center - step);
             gains[1] = center;
@@ -268,26 +268,26 @@ public class VelocityFeedbackPhase extends TuningPhase {
             double remaining = segment.getDistanceToEndIn(target, t);
             double traveled = segment.getLengthIn() - remaining;
 
-            MotionParameters desired = path.getFeedforwardLut().getFFParams(traveled);
             Vector tangent = segment.getFirstDerivative(t).normalize();
 
             // X is forward, Y is sideways layout works perfectly with this dot product
-            targetVelocity = desired.getTangentialVel();
+            targetVelocity = context.getFollower().getTrackingVelocityTarget();
             rawVelocity = context.getFollower().getRawVelocity().getVec().dot(tangent).getIn();
             kalmanVelocity = context.getFollower().getVelocity().getVec().dot(tangent).getIn();
             displacement = traveled;
             headingError = context.getFollower().getPose().getHeading().getShortestAngleTo(
                     path.getEndPose().getHeading()).getRad();
             centralSample = isUsableTranslationSample(
-                    targetVelocity, traveled, segment.getLengthIn());
+                    targetVelocity, traveled, segment.getLengthIn())
+                    && context.getFollower().getTrackingEndpointBlend() == 0.0;
         } else {
             Turn turn = (Turn) currentMovement;
             double traveled = turnProfileProgress(
                     turn, context.getFollower().getPose().getHeading());
 
-            MotionParameters desired = turn.getFeedforwardLut()
-                    .getFFParams(traveled);
-            targetVelocity = desired.getAngularVel();
+            // Profiled turns execute on elapsed time. A displacement lookup scores a different
+            // reference precisely when the robot leads or lags the trajectory.
+            targetVelocity = context.getFollower().getTrackingAngularVelocityTarget();
             rawVelocity = context.getFollower().getRawVelocity().getHeading().getRad();
             kalmanVelocity = context.getFollower().getVelocity().getHeading().getRad();
             displacement = traveled;
@@ -341,12 +341,19 @@ public class VelocityFeedbackPhase extends TuningPhase {
 
     private void addError(double target, double actual, int directionIndex) {
         if (Double.isFinite(target) && Double.isFinite(actual)) {
-            double error = target - actual;
-            errorSquared += error * error;
+            double cost = velocityErrorCost(target, actual, axis == FeedbackAxis.TRANSLATION);
+            errorSquared += cost;
             errorSamples++;
-            directionErrorSquared[directionIndex] += error * error;
+            directionErrorSquared[directionIndex] += cost;
             directionErrorSamples[directionIndex]++;
         }
+    }
+
+    /** Overspeed is costlier because braking has no acceleration feedforward to assist it. */
+    static double velocityErrorCost(double target, double actual, boolean weightOverspeed) {
+        double error = target - actual;
+        boolean overspeed = target * actual > 0 && Math.abs(actual) > Math.abs(target);
+        return error * error * (weightOverspeed && overspeed ? 4.0 : 1.0);
     }
 
     private double currentCommandPower() {
@@ -523,7 +530,7 @@ public class VelocityFeedbackPhase extends TuningPhase {
                 (axisOffset + round * gains.length + candidate + 1) + " / " +
                         (2 * SEARCH_ROUNDS * gains.length));
         context.getTelemetry().addData("Usable samples", errorSamples);
-        context.getTelemetry().addData("Last RMS score", lastScore);
+        context.getTelemetry().addData("Last tracking score", lastScore);
         context.getTelemetry().addData("Response CSV", responseCsvPath);
         context.getTelemetry().update();
     }
@@ -579,15 +586,15 @@ public class VelocityFeedbackPhase extends TuningPhase {
         addTunableValue("Angular feedback", context.constants.angularVelocityFeedbackGain,
                 axis == FeedbackAxis.ANGULAR);
         context.getTelemetry().addData("Increment", number(increment));
-        context.getTelemetry().addData("Final RMS error",
+        context.getTelemetry().addData("Final tracking score",
                 number(axis == FeedbackAxis.TRANSLATION ? translationScore : angularScore));
         if (context.isDebugMode()) {
             context.getTelemetry().addData("Test state", manualTestRunning
                     ? actionDescription() : "IDLE - press X to run");
             context.getTelemetry().addData("Usable samples", errorSamples);
-            context.getTelemetry().addData("Live RMS error", errorSamples == 0
+            context.getTelemetry().addData("Live tracking score", errorSamples == 0
                     ? Double.NaN : Math.sqrt(errorSquared / errorSamples));
-            context.getTelemetry().addData("Best translation RMS", bestTranslationScore);
+            context.getTelemetry().addData("Best translation weighted RMS", bestTranslationScore);
             context.getTelemetry().addData("Best angular RMS", bestAngularScore);
             context.getTelemetry().addData("Response CSV", manualCsvPath);
         }
@@ -613,7 +620,7 @@ public class VelocityFeedbackPhase extends TuningPhase {
                 number(context.constants.velocityFeedbackGain));
         context.getTelemetry().addData("Angular feedback gain",
                 number(context.constants.angularVelocityFeedbackGain));
-        context.getTelemetry().addData("Translation root mean square error", number(translationScore));
+        context.getTelemetry().addData("Translation weighted RMS error", number(translationScore));
         context.getTelemetry().addData("Angular root mean square error", number(angularScore));
         context.getTelemetry().addData("Validation", acceptanceMessage);
         context.getTelemetry().addData("Response CSV", responseCsvPath);

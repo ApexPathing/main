@@ -33,8 +33,6 @@ public class FollowerConstants {
     public double velocityFeedbackGain = 0.0;
     public double angularVelocityFeedbackGain = 0.0;
     public double translationalKV = 0.0, translationalKA = 0.0;
-    /** Optional deceleration gain. NaN preserves legacy shared-kA behavior. */
-    public double translationalBrakeKA = Double.NaN;
     public double angularKV = 0.0, angularKA = 0.0;
     /** Moving-friction feedforward terms; PDS kS remains the larger breakaway value. */
     public double translationalFeedforwardKS = 0.0, angularFeedforwardKS = 0.0;
@@ -97,8 +95,6 @@ public class FollowerConstants {
 
         translationalKV = loadDouble(json, "translationKV");
         translationalKA = loadDouble(json, "translationKA");
-        translationalBrakeKA = json.has("translationBrakeKA")
-                ? loadDouble(json, "translationBrakeKA") : Double.NaN;
         angularKV = loadDouble(json, "angularKV");
         angularKA = loadDouble(json, "angularKA");
         angularFeedforwardKS = json.has("angularFeedforwardS")
@@ -129,9 +125,6 @@ public class FollowerConstants {
             json.put("translationalS", translationalCoeffs.kS);
             json.put("translationKV", translationalKV);
             json.put("translationKA", translationalKA);
-            if (Double.isFinite(translationalBrakeKA)) {
-                json.put("translationBrakeKA", translationalBrakeKA);
-            }
             json.put("angularKV", angularKV);
             json.put("angularKA", angularKA);
             json.put("angularFeedforwardS", angularFeedforwardKS);
@@ -151,10 +144,8 @@ public class FollowerConstants {
         return json;
     }
 
-    /** Returns the braking gain when configured, otherwise the legacy acceleration gain. */
+    /** The inertia coefficient applies to signed acceleration, including planned braking. */
     public double getTranslationalKA(double velocity, double acceleration) {
-        boolean braking = Math.abs(velocity) > 1e-9 && velocity * acceleration < 0.0;
-        return braking && Double.isFinite(translationalBrakeKA)
-                ? translationalBrakeKA : translationalKA;
+        return translationalKA;
     }
 }

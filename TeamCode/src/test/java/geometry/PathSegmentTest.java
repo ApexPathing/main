@@ -3,8 +3,33 @@ package geometry;
 import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
+import paths.builders.HolonomicPathBuilder;
 
 public class PathSegmentTest {
+    @Test
+    public void cachedCurvatureDerivativeMatchesRuntimeGeometry() {
+        PathSegment segment = new PathSegment(new Parabola(1.0));
+        assertCachedDerivativesMatch(segment);
+    }
+
+    @Test
+    public void autoTestCornersUseTheSameCurvatureDerivativeInPlannerAndRuntime() {
+        GeometryFactory factory = new GeometryFactory();
+        PathSegment segment = new HolonomicPathBuilder(Pose.zero(),
+                factory.arcPose(30, 0, 7), factory.arcPose(30, -30, 7),
+                factory.arcPose(-30, -30, 7), factory.arcPose(-30, 30, 7),
+                factory.pose(30, 30, -90)).quickBuild().getParametricPath();
+        assertCachedDerivativesMatch(segment);
+    }
+
+    private static void assertCachedDerivativesMatch(PathSegment segment) {
+        for (PathPoint point : segment.getPointLUT()) {
+            assertEquals("Curvature derivative at t=" + point.getT(),
+                    segment.getCurvatureDerivative(point.getT()),
+                    point.getCurvatureDerivative(), 1e-12);
+        }
+    }
+
     @Test
     public void closestPointProjectionFindsKnownNormalIntersection() {
         PathSegment segment = new PathSegment(new Parabola(1.0));

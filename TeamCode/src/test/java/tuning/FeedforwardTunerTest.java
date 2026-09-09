@@ -10,132 +10,75 @@ import java.util.List;
 
 public class FeedforwardTunerTest {
     @Test
-    public void integratedWindowsRecoverFeedforwardAcrossAccelerationAndBraking() {
-        double expectedKS = 0.08;
-        double expectedKV = 0.02;
-        double expectedKA = 0.004;
-        double dt = 0.02;
-        int samplesPerWindow = 10;
-        double velocity = 0.0;
+    public void holdingBiasCorrectionOpposesMeasuredError() {
+        assertEquals(.184, FeedforwardTuner.correctedHoldingKS(.19, .004, 1.5), 1e-12);
+        assertEquals(.196, FeedforwardTuner.correctedHoldingKS(.19, .004, -1.5), 1e-12);
+        assertEquals(0, FeedforwardTuner.correctedHoldingKS(.01, .004, 10), 1e-12);
+    }
+
+    @Test
+    public void curvedHoldingDataDoesNotProduceExcessHoldingPower() {
+        List<FeedforwardTuner.HoldingPoint> holds = new ArrayList<>();
         List<FeedforwardTuner.IntegralObservation> windows = new ArrayList<>();
-
-        // Each row is {power, sample count}. Lower positive and negative power produce powered
-        // deceleration while the mechanism is still moving forward.
-        double[][] stages = {
-                { 0.55, 60 }, { 0.30, 25 }, { 0.12, 15 }, { -0.08, 8 },
-                { 0.62, 45 }, { 0.22, 22 }, { 0.02, 10 }
-        };
-        double integratedPower = 0.0;
-        double integratedSign = 0.0;
-        double integratedPosition = 0.0;
-        double windowStartVelocity = velocity;
-        int windowSamples = 0;
-
-        for (double[] stage : stages) {
-            double power = stage[0];
-            for (int sample = 0; sample < (int) stage[1]; sample++) {
-                double sign = velocity > 1e-9 ? 1.0 : Math.signum(power);
-                double acceleration = (power - expectedKS * sign - expectedKV * velocity) /
-                        expectedKA;
-
-                integratedPower += power * dt;
-                integratedSign += sign * dt;
-                integratedPosition += velocity * dt;
-                velocity = Math.max(0.0, velocity + acceleration * dt);
-                windowSamples++;
-
-                if (windowSamples == samplesPerWindow) {
-                    windows.add(new FeedforwardTuner.IntegralObservation(
-                            integratedSign,
-                            integratedPosition,
-                            velocity - windowStartVelocity,
-                            integratedPower,
-                            velocity - windowStartVelocity < 0.0));
-                    integratedPower = 0.0;
-                    integratedSign = 0.0;
-                    integratedPosition = 0.0;
-                    windowStartVelocity = velocity;
-                    windowSamples = 0;
-                }
-            }
+        for (int direction = 0; direction < 2; direction++) {
+            holds.add(new FeedforwardTuner.HoldingPoint(10, .231));
+            holds.add(new FeedforwardTuner.HoldingPoint(23, .271));
+            holds.add(new FeedforwardTuner.HoldingPoint(36, .329));
         }
-
-        FeedforwardTuner.IntegralFitResult fit =
-                FeedforwardTuner.fitIntegralFeedforward(windows);
-
-        assertTrue("Test must include powered deceleration",
-                windows.stream().anyMatch(row -> row.velocityChange < -0.5));
-        assertTrue(fit.brakingWindows > 0);
-        assertEquals(expectedKS, fit.kS, 0.002);
-        assertEquals(expectedKV, fit.kV, 0.0005);
-        assertEquals(expectedKA, fit.kA, 0.0002);
+        for (int i = 0; i < 4; i++) {
+            windows.add(new FeedforwardTuner.IntegralObservation(.2, 4, 6, .10));
+        }
+        double[] fit = FeedforwardTuner.fitSeparated(holds, windows);
+        assertTrue(FeedforwardTuner.physicalFit(fit));
+        for (FeedforwardTuner.HoldingPoint hold : holds) {
+            assertTrue(fit[0] + fit[1] * hold.velocity <= hold.power + 1e-10);
+        }
     }
 
     @Test
-    public void integralFitRejectsAccelerationWithoutBrakingEvidence() {
+    public void validationRejectsPersistentOverspeedEvenBelowRmsTolerance() {
+        assertTrue(!FeedforwardTuner.validationPhasePassed(25, 25 * 2.3 * 2.3, 25 * 2.3, 3.23));
+        assertTrue(!FeedforwardTuner.validationPhasePassed(25, 25 * 2.3 * 2.3, -25 * 2.3, 3.23));
+        assertTrue(FeedforwardTuner.validationPhasePassed(25, 25, 0, 3.23));
+        assertTrue(!FeedforwardTuner.validationPhasePassed(2, 0, 0, 3.23));
+        assertTrue(!FeedforwardTuner.validationPhasePassed(25, Double.NaN, 0, 3.23));
+    }
+
+    @Test
+    public void separatedFitFixesHoldingTermsBeforeAccelerationAndIgnoresBraking() {
+        List<FeedforwardTuner.HoldingPoint> holds = new ArrayList<>();
         List<FeedforwardTuner.IntegralObservation> windows = new ArrayList<>();
-        for (int i = 1; i <= 16; i++) {
-            double time = 0.2;
-            double distance = 0.25 * i;
-            double velocityChange = 0.4 + 0.03 * i;
-            double powerTime = 0.08 * time + 0.02 * distance +
-                    0.004 * velocityChange;
-            windows.add(new FeedforwardTuner.IntegralObservation(
-                    time, distance, velocityChange, powerTime, false));
+        for (int direction = 0; direction < 2; direction++) {
+            for (double velocity : new double[]{10, 20, 35}) {
+                holds.add(new FeedforwardTuner.HoldingPoint(velocity, .19 + .0042 * velocity));
+            }
         }
-
-        FeedforwardTuner.IntegralFitResult fit =
-                FeedforwardTuner.fitIntegralFeedforward(windows);
-
-        assertEquals(0, fit.brakingWindows);
-        assertTrue(!fit.isValid());
+        for (int i = 1; i <= 20; i++) {
+            double distance = .3 * i, deltaVelocity = .5 + i * .1;
+            windows.add(new FeedforwardTuner.IntegralObservation(.2, distance, deltaVelocity,
+                    .19 * .2 + .0042 * distance + .0073 * deltaVelocity));
+        }
+        double[] fit = FeedforwardTuner.fitSeparated(holds, windows);
+        assertTrue(FeedforwardTuner.physicalFit(fit));
+        assertEquals(.19, fit[0], 1e-10);
+        assertEquals(.0042, fit[1], 1e-10);
+        assertEquals(.0073, fit[2], 1e-10);
     }
 
     @Test
-    public void robustRegressionRecoversFeedforwardFromAllFourRuns() {
-        double kS = 0.08;
-        double expectedKV = 0.025;
-        double expectedKA = 0.004;
-        List<FeedforwardTuner.Observation> samples = new ArrayList<>();
-
-        for (int run = 0; run < 4; run++) {
-            for (int i = 1; i <= 35; i++) {
-                double velocity = 2.0 + i * 0.7 + run * 0.15;
-                double acceleration = run < 2 ? 0.3 + i * 0.01 : 8.0 + i * 0.2;
-                double noise = ((i % 5) - 2) * 0.0005;
-                double power = kS + expectedKV * velocity + expectedKA * acceleration + noise;
-                if (run == 2 && i == 17) { power += 0.35; }
-                samples.add(new FeedforwardTuner.Observation(
-                        power, velocity, acceleration, run));
-            }
+    public void separatedFitRejectsMissingOrDegenerateEvidence() {
+        List<FeedforwardTuner.HoldingPoint> holds = new ArrayList<>();
+        List<FeedforwardTuner.IntegralObservation> windows = new ArrayList<>();
+        assertTrue(!FeedforwardTuner.physicalFit(FeedforwardTuner.fitSeparated(holds, windows)));
+        for (int i = 0; i < 6; i++) {
+            holds.add(new FeedforwardTuner.HoldingPoint(10, .25));
         }
-
-        FeedforwardTuner.FitResult fit = FeedforwardTuner.fitFeedforward(samples, kS);
-
-        assertTrue(fit.isValid());
-        assertEquals(expectedKV, fit.kV, 0.001);
-        assertEquals(expectedKA, fit.kA, 0.001);
-        assertEquals(140, fit.sampleCount);
-        assertTrue(fit.rSquared > 0.95);
-    }
-
-    @Test
-    public void unrelatedVelocityAndAccelerationDoNotPassValidation() {
-        double kS = 0.08;
-        List<FeedforwardTuner.Observation> samples = new ArrayList<>();
-        for (int run = 0; run < 4; run++) {
-            for (int i = 1; i <= 30; i++) {
-                double velocity = i * 0.5;
-                double acceleration = ((i * 7 + run * 3) % 11) - 5.0;
-                double power = 0.15 + ((i * 13 + run * 5) % 17) * 0.03;
-                samples.add(new FeedforwardTuner.Observation(
-                        power, velocity, acceleration, run));
-            }
+        assertTrue(!FeedforwardTuner.physicalFit(FeedforwardTuner.fitSeparated(holds, windows)));
+        holds.clear();
+        for (int i = 1; i <= 6; i++) {
+            holds.add(new FeedforwardTuner.HoldingPoint(i * 5, .19 + .0042 * i * 5));
         }
-
-        FeedforwardTuner.FitResult fit = FeedforwardTuner.fitFeedforward(samples, kS);
-
-        assertTrue(!fit.isValid());
+        assertTrue(!FeedforwardTuner.physicalFit(FeedforwardTuner.fitSeparated(holds, windows)));
     }
 
     @Test

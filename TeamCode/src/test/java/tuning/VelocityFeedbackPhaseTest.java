@@ -12,6 +12,14 @@ import paths.movements.Turn;
 
 public class VelocityFeedbackPhaseTest {
     @Test
+    public void translationScorePenalizesOverspeedInEitherDirection() {
+        assertEquals(16, VelocityFeedbackPhase.velocityErrorCost(20, 22, true), 0);
+        assertEquals(16, VelocityFeedbackPhase.velocityErrorCost(-20, -22, true), 0);
+        assertEquals(4, VelocityFeedbackPhase.velocityErrorCost(20, 18, true), 0);
+        assertEquals(4, VelocityFeedbackPhase.velocityErrorCost(20, 22, false), 0);
+    }
+
+    @Test
     public void returnTurnProgressIsPositiveInItsIntendedDirection() {
         Turn clockwiseReturn = new Turn(
                 new Pose(Pose.zero().getVec(), Angle.fromDeg(90.0)),

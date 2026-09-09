@@ -102,6 +102,7 @@ public final class ApexSimulation {
     static final class Hardware {
         final SimHardwareMap hardwareMap;
         final SimulatedDrivetrain drivetrain;
+        long lastPhysicsUpdateNanos = System.nanoTime();
 
         Hardware(SimHardwareMap hardwareMap, SimulatedDrivetrain drivetrain) {
             this.hardwareMap = hardwareMap;

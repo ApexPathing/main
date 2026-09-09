@@ -3,7 +3,7 @@ package tuning;
 import geometry.AngleUnit;
 import geometry.Pose;
 
-/** Measures the angular and translational static-friction terms used by every later phase. */
+/** Measures breakaway power for position correction, separately from moving feedforward kS. */
 public final class StaticFrictionPhase extends TuningPhase {
     private enum Axis { HEADING, DRIVE, COMPLETE }
     private enum Stage { PROMPT, RUNNING }
@@ -20,13 +20,13 @@ public final class StaticFrictionPhase extends TuningPhase {
 
     /** Returns the label shown in the phase selector. */
     @Override
-    protected String getPhaseName() { return "Static Friction"; }
+    protected String getPhaseName() { return "Breakaway Power"; }
 
-    /** Static friction is measured automatically. */
+    /** Breakaway power is measured automatically. */
     @Override
     protected boolean manualTuneIsPossible() { return false; }
 
-    /** Static friction supports automatic measurement. */
+    /** Breakaway power supports automatic measurement. */
     @Override
     protected boolean autoTuneIsPossible() { return true; }
 
@@ -34,7 +34,7 @@ public final class StaticFrictionPhase extends TuningPhase {
     @Override
     protected void showPreRunInstructions() {
         context.getTelemetry().addLine(
-                "This phase finds the minimum power needed to turn and drive.");
+                "This phase finds the minimum power needed to start turning and driving from rest.");
         context.getTelemetry().addLine(
                 "Leave clear space for a small counterclockwise turn and forward movement.");
     }
@@ -82,7 +82,7 @@ public final class StaticFrictionPhase extends TuningPhase {
                     : "Robot is measuring minimum drive power.");
             if (context.isDebugMode()) {
                 context.getTelemetry().addData("Axis", axis);
-                context.getTelemetry().addData("Static-power guess", routine.getCurrentGuess());
+                context.getTelemetry().addData("Breakaway-power guess", routine.getCurrentGuess());
                 context.getTelemetry().addData("Angular velocity",
                         context.getFollower().getVelocity().getHeading(AngleUnit.RAD));
             }
@@ -119,12 +119,12 @@ public final class StaticFrictionPhase extends TuningPhase {
     @Override
     protected boolean manualTuned() { return false; }
 
-    /** Displays both measured static-friction powers. */
+    /** Displays both measured breakaway powers. */
     @Override
     protected void reportResults() {
-        context.getTelemetry().addData("Heading static power",
+        context.getTelemetry().addData("Heading breakaway power",
                 number(context.constants.angularCoeffs.kS));
-        context.getTelemetry().addData("Drive static power",
+        context.getTelemetry().addData("Drive breakaway power",
                 number(context.constants.translationalCoeffs.kS));
     }
 }

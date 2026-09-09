@@ -5,9 +5,7 @@ import com.qualcomm.robotcore.util.Range;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 
 import geometry.AngleUnit;
 import geometry.Angle;
@@ -18,28 +16,20 @@ import localizers.util.LowPassFilter;
 import localizers.BaseLocalizer;
 
 /**
- * Tunes the feedforward coefficients (kV and kA) for both the angular (heading) and
- * translational (drive) controllers. Automatic tuning characterizes forward and reverse motion
- * with quasistatic and dynamic tests, then robustly fits and cross-validates both coefficients.
+ * Tunes angular and translational feedforward. Automatic tuning fits kS/kV from steady-speed
+ * holding runs, then kA from accelerating integral windows. Independent feedforward-only runs
+ * must pass in both directions before either axis's candidate is applied.
  *
  * @author Joel H - 7842a
  */
 public class FeedforwardTuner extends TuningPhase {
-    private static final double QUASISTATIC_TIME = 3.0;
     private static final double DYNAMIC_TIME = 1.25;
-    private static final double BRAKING_TIME = 0.60;
-    private static final double BRAKING_POWER = 0.15;
     private static final double INTEGRATION_WINDOW_SECONDS = 0.20;
     private static final double CHARACTERIZATION_POWER = 0.70;
     private static final double AUTO_SETTLE_TIME = 0.40;
-    private static final double MIN_SAMPLE_TIME = 0.12;
     private static final double SIM_STAGING_OFFSET = 55.0;
     private static final double STATIONARY_LINEAR_SPEED_IN_PER_SEC = 1.0;
     private static final double STATIONARY_ANGULAR_SPEED_RAD_PER_SEC = 0.10;
-    private static final double MAX_CROSS_VALIDATION_RMSE = 0.15;
-    // A drivetrain includes static-friction transitions that a two-term linear fit cannot
-    // explain perfectly. Held-out-run RMSE remains the primary repeatability safeguard.
-    private static final double MIN_R_SQUARED = 0.65;
 
     private enum Coefficient { ANGULAR_KV, ANGULAR_KA, TRANSLATIONAL_KV, TRANSLATIONAL_KA }
 
@@ -52,135 +42,106 @@ public class FeedforwardTuner extends TuningPhase {
     private Coefficient selected = Coefficient.ANGULAR_KV;
 
     private enum Axis { ANGULAR, TRANSLATIONAL }
-    private enum Excitation { QUASISTATIC, DYNAMIC }
-    private enum AutoStage { PROMPT, RUNNING, BRAKING, SETTLING, FITTING, FAILED, DONE }
+    private enum Excitation { DYNAMIC, HOLD, VALIDATE }
+    private enum AutoStage { PROMPT, RUNNING, SETTLING, FITTING, FAILED, DONE }
 
     private static final class AutoRun {
         final Axis axis;
         final Excitation excitation;
         final boolean forward;
+        final double speedFraction;
 
         AutoRun(Axis axis, Excitation excitation, boolean forward) {
+            this(axis, excitation, forward, 0.0);
+        }
+
+        AutoRun(Axis axis, Excitation excitation, boolean forward, double speedFraction) {
             this.axis = axis;
             this.excitation = excitation;
             this.forward = forward;
+            this.speedFraction = speedFraction;
         }
     }
 
     private static final AutoRun[] AUTO_RUNS = {
-            new AutoRun(Axis.ANGULAR, Excitation.QUASISTATIC, true),
-            new AutoRun(Axis.ANGULAR, Excitation.QUASISTATIC, false),
             new AutoRun(Axis.ANGULAR, Excitation.DYNAMIC, true),
             new AutoRun(Axis.ANGULAR, Excitation.DYNAMIC, false),
-            new AutoRun(Axis.TRANSLATIONAL, Excitation.QUASISTATIC, true),
-            new AutoRun(Axis.TRANSLATIONAL, Excitation.QUASISTATIC, false),
             new AutoRun(Axis.TRANSLATIONAL, Excitation.DYNAMIC, true),
-            new AutoRun(Axis.TRANSLATIONAL, Excitation.DYNAMIC, false)
+            new AutoRun(Axis.TRANSLATIONAL, Excitation.DYNAMIC, false),
+            new AutoRun(Axis.ANGULAR, Excitation.HOLD, true, .15),
+            new AutoRun(Axis.ANGULAR, Excitation.HOLD, false, .15),
+            new AutoRun(Axis.ANGULAR, Excitation.HOLD, true, .35),
+            new AutoRun(Axis.ANGULAR, Excitation.HOLD, false, .35),
+            new AutoRun(Axis.ANGULAR, Excitation.HOLD, true, .55),
+            new AutoRun(Axis.ANGULAR, Excitation.HOLD, false, .55),
+            new AutoRun(Axis.TRANSLATIONAL, Excitation.HOLD, true, .15),
+            new AutoRun(Axis.TRANSLATIONAL, Excitation.HOLD, false, .15),
+            new AutoRun(Axis.TRANSLATIONAL, Excitation.HOLD, true, .35),
+            new AutoRun(Axis.TRANSLATIONAL, Excitation.HOLD, false, .35),
+            new AutoRun(Axis.TRANSLATIONAL, Excitation.HOLD, true, .55),
+            new AutoRun(Axis.TRANSLATIONAL, Excitation.HOLD, false, .55),
+            new AutoRun(Axis.ANGULAR, Excitation.VALIDATE, true),
+            new AutoRun(Axis.ANGULAR, Excitation.VALIDATE, false),
+            new AutoRun(Axis.TRANSLATIONAL, Excitation.VALIDATE, true),
+            new AutoRun(Axis.TRANSLATIONAL, Excitation.VALIDATE, false)
     };
+    private static final int VALIDATION_START = AUTO_RUNS.length - 4;
+    private static final double HOLD_SECONDS = 1.8;
 
-    static final class Observation {
-        final double power;
-        final double velocity;
-        final double acceleration;
-        final int run;
-        final double elapsedSeconds;
-
-        Observation(double power, double velocity, double acceleration, int run) {
-            this(power, velocity, acceleration, run, Double.NaN);
-        }
-
-        Observation(double power, double velocity, double acceleration, int run,
-                    double elapsedSeconds) {
-            this.power = power;
-            this.velocity = velocity;
-            this.acceleration = acceleration;
-            this.run = run;
-            this.elapsedSeconds = elapsedSeconds;
-        }
+    static final class HoldingPoint {
+        final double velocity, power;
+        HoldingPoint(double velocity, double power) { this.velocity=velocity; this.power=power; }
     }
 
-    static final class FitResult {
-        final double kV;
-        final double kA;
-        final double rmse;
-        final double crossValidationRmse;
-        final double rSquared;
-        final int sampleCount;
-
-        FitResult(double kV, double kA, double rmse, double crossValidationRmse,
-                  double rSquared,
-                  int sampleCount) {
-            this.kV = kV;
-            this.kA = kA;
-            this.rmse = rmse;
-            this.crossValidationRmse = crossValidationRmse;
-            this.rSquared = rSquared;
-            this.sampleCount = sampleCount;
+    /** Fit speed terms from independent holding runs, then acceleration from powered windows. */
+    static double[] fitSeparated(List<HoldingPoint> holds, List<IntegralObservation> windows) {
+        if (holds.size() < 6) { return new double[]{Double.NaN, Double.NaN, Double.NaN}; }
+        double sx=0, sy=0, sxx=0, sxy=0;
+        for (HoldingPoint p : holds) { sx+=p.velocity; sy+=p.power; sxx+=p.velocity*p.velocity; sxy+=p.velocity*p.power; }
+        double n=holds.size(), determinant=n*sxx-sx*sx;
+        if (determinant < 1e-9) { return new double[]{Double.NaN, Double.NaN, Double.NaN}; }
+        double kv=(n*sxy-sx*sy)/determinant, ks=(sy-kv*sx)/n;
+        // An affine fit to curved holding-power data can systematically overdrive the
+        // middle speeds. Keep the fitted slope, but do not exceed any measured hold.
+        // Velocity feedback can supply the small remaining load on the real path.
+        for (HoldingPoint p : holds) { ks = Math.min(ks, p.power - kv * p.velocity); }
+        double numerator=0, denominator=0;
+        int accelerationWindows = 0;
+        for (IntegralObservation w : windows) {
+            if (w.velocityChange <= 0 || w.signTime <= 0) { continue; }
+            numerator+=w.velocityChange*(w.powerTime-ks*w.signTime-kv*w.distance);
+            denominator+=w.velocityChange*w.velocityChange;
+            accelerationWindows++;
         }
+        return new double[]{ks, kv, accelerationWindows >= 4 && denominator>1e-9
+                ? numerator/denominator : Double.NaN};
+    }
 
-        boolean isValid() {
-            return Double.isFinite(kV) && Double.isFinite(kA) &&
-                    kV > 0.0 && kA > 0.0 && sampleCount >= 20 &&
-                    Double.isFinite(crossValidationRmse) &&
-                    crossValidationRmse <= MAX_CROSS_VALIDATION_RMSE &&
-                    Double.isFinite(rSquared) && rSquared >= MIN_R_SQUARED;
-        }
+    static boolean physicalFit(double[] fit) {
+        return Double.isFinite(fit[0]) && fit[0]>=0 && fit[0]<1 &&
+                Double.isFinite(fit[1]) && fit[1]>0 && Double.isFinite(fit[2]) && fit[2]>0;
     }
 
     /** One derivative-free integral-model observation. */
     static final class IntegralObservation {
         final double signTime, distance, velocityChange, powerTime;
-        final boolean braking;
 
         IntegralObservation(double signTime, double distance, double velocityChange,
-                            double powerTime, boolean braking) {
+                            double powerTime) {
             this.signTime = signTime;
             this.distance = distance;
             this.velocityChange = velocityChange;
             this.powerTime = powerTime;
-            this.braking = braking;
         }
     }
 
-    /** Diagnostic result for u*dt = kS*sign(v)*dt + kV*dx + kA*dv. */
-    static final class IntegralFitResult {
-        final double kS, kV, kA, accelerationRmse, brakingRmse;
-        final int accelerationWindows, brakingWindows;
-
-        IntegralFitResult(double kS, double kV, double kA, double accelerationRmse,
-                          double brakingRmse, int accelerationWindows, int brakingWindows) {
-            this.kS = kS;
-            this.kV = kV;
-            this.kA = kA;
-            this.accelerationRmse = accelerationRmse;
-            this.brakingRmse = brakingRmse;
-            this.accelerationWindows = accelerationWindows;
-            this.brakingWindows = brakingWindows;
-        }
-
-        /** Requires a physical model with independent acceleration and braking evidence. */
-        boolean isValid() {
-            return Double.isFinite(kS) && kS >= 0.0 && kS < 1.0 &&
-                    Double.isFinite(kV) && kV > 0.0 &&
-                    Double.isFinite(kA) && kA > 0.0 &&
-                    accelerationWindows >= 12 && brakingWindows >= 4 &&
-                    accelerationRmse <= 0.03 && brakingRmse <= 0.03;
-        }
-    }
-
-    private final List<Observation> angularObservations = new ArrayList<>();
-    private final List<Observation> translationalObservations = new ArrayList<>();
     private final List<IntegralObservation> angularIntegralObservations = new ArrayList<>();
     private final List<IntegralObservation> translationalIntegralObservations = new ArrayList<>();
-    private IntegralFitResult angularIntegralFit;
-    private IntegralFitResult translationalIntegralFit;
     private double windowSignTime, windowDistance, windowVelocityChange, windowPowerTime;
     private double windowStartVelocity, previousWindowVelocity, previousIntegrationTime;
     private boolean integrationWindowStarted;
     private AutoStage autoStage = AutoStage.PROMPT;
     private int autoRunIndex = 0;
-    private FitResult angularFit;
-    private FitResult translationalFit;
     private String validationMessage = "Not run";
     private String csvPath = "Not written";
     private String csvError;
@@ -198,6 +159,19 @@ public class FeedforwardTuner extends TuningPhase {
     private String manualCsvPath = "Not started";
     private final LowPassFilter commandPowerFilter = new LowPassFilter();
     private double lastAppliedCharacterizationPower;
+    private final List<HoldingPoint> angularHolds = new ArrayList<>();
+    private final List<HoldingPoint> translationHolds = new ArrayList<>();
+    private double[] angularCandidate, translationCandidate;
+    private double holdIntegral, holdLastTime, holdVelocitySum, holdPowerSum;
+    private int holdSamples;
+    private final double[] validationSquared = new double[4];
+    private final int[] validationSamples = new int[4];
+    private final boolean[] validationSaturated = new boolean[4];
+    private final double[][] validationBias = new double[4][2];
+    private final double[][] validationPhaseSquared = new double[4][2];
+    private final int[][] validationPhaseSamples = new int[4][2];
+    private TuningCsvWriter validationCsv;
+    private int validationRefinements;
 
     public FeedforwardTuner(TunerContext context) {
         super(context);
@@ -258,14 +232,24 @@ public class FeedforwardTuner extends TuningPhase {
 
     private void restartAutomaticCharacterization() {
         context.getFollower().stop();
-        angularObservations.clear();
-        translationalObservations.clear();
         angularIntegralObservations.clear();
         translationalIntegralObservations.clear();
-        angularFit = null;
-        translationalFit = null;
-        angularIntegralFit = null;
-        translationalIntegralFit = null;
+        angularHolds.clear();
+        translationHolds.clear();
+        angularCandidate=null;
+        translationCandidate=null;
+        validationRefinements = 0;
+        Arrays.fill(validationSquared, 0);
+        Arrays.fill(validationSamples, 0);
+        Arrays.fill(validationSaturated, false);
+        for (int i = 0; i < 4; i++) {
+            Arrays.fill(validationBias[i], 0);
+            Arrays.fill(validationPhaseSquared[i], 0);
+            Arrays.fill(validationPhaseSamples[i], 0);
+        }
+        if (validationCsv != null) { validationCsv.close(); }
+        validationCsv=TuningCsvWriter.open("feedforward_validation", "run", "axis", "direction",
+                "time_s", "target_velocity", "measured_velocity", "power", "sample_used");
         validationMessage = "Collecting characterization data";
         csvPath = "Pending";
         csvError = null;
@@ -353,181 +337,6 @@ public class FeedforwardTuner extends TuningPhase {
         public double getTotalDistance() {
             return vel * tCruiseEnd;
         }
-    }
-
-    /**
-     * Fits normalized motor power = kS + kV * |velocity| + kA * directed acceleration.
-     *
-     * <p>All samples participate instead of reducing a run to one boundary decision. Four Huber
-     * reweighting passes prevent an encoder/localizer spike from dominating the coefficients.</p>
-     */
-    static FitResult fitFeedforward(List<Observation> source, double kS) {
-        List<Observation> samples = new ArrayList<>();
-        for (Observation sample : source) {
-            if (Double.isFinite(sample.power) && Double.isFinite(sample.velocity) &&
-                    Double.isFinite(sample.acceleration) && sample.power > kS &&
-                    sample.velocity > 0.0) {
-                samples.add(sample);
-            }
-        }
-        if (samples.size() < 4) {
-            return new FitResult(Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN,
-                    samples.size());
-        }
-
-        double[] fit = robustFit(samples, kS, -1);
-        double squaredError = 0.0;
-        double totalSquaredError = 0.0;
-        for (Observation sample : samples) {
-            double residual = predictionError(sample, kS, fit);
-            squaredError += residual * residual;
-            double target = sample.power - kS;
-            totalSquaredError += target * target;
-        }
-        double rmse = Math.sqrt(squaredError / samples.size());
-        // kS is a known intercept, so the remaining kV/kA model is constrained through zero.
-        // Use the corresponding uncentered R-squared; centering around the narrow sampled-power
-        // mean can report a negative score for an otherwise accurate physical fit.
-        double rSquared = totalSquaredError <= 1e-12
-                ? Double.NaN : 1.0 - squaredError / totalSquaredError;
-
-        // Leave each physical run out once. This detects a fit that only works in one direction
-        // or for one excitation profile without requiring another long robot movement.
-        double cvSquaredError = 0.0;
-        int cvCount = 0;
-        Set<Integer> runs = new LinkedHashSet<>();
-        for (Observation sample : samples) {
-            runs.add(sample.run);
-        }
-        for (int heldOut : runs) {
-            double[] foldFit = robustFit(samples, kS, heldOut);
-            if (!Double.isFinite(foldFit[0]) || !Double.isFinite(foldFit[1])) { continue; }
-            for (Observation sample : samples) {
-                if (sample.run == heldOut) {
-                    double residual = predictionError(sample, kS, foldFit);
-                    cvSquaredError += residual * residual;
-                    cvCount++;
-                }
-            }
-        }
-        double cvRmse = cvCount == 0 ? Double.NaN : Math.sqrt(cvSquaredError / cvCount);
-        return new FitResult(fit[0], fit[1], rmse, cvRmse, rSquared, samples.size());
-    }
-
-    private static double predictionError(Observation sample, double kS, double[] fit) {
-        return (sample.power - kS) -
-                (fit[0] * sample.velocity + fit[1] * sample.acceleration);
-    }
-
-    private static double[] robustFit(List<Observation> samples, double kS, int excludedRun) {
-        double[] weights = new double[samples.size()];
-        Arrays.fill(weights, 1.0);
-        double[] result = { Double.NaN, Double.NaN };
-
-        for (int iteration = 0; iteration < 4; iteration++) {
-            double vv = 1e-9;
-            double va = 0.0;
-            double aa = 1e-9;
-            double vy = 0.0;
-            double ay = 0.0;
-            int used = 0;
-            for (int i = 0; i < samples.size(); i++) {
-                Observation sample = samples.get(i);
-                if (sample.run == excludedRun) { continue; }
-                double weight = weights[i];
-                double target = sample.power - kS;
-                vv += weight * sample.velocity * sample.velocity;
-                va += weight * sample.velocity * sample.acceleration;
-                aa += weight * sample.acceleration * sample.acceleration;
-                vy += weight * sample.velocity * target;
-                ay += weight * sample.acceleration * target;
-                used++;
-            }
-            double determinant = vv * aa - va * va;
-            if (used < 4 || Math.abs(determinant) < 1e-12) { return result; }
-            result[0] = (vy * aa - ay * va) / determinant;
-            result[1] = (ay * vv - vy * va) / determinant;
-
-            double[] residuals = new double[samples.size()];
-            int residualCount = 0;
-            for (Observation sample : samples) {
-                if (sample.run != excludedRun) {
-                    residuals[residualCount++] = Math.abs(predictionError(sample, kS, result));
-                }
-            }
-            double scale = LimitsPhase.percentile(
-                    Arrays.copyOf(residuals, residualCount), 0.50) * 1.4826;
-            scale = Math.max(scale, 0.005);
-            double huberLimit = 1.5 * scale;
-            for (int i = 0; i < samples.size(); i++) {
-                Observation sample = samples.get(i);
-                double residual = Math.abs(predictionError(sample, kS, result));
-                weights[i] = residual <= huberLimit ? 1.0 : huberLimit / residual;
-            }
-        }
-        return result;
-    }
-
-    /** Fits all three moving-feedforward terms without differentiating velocity. */
-    static IntegralFitResult fitIntegralFeedforward(List<IntegralObservation> samples) {
-        double[][] matrix = new double[3][4];
-        for (IntegralObservation sample : samples) {
-            double[] x = { sample.signTime, sample.distance, sample.velocityChange };
-            for (int row = 0; row < 3; row++) {
-                for (int column = 0; column < 3; column++) {
-                    matrix[row][column] += x[row] * x[column];
-                }
-                matrix[row][3] += x[row] * sample.powerTime;
-            }
-        }
-        double[] fit = solveThreeByThree(matrix);
-        double accelerationError = 0.0;
-        double brakingError = 0.0;
-        int accelerationCount = 0;
-        int brakingCount = 0;
-        for (IntegralObservation sample : samples) {
-            double predicted = fit[0] * sample.signTime + fit[1] * sample.distance +
-                    fit[2] * sample.velocityChange;
-            double error = sample.powerTime - predicted;
-            if (sample.braking) {
-                brakingError += error * error;
-                brakingCount++;
-            } else {
-                accelerationError += error * error;
-                accelerationCount++;
-            }
-        }
-        return new IntegralFitResult(fit[0], fit[1], fit[2],
-                accelerationCount == 0 ? Double.NaN :
-                        Math.sqrt(accelerationError / accelerationCount),
-                brakingCount == 0 ? Double.NaN : Math.sqrt(brakingError / brakingCount),
-                accelerationCount, brakingCount);
-    }
-
-    /** Solves a three-variable augmented matrix with partial pivoting. */
-    private static double[] solveThreeByThree(double[][] matrix) {
-        for (int pivot = 0; pivot < 3; pivot++) {
-            int best = pivot;
-            for (int row = pivot + 1; row < 3; row++) {
-                if (Math.abs(matrix[row][pivot]) > Math.abs(matrix[best][pivot])) { best = row; }
-            }
-            if (Math.abs(matrix[best][pivot]) < 1e-12) {
-                return new double[] { Double.NaN, Double.NaN, Double.NaN };
-            }
-            double[] swap = matrix[pivot];
-            matrix[pivot] = matrix[best];
-            matrix[best] = swap;
-            double scale = matrix[pivot][pivot];
-            for (int column = pivot; column < 4; column++) { matrix[pivot][column] /= scale; }
-            for (int row = 0; row < 3; row++) {
-                if (row == pivot) { continue; }
-                double factor = matrix[row][pivot];
-                for (int column = pivot; column < 4; column++) {
-                    matrix[row][column] -= factor * matrix[pivot][column];
-                }
-            }
-        }
-        return new double[] { matrix[0][3], matrix[1][3], matrix[2][3] };
     }
 
     @Override
@@ -742,7 +551,7 @@ public class FeedforwardTuner extends TuningPhase {
             context.getTelemetry().addLine("The previous feedforward values are still active.");
             context.getTelemetry().addLine("Press A to retry automatically.");
             context.getTelemetry().addLine("Press B to switch to manual tuning.");
-            if (context.isDebugMode()) { reportFitDiagnostics(); }
+            reportFitDiagnostics();
             context.getTelemetry().update();
             if (opMode.gamepad1.aWasPressed()) {
                 restartAutomaticCharacterization();
@@ -754,35 +563,63 @@ public class FeedforwardTuner extends TuningPhase {
         }
 
         if (autoStage == AutoStage.FITTING) {
-            angularFit = fitFeedforward(
-                    angularObservations, Math.abs(context.constants.angularCoeffs.kS));
-            translationalFit = fitFeedforward(
-                    translationalObservations,
-                    Math.abs(context.constants.translationalCoeffs.kS));
-            angularIntegralFit = fitIntegralFeedforward(angularIntegralObservations);
-            translationalIntegralFit = fitIntegralFeedforward(translationalIntegralObservations);
-
-            boolean angularValid = angularIntegralFit.isValid();
-            boolean translationalValid = translationalIntegralFit.isValid();
+            boolean validationComplete = autoRunIndex >= AUTO_RUNS.length;
+            if (!validationComplete) {
+                angularCandidate = fitSeparated(angularHolds, angularIntegralObservations);
+                translationCandidate = fitSeparated(translationHolds, translationalIntegralObservations);
+            }
+            boolean angularValid = physicalFit(angularCandidate);
+            boolean translationalValid = physicalFit(translationCandidate);
+            if (angularValid && translationalValid && !validationComplete) {
+                validationMessage = "Holding and acceleration fits ready; validating without feedback";
+                autoStage = AutoStage.PROMPT;
+                return false;
+            }
+            if (validationComplete) {
+                angularValid &= validationPassed(0, Math.max(.20, .05 * context.constants.angularVelLimitRad))
+                        && validationPassed(1, Math.max(.20, .05 * context.constants.angularVelLimitRad));
+                translationalValid &= validationPassed(2, Math.max(2.0, .05 * context.constants.forwardVelLimitIn))
+                        && validationPassed(3, Math.max(2.0, .05 * context.constants.forwardVelLimitIn));
+            }
+            if (validationComplete && (!angularValid || !translationalValid)
+                    && validationRefinements < 2
+                    && physicalFit(angularCandidate) && physicalFit(translationCandidate)) {
+                // A small affine-model holding bias is observable without velocity feedback.
+                // Refine only the failed axis, then require entirely fresh validation runs.
+                if (!angularValid) { refineHoldingBias(angularCandidate, 0); }
+                if (!translationalValid) { refineHoldingBias(translationCandidate, 2); }
+                validationRefinements++;
+                Arrays.fill(validationSquared, 0);
+                Arrays.fill(validationSamples, 0);
+                Arrays.fill(validationSaturated, false);
+                for (int i = 0; i < 4; i++) {
+                    Arrays.fill(validationBias[i], 0);
+                    Arrays.fill(validationPhaseSquared[i], 0);
+                    Arrays.fill(validationPhaseSamples[i], 0);
+                }
+                autoRunIndex = VALIDATION_START;
+                autoStage = AutoStage.PROMPT;
+                validationMessage = "Refining holding bias; repeating feedforward-only validation";
+                return false;
+            }
             if (angularValid && translationalValid) {
-                context.constants.angularFeedforwardKS = angularIntegralFit.kS;
-                context.constants.angularKV = angularIntegralFit.kV;
-                context.constants.angularKA = angularIntegralFit.kA;
-                context.constants.translationalFeedforwardKS = translationalIntegralFit.kS;
-                context.constants.translationalKV = translationalIntegralFit.kV;
-                context.constants.translationalKA = translationalIntegralFit.kA;
+                context.constants.angularFeedforwardKS = angularCandidate[0];
+                context.constants.angularKV = angularCandidate[1];
+                context.constants.angularKA = angularCandidate[2];
+                context.constants.translationalFeedforwardKS = translationCandidate[0];
+                context.constants.translationalKV = translationCandidate[1];
+                context.constants.translationalKA = translationCandidate[2];
                 context.getFollower().setFeedforwardGains(
-                        translationalIntegralFit.kS, translationalIntegralFit.kV,
-                        translationalIntegralFit.kA, angularIntegralFit.kS,
-                        angularIntegralFit.kV, angularIntegralFit.kA);
+                        translationCandidate[0], translationCandidate[1], translationCandidate[2],
+                        angularCandidate[0], angularCandidate[1], angularCandidate[2]);
             }
             validationMessage = "Angular " + (angularValid ? "PASSED" : "FAILED") +
                     "; Translation " + (translationalValid ? "PASSED" : "FAILED");
             if (!angularValid || !translationalValid) {
                 validationMessage += "; no candidate values applied";
             }
-            writeCharacterizationCsv();
-            writeIntegralDiagnosticsCsv();
+            writeFitEvidenceCsv();
+            if (validationCsv != null) { validationCsv.close(); }
             autoStage = angularValid && translationalValid ? AutoStage.DONE : AutoStage.FAILED;
             return autoStage == AutoStage.DONE;
         }
@@ -820,6 +657,11 @@ public class FeedforwardTuner extends TuningPhase {
                         Vector.of(stagingX, 0.0, DistUnit.IN), Angle.fromRad(0.0)));
                 commandPowerFilter.reset();
                 lastAppliedCharacterizationPower = 0.0;
+                holdIntegral=0;
+                holdLastTime=0;
+                holdVelocitySum=0;
+                holdPowerSum=0;
+                holdSamples=0;
                 resetIntegrationWindow();
                 timer.reset();
                 autoStage = AutoStage.RUNNING;
@@ -827,31 +669,30 @@ public class FeedforwardTuner extends TuningPhase {
             return false;
         }
 
-        // ElapsedTime.time(TimeUnit.SECONDS) returns a whole number of seconds in FTC SDK 11.1.
-        // seconds() preserves the sub-second resolution required for a smooth quasistatic ramp.
         double elapsed = timer.seconds();
+        if (autoStage == AutoStage.RUNNING &&
+                (run.excitation == Excitation.HOLD || run.excitation == Excitation.VALIDATE)) {
+            runHoldingOrValidation(run, elapsed);
+            context.getTelemetry().addData("Test", run.axis + " " + run.excitation);
+            context.getTelemetry().addData("Progress", (autoRunIndex + 1) + " / " + AUTO_RUNS.length);
+            context.getTelemetry().update();
+            return false;
+        }
         if (autoStage == AutoStage.RUNNING) {
-            double duration = run.excitation == Excitation.QUASISTATIC
-                    ? QUASISTATIC_TIME : DYNAMIC_TIME;
+            double duration = DYNAMIC_TIME;
             if (elapsed >= duration) {
                 resetIntegrationWindow();
                 timer.reset();
-                if (run.excitation == Excitation.DYNAMIC) {
-                    autoStage = AutoStage.BRAKING;
-                } else {
-                    context.getFollower().stop();
-                    lastAppliedCharacterizationPower = 0.0;
-                    autoStage = AutoStage.SETTLING;
-                }
+                context.getFollower().stop();
+                lastAppliedCharacterizationPower = 0.0;
+                autoStage = AutoStage.SETTLING;
             } else {
                 // Preserve the legacy power-window alignment only when the compatibility moving
                 // average is selected. Kalman state estimates are current-time estimates and must
                 // not be shifted by the old seven-sample window.
                 double alignedPower = commandPowerFilter.update(
                         lastAppliedCharacterizationPower).value();
-                double power = run.excitation == Excitation.QUASISTATIC
-                        ? CHARACTERIZATION_POWER * elapsed / duration
-                        : CHARACTERIZATION_POWER;
+                double power = CHARACTERIZATION_POWER;
                 double signedPower = run.forward ? power : -power;
                 if (run.axis == Axis.ANGULAR) {
                     context.getFollower().getDrivetrain().moveWithVectors(
@@ -863,60 +704,16 @@ public class FeedforwardTuner extends TuningPhase {
                 lastAppliedCharacterizationPower = power;
 
                 Pose velocity = context.getFollower().getVelocity();
-                Pose acceleration = context.getFollower().getAcceleration();
                 double rawVelocity = run.axis == Axis.ANGULAR
                         ? velocity.getHeading(AngleUnit.RAD)
                         : velocity.getX().getIn();
-                double rawAcceleration = run.axis == Axis.ANGULAR
-                        ? acceleration.getHeading(AngleUnit.RAD)
-                        : acceleration.getX().getIn();
-                if (elapsed >= MIN_SAMPLE_TIME && Double.isFinite(rawAcceleration)) {
-                    double measuredVelocity = Math.abs(rawVelocity);
-                    // Project acceleration along the measured direction of travel. This remains
-                    // correct even when a localizer's positive axis is opposite motor power, and
-                    // unlike abs(acceleration), preserves real deceleration samples.
-                    double measuredAcceleration = rawAcceleration * Math.signum(rawVelocity);
-                    double velocityFloor = run.axis == Axis.ANGULAR ? 0.02 : 0.25;
-                    if (measuredVelocity >= velocityFloor) {
-                        Observation observation = new Observation(
-                                alignedPower, measuredVelocity, measuredAcceleration,
-                                autoRunIndex % 4, elapsed);
-                        (run.axis == Axis.ANGULAR
-                                ? angularObservations : translationalObservations).add(observation);
-                    }
-                }
-                recordIntegralSample(run, alignedPower, rawVelocity, elapsed, false);
-            }
-        } else if (autoStage == AutoStage.BRAKING) {
-            double alignedPower = commandPowerFilter.update(
-                    lastAppliedCharacterizationPower).value();
-            double directedPower = -BRAKING_POWER;
-            double signedPower = run.forward ? directedPower : -directedPower;
-            if (run.axis == Axis.ANGULAR) {
-                context.getFollower().getDrivetrain().moveWithVectors(0.0, 0.0, signedPower);
-            } else {
-                context.getFollower().getDrivetrain().moveWithVectors(signedPower, 0.0, 0.0);
-            }
-            lastAppliedCharacterizationPower = directedPower;
-
-            Pose velocity = context.getFollower().getVelocity();
-            double rawVelocity = run.axis == Axis.ANGULAR
-                    ? velocity.getHeading(AngleUnit.RAD) : velocity.getX().getIn();
-            recordIntegralSample(run, alignedPower, rawVelocity, elapsed, true);
-            double directedVelocity = rawVelocity * (run.forward ? 1.0 : -1.0);
-            double velocityFloor = run.axis == Axis.ANGULAR ? 0.02 : 0.25;
-            if (elapsed >= BRAKING_TIME || directedVelocity <= velocityFloor) {
-                context.getFollower().stop();
-                lastAppliedCharacterizationPower = 0.0;
-                resetIntegrationWindow();
-                timer.reset();
-                autoStage = AutoStage.SETTLING;
+                recordIntegralSample(run, alignedPower, rawVelocity, elapsed);
             }
         } else if (autoStage == AutoStage.SETTLING) {
             context.getFollower().stop();
             if (elapsed >= AUTO_SETTLE_TIME) {
                 autoRunIndex++;
-                autoStage = autoRunIndex >= AUTO_RUNS.length
+                autoStage = autoRunIndex == VALIDATION_START || autoRunIndex >= AUTO_RUNS.length
                         ? AutoStage.FITTING : AutoStage.PROMPT;
                 timer.reset();
             }
@@ -928,12 +725,112 @@ public class FeedforwardTuner extends TuningPhase {
                     " / " + AUTO_RUNS.length);
             context.getTelemetry().addData("Test", run.axis + " " + run.excitation);
             context.getTelemetry().addData("Direction", run.forward ? "FORWARD / CCW" : "BACKWARD / CW");
-            context.getTelemetry().addData("Angular samples", angularObservations.size());
-            context.getTelemetry().addData("Translation samples", translationalObservations.size());
+            context.getTelemetry().addData("Angular acceleration windows", angularIntegralObservations.size());
+            context.getTelemetry().addData("Translation acceleration windows", translationalIntegralObservations.size());
             context.getTelemetry().addData("CSV", csvPath);
         }
         context.getTelemetry().update();
         return false;
+    }
+
+    private boolean validationPassed(int run, double tolerance) {
+        if (validationSaturated[run]) { return false; }
+        for (int phase = 0; phase < 2; phase++) {
+            if (!validationPhasePassed(validationPhaseSamples[run][phase],
+                    validationPhaseSquared[run][phase], validationBias[run][phase], tolerance)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void refineHoldingBias(double[] candidate, int firstRun) {
+        int samples = validationPhaseSamples[firstRun][1] + validationPhaseSamples[firstRun + 1][1];
+        if (samples < 20 || validationSaturated[firstRun] || validationSaturated[firstRun + 1]) { return; }
+        double bias = (validationBias[firstRun][1] + validationBias[firstRun + 1][1]) / samples;
+        candidate[0] = correctedHoldingKS(candidate[0], candidate[1], bias);
+    }
+
+    static double correctedHoldingKS(double ks, double kv, double speedBias) {
+        return Math.max(0, Math.min(.99, ks - kv * speedBias));
+    }
+
+    static boolean validationPhasePassed(int samples, double squaredError,
+                                         double signedError, double tolerance) {
+        return samples >= 10 && Double.isFinite(squaredError) && Double.isFinite(signedError)
+                && Math.sqrt(squaredError / samples) <= tolerance
+                && Math.abs(signedError / samples) <= tolerance * .5;
+    }
+
+    /** Holding uses a temporary PI servo for identification; validation is feedforward only. */
+    private void runHoldingOrValidation(AutoRun run, double elapsed) {
+        boolean angular = run.axis == Axis.ANGULAR;
+        boolean validating = run.excitation == Excitation.VALIDATE;
+        double limit = angular ? context.constants.angularVelLimitRad : context.constants.forwardVelLimitIn;
+        double duration = validating ? 1.4 : HOLD_SECONDS;
+        double direction = run.forward ? 1.0 : -1.0;
+        Pose velocity = context.getFollower().getVelocity();
+        double measured = direction * (angular ? velocity.getHeading().getRad() : velocity.getX().getIn());
+        Pose acceleration = context.getFollower().getAcceleration();
+        double measuredAcceleration = direction * (angular ? acceleration.getHeading().getRad()
+                : acceleration.getX().getIn());
+        if (elapsed >= duration) {
+            if (!validating && holdSamples >= 10) {
+                (angular ? angularHolds : translationHolds).add(new HoldingPoint(
+                        holdVelocitySum / holdSamples, holdPowerSum / holdSamples));
+            }
+            context.getFollower().stop();
+            timer.reset();
+            autoStage = AutoStage.SETTLING;
+            return;
+        }
+
+        double dt = Math.max(0, Math.min(.1, elapsed - holdLastTime));
+        holdLastTime = elapsed;
+        double target;
+        double power;
+        if (validating) {
+            double[] fit = angular ? angularCandidate : translationCandidate;
+            double rampTime = .7;
+            target = .4 * limit * Math.min(1, elapsed / rampTime);
+            double targetAcceleration = elapsed < rampTime ? .4 * limit / rampTime : 0;
+            power = fit[0] + fit[1] * target + fit[2] * targetAcceleration;
+            int index = autoRunIndex - VALIDATION_START;
+            validationSaturated[index] |= !Double.isFinite(power) || Math.abs(power) > 1.0;
+            boolean sample = elapsed >= .2;
+            if (sample) {
+                double error = measured - target;
+                validationSquared[index] += error * error;
+                validationSamples[index]++;
+                int phase = elapsed < rampTime ? 0 : 1;
+                validationBias[index][phase] += error;
+                validationPhaseSquared[index][phase] += error * error;
+                validationPhaseSamples[index][phase]++;
+            }
+            validationCsv.writeRow(autoRunIndex, run.axis, run.forward ? "FORWARD" : "REVERSE",
+                    elapsed, target, measured, power, sample);
+        } else {
+            target = run.speedFraction * limit;
+            double kp = 3.0 / Math.max(limit, 1e-6);
+            double ki = 9.0 / Math.max(limit, 1e-6);
+            double error = target - measured;
+            double seed = angular ? context.constants.angularCoeffs.kS : context.constants.translationalCoeffs.kS;
+            double candidateIntegral = holdIntegral + ki * error * dt;
+            double requested = seed + kp * error + candidateIntegral;
+            if (requested >= 0 && requested <= .85) { holdIntegral = candidateIntegral; }
+            power = Math.max(0, Math.min(.85, seed + kp * error + holdIntegral));
+            // Use the previous applied power: it produced this velocity/acceleration sample.
+            if (elapsed >= .8 && Math.abs(error) <= .05 * limit &&
+                    Math.abs(measuredAcceleration) <= .04 * limit && measured > .05 * limit) {
+                holdVelocitySum += measured;
+                holdPowerSum += lastAppliedCharacterizationPower;
+                holdSamples++;
+            }
+        }
+        context.getFollower().getDrivetrain().moveWithVectors(
+                angular ? 0 : direction * clipManualPower(power), 0,
+                angular ? direction * clipManualPower(power) : 0);
+        lastAppliedCharacterizationPower = power;
     }
 
     /** Starts a fresh derivative-free integration window. */
@@ -948,7 +845,7 @@ public class FeedforwardTuner extends TuningPhase {
 
     /** Accumulates one aligned command/velocity sample and emits a 0.2-second model window. */
     private void recordIntegralSample(AutoRun run, double directedPower,
-                                      double rawVelocity, double elapsed, boolean braking) {
+                                      double rawVelocity, double elapsed) {
         double velocity = rawVelocity * (run.forward ? 1.0 : -1.0);
         double velocityFloor = run.axis == Axis.ANGULAR ? 0.02 : 0.25;
         if (!Double.isFinite(velocity) || velocity < velocityFloor) {
@@ -981,7 +878,7 @@ public class FeedforwardTuner extends TuningPhase {
         if (windowSignTime >= INTEGRATION_WINDOW_SECONDS) {
             IntegralObservation observation = new IntegralObservation(
                     windowSignTime, windowDistance, windowVelocityChange,
-                    windowPowerTime, braking);
+                    windowPowerTime);
             (run.axis == Axis.ANGULAR
                     ? angularIntegralObservations : translationalIntegralObservations)
                     .add(observation);
@@ -999,9 +896,6 @@ public class FeedforwardTuner extends TuningPhase {
     }
 
     private String feedforwardActionDescription(AutoRun run) {
-        if (autoStage == AutoStage.BRAKING) {
-            return "Robot is applying controlled braking for the feedforward model.";
-        }
         if (autoStage == AutoStage.SETTLING) {
             return "Robot is stopping before the next feedforward run.";
         }
@@ -1015,98 +909,52 @@ public class FeedforwardTuner extends TuningPhase {
     }
 
     private void reportFitDiagnostics() {
-        reportFitDiagnostics("Angular", angularFit);
-        reportFitDiagnostics("Translation", translationalFit);
-        reportIntegralDiagnostics("Angular integral", angularIntegralFit);
-        reportIntegralDiagnostics("Translation integral", translationalIntegralFit);
-        context.getTelemetry().addData("Characterization CSV", csvPath);
-    }
-
-    /** Reports the parallel integral model without applying its constants. */
-    private void reportIntegralDiagnostics(String axis, IntegralFitResult fit) {
-        if (fit == null) { return; }
-        context.getTelemetry().addData(axis + " kS / kV / kA",
-                fit.kS + " / " + fit.kV + " / " + fit.kA);
-        context.getTelemetry().addData(axis + " accel / brake RMSE",
-                fit.accelerationRmse + " / " + fit.brakingRmse);
-        context.getTelemetry().addData(axis + " accel / brake windows",
-                fit.accelerationWindows + " / " + fit.brakingWindows);
-    }
-
-    private void reportFitDiagnostics(String axis, FitResult fit) {
-        if (fit == null) {
-            context.getTelemetry().addData(axis + " fit", "Unavailable");
-            return;
+        context.getTelemetry().addData("Active-fit evidence angular holds / accel windows", angularHolds.size() + " / " + angularIntegralObservations.size());
+        context.getTelemetry().addData("Active-fit evidence translation holds / accel windows", translationHolds.size() + " / " + translationalIntegralObservations.size());
+        context.getTelemetry().addData("Candidate angular kS / kV / kA", Arrays.toString(angularCandidate));
+        context.getTelemetry().addData("Candidate translation kS / kV / kA", Arrays.toString(translationCandidate));
+        for (int i = 0; i < validationSamples.length; i++) {
+            for (int phase = 0; phase < 2; phase++) {
+                int count = validationPhaseSamples[i][phase];
+                double bias = count == 0 ? Double.NaN : validationBias[i][phase] / count;
+                double rms = count == 0 ? Double.NaN : Math.sqrt(validationPhaseSquared[i][phase] / count);
+                context.getTelemetry().addData("Validation " + (i + 1) + (phase == 0 ? " ramp RMS / bias" : " hold RMS / bias"), rms + " / " + bias);
+            }
+            context.getTelemetry().addData("Validation " + (i + 1) + " samples / saturated", validationSamples[i] + " / " + validationSaturated[i]);
         }
-        context.getTelemetry().addData(axis + " candidate kV", fit.kV);
-        context.getTelemetry().addData(axis + " candidate kA", fit.kA);
-        context.getTelemetry().addData(axis + " fit RMSE", fit.rmse);
-        context.getTelemetry().addData(axis + " cross-validation RMSE", fit.crossValidationRmse);
-        context.getTelemetry().addData(axis + " fit R^2", fit.rSquared);
-        context.getTelemetry().addData(axis + " samples", fit.sampleCount);
+        context.getTelemetry().addData("Fit evidence CSV", csvPath);
+        if (validationCsv != null) { context.getTelemetry().addData("Validation CSV", validationCsv.getPath()); }
     }
 
-    private void writeCharacterizationCsv() {
-        TuningCsvWriter writer = TuningCsvWriter.open(
-                "feedforward_characterization",
-                "axis", "run", "excitation", "direction", "elapsed_s",
-                "commanded_power", "velocity", "acceleration", "predicted_power",
-                "residual", "kS", "kV", "kA"
-        );
-        writeAxisCsv(writer, "ANGULAR", angularObservations,
-                Math.abs(context.constants.angularCoeffs.kS), angularFit);
-        writeAxisCsv(writer, "TRANSLATIONAL", translationalObservations,
-                Math.abs(context.constants.translationalCoeffs.kS), translationalFit);
+    /** Writes only evidence used by the active separated fit. */
+    private void writeFitEvidenceCsv() {
+        TuningCsvWriter writer = TuningCsvWriter.open("feedforward_fit_evidence",
+                "axis", "evidence", "velocity_or_sign_time", "power_or_distance",
+                "velocity_change", "power_time", "candidate_kS", "candidate_kV",
+                "candidate_kA", "residual", "validation");
+        writeFitEvidenceAxis(writer, "ANGULAR", angularHolds, angularIntegralObservations, angularCandidate);
+        writeFitEvidenceAxis(writer, "TRANSLATIONAL", translationHolds, translationalIntegralObservations, translationCandidate);
         writer.close();
         csvPath = writer.getPath();
         csvError = writer.getError();
     }
 
-    private static void writeAxisCsv(TuningCsvWriter writer, String axis,
-                                     List<Observation> observations, double kS,
-                                     FitResult fit) {
-        for (Observation sample : observations) {
-            String excitation = sample.run < 2 ? "QUASISTATIC" : "DYNAMIC";
-            String direction = sample.run % 2 == 0 ? "POSITIVE" : "NEGATIVE";
-            double predicted = fit == null ? Double.NaN :
-                    kS + fit.kV * sample.velocity + fit.kA * sample.acceleration;
-            writer.writeRow(
-                    axis, sample.run + 1, excitation, direction, sample.elapsedSeconds,
-                    sample.power, sample.velocity, sample.acceleration, predicted,
-                    sample.power - predicted, kS,
-                    fit == null ? Double.NaN : fit.kV,
-                    fit == null ? Double.NaN : fit.kA
-            );
+    private void writeFitEvidenceAxis(TuningCsvWriter writer, String axis, List<HoldingPoint> holds,
+            List<IntegralObservation> windows, double[] candidate) {
+        for (HoldingPoint point : holds) {
+            double prediction = candidate[0] + candidate[1] * point.velocity;
+            writer.writeRow(axis, "HOLD", point.velocity, point.power, Double.NaN, Double.NaN,
+                    candidate[0], candidate[1], candidate[2], point.power - prediction, "");
         }
-    }
-
-    /** Writes the parallel integral fit so it can be evaluated before becoming active. */
-    private void writeIntegralDiagnosticsCsv() {
-        TuningCsvWriter writer = TuningCsvWriter.open(
-                "feedforward_integral_diagnostic",
-                "axis", "mode", "sign_time_s", "distance", "velocity_change",
-                "power_time", "predicted_power_time", "residual",
-                "fit_kS", "fit_kV", "fit_kA"
-        );
-        writeIntegralAxis(writer, "ANGULAR", angularIntegralObservations, angularIntegralFit);
-        writeIntegralAxis(writer, "TRANSLATIONAL", translationalIntegralObservations,
-                translationalIntegralFit);
-        writer.close();
-    }
-
-    /** Writes every integrated observation with its model prediction. */
-    private static void writeIntegralAxis(TuningCsvWriter writer, String axis,
-                                          List<IntegralObservation> observations,
-                                          IntegralFitResult fit) {
-        for (IntegralObservation sample : observations) {
-            double predicted = fit.kS * sample.signTime + fit.kV * sample.distance +
-                    fit.kA * sample.velocityChange;
-            writer.writeRow(axis, sample.braking ? "BRAKING" : "ACCELERATING",
-                    sample.signTime, sample.distance, sample.velocityChange, sample.powerTime,
-                    predicted, sample.powerTime - predicted, fit.kS, fit.kV, fit.kA);
+        for (IntegralObservation window : windows) {
+            double prediction = candidate[0] * window.signTime + candidate[1] * window.distance + candidate[2] * window.velocityChange;
+            writer.writeRow(axis, "ACCELERATION_WINDOW", window.signTime, window.distance,
+                    window.velocityChange, window.powerTime, candidate[0], candidate[1],
+                    candidate[2], window.powerTime - prediction, "");
         }
+        writer.writeRow(axis, "RESULT", Double.NaN, Double.NaN, Double.NaN, Double.NaN,
+                candidate[0], candidate[1], candidate[2], Double.NaN, validationMessage);
     }
-
     @Override
     protected void reportResults() {
         context.getTelemetry().addData("Angular KV", number(context.constants.angularKV));
@@ -1118,24 +966,11 @@ public class FeedforwardTuner extends TuningPhase {
             context.getTelemetry().addData("Manual response CSV", manualCsvPath);
             return;
         }
+        reportFitDiagnostics();
         if (!context.isDebugMode()) { return; }
         context.getTelemetry().addData("Characterization CSV", csvPath);
         if (csvError != null) {
             context.getTelemetry().addData("CSV warning", csvError);
-        }
-        if (angularFit != null) {
-            context.getTelemetry().addData("Angular fit RMSE", angularFit.rmse);
-            context.getTelemetry().addData("Angular cross-validation RMSE",
-                    angularFit.crossValidationRmse);
-            context.getTelemetry().addData("Angular fit R^2", angularFit.rSquared);
-            context.getTelemetry().addData("Angular samples", angularFit.sampleCount);
-        }
-        if (translationalFit != null) {
-            context.getTelemetry().addData("Translation fit RMSE", translationalFit.rmse);
-            context.getTelemetry().addData("Translation cross-validation RMSE",
-                    translationalFit.crossValidationRmse);
-            context.getTelemetry().addData("Translation fit R^2", translationalFit.rSquared);
-            context.getTelemetry().addData("Translation samples", translationalFit.sampleCount);
         }
     }
 }

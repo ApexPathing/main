@@ -48,6 +48,8 @@ public class FollowerTunerTelemetryTest {
             while (!latestFrame(frames).contains("All follower tuning phases are complete") &&
                     System.nanoTime() < deadline) {
                 String frame = latestFrame(frames);
+                assertTrue("Automatic feedforward validation failed:\n" + frame,
+                        !frame.contains("did not pass validation"));
                 if (frame.contains("Press A")) {
                     tuner.gamepad1.a = true;
                     pump(session, tuner, telemetry, hardware, 30);
@@ -72,11 +74,11 @@ public class FollowerTunerTelemetryTest {
                              ApexSimTelemetry telemetry, ApexSimulation.Hardware hardware,
                              long milliseconds) throws Exception {
         long deadline = System.nanoTime() + milliseconds * 1_000_000L;
-        long lastUpdate = System.nanoTime();
         while (System.nanoTime() < deadline) {
             long now = System.nanoTime();
-            double remaining = Math.max(0.001, Math.min(0.05, (now - lastUpdate) * 1e-9));
-            lastUpdate = now;
+            double remaining = Math.max(0, Math.min(0.05,
+                    (now - hardware.lastPhysicsUpdateNanos) * 1e-9));
+            hardware.lastPhysicsUpdateNanos = now;
             while (remaining > 1e-9) {
                 double step = Math.min(0.005, remaining);
                 stepPhysics(hardware, step);
@@ -123,6 +125,8 @@ public class FollowerTunerTelemetryTest {
         constants.translationalCoeffs = new PDSCoefficients();
         constants.angularKV = 0.0;
         constants.angularKA = 0.0;
+        constants.angularFeedforwardKS = 0.0;
+        constants.translationalFeedforwardKS = 0.0;
         constants.translationalKV = 0.0;
         constants.translationalKA = 0.0;
         constants.kCentripetal = 0.0;
