@@ -225,7 +225,9 @@ public class Path extends FollowerMovement {
 
     /** Regenerates the profile appropriate to this path's drivetrain and build mode. */
     public void rebuildMotionProfile() {
-        FollowerConstants constants = FollowerConstants.getInstance();
+        FollowerConstants constants = FollowerConstants.getInstance().forProfile(
+                pathType == PathType.TANK ? FollowerConstants.Profile.TANK
+                        : FollowerConstants.Profile.HOLONOMIC);
         if (pathType == PathType.TANK) {
             TankProfileGenerator generator = new TankProfileGenerator(constants, this);
             if (buildMode == BuildMode.QUICK) {

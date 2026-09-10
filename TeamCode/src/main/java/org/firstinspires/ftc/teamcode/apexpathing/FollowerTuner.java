@@ -46,8 +46,8 @@ public class FollowerTuner extends LinearOpMode {
         LIMITS(LimitsPhase::new, constants ->
                 constants.forwardVelLimitIn != 0.0 &&
                         constants.forwardAccelLimitIn != 0.0 &&
-                        constants.strafeVelLimitIn != 0.0 &&
-                        constants.strafeAccelLimitIn != 0.0 &&
+                        (!constants.requiresStrafeLimits() || (constants.strafeVelLimitIn != 0.0 &&
+                        constants.strafeAccelLimitIn != 0.0)) &&
                         constants.angularVelLimitRad != 0.0 &&
                         constants.angularAccelLimitRad != 0.0),
         FEEDFORWARD(FeedforwardTuner::new, constants ->
@@ -137,10 +137,11 @@ public class FollowerTuner extends LinearOpMode {
 
         while (opModeIsActive()) {
             if (phase.run(this)) { // Returns true if the phase is complete
-                context.saveConstants();
+                if (!saveCurrentProfile()) { break; }
                 selectedPhaseOrdinal.updateTunedStatus(context.constants);
 
                 Phase nextPhase = nextPhase(selectedPhaseOrdinal);
+                while (nextPhase != null && !applicable(nextPhase)) { nextPhase = nextPhase(nextPhase); }
                 if (nextPhase == null) {
                     finishTuningWorkflow();
                     break;
@@ -158,6 +159,21 @@ public class FollowerTuner extends LinearOpMode {
         resetPhaseSelection();
     }
 
+    private boolean saveCurrentProfile() {
+        while (opModeIsActive()) {
+            if (context.saveConstants()) { return true; }
+            context.getFollower().stop();
+            telemetry.addLine("A: retry saving. B: finish without saving these changes.");
+            telemetry.update();
+            while (opModeIsActive()) {
+                if (gamepad1.bWasPressed()) { return false; }
+                if (gamepad1.aWasPressed()) { break; }
+                sleep(20);
+            }
+        }
+        return false;
+    }
+
     /** A reused simulator OpMode instance must always reopen at the phase picker. */
     private void resetPhaseSelection() {
         selectedPhaseOrdinal = null;
@@ -170,7 +186,12 @@ public class FollowerTuner extends LinearOpMode {
         return true;
     }
 
+    private boolean applicable(Phase phase) {
+        return phase != Phase.CENTRIPETAL || context.getFollower().getDrivetrain().isHolonomic();
+    }
+
     private String phaseStatus(Phase phase) {
+        if (!applicable(phase)) { return "[N/A]"; }
         if (phase.tuned) { return "[DONE]"; }
         return phaseAvailable(phase) ? "[READY]" : "[LOCKED]";
     }
@@ -178,7 +199,7 @@ public class FollowerTuner extends LinearOpMode {
     private void selectFirstIncompletePhase() {
         selectedPhaseOrdinal = phases[0];
         for (int i = 0; i < phaseAmount; i++) {
-            if (!phases[i].tuned && phaseAvailable(phases[i])) {
+            if (!phases[i].tuned && phaseAvailable(phases[i]) && applicable(phases[i])) {
                 selectedPhaseOrdinal = phases[i];
                 return;
             }
@@ -188,6 +209,28 @@ public class FollowerTuner extends LinearOpMode {
     private boolean phaseSelector() {
         telemetry.clearAll();
         context.addInterfaceHeader();
+        if (context.getFollower().getDrivetrain() instanceof drivetrains.DualActuated) {
+            telemetry.addLine("Dpad Left/Right: choose TANK or HOLONOMIC profile.");
+            if (gamepad1.dpadLeftWasPressed() || gamepad1.dpadRightWasPressed()) {
+                context.getFollower().stop();
+                drivetrains.DualActuated drive = (drivetrains.DualActuated) context.getFollower().getDrivetrain();
+                if (drive.isHolonomic()) { drive.activateTractionState(); }
+                else { drive.activateHolonomicState(); }
+                context.getFollower().update(false);
+                for (Phase item : phases) { item.updateTunedStatus(context.constants); }
+                selectFirstIncompletePhase();
+            }
+            if (context.constants.hasUnassignedLegacy()) {
+                telemetry.addLine("Y: assign legacy values to " + context.constants.getActiveProfile());
+                if (gamepad1.yWasPressed()) {
+                    context.constants.assignLegacyToActiveProfile();
+                    context.getFollower().refreshConstants();
+                    context.saveConstants();
+                    for (Phase item : phases) { item.updateTunedStatus(context.constants); }
+                    selectFirstIncompletePhase();
+                }
+            }
+        }
         telemetry.addLine("Select a tuning phase");
         telemetry.addLine("Use Dpad Up and Down to choose a phase, then press A to select it.");
         telemetry.addLine("Completed phases can be selected again for retuning.");
@@ -207,7 +250,7 @@ public class FollowerTuner extends LinearOpMode {
         } else if (gamepad1.dpadDownWasPressed()) {
             selectedPhaseOrdinal = phases[
                     (selectedPhaseOrdinal.ordinal() + 1) % phaseAmount];
-        } else if (gamepad1.aWasPressed() && phaseAvailable(selectedPhaseOrdinal)) {
+        } else if (gamepad1.aWasPressed() && phaseAvailable(selectedPhaseOrdinal) && applicable(selectedPhaseOrdinal)) {
             selectPhase();
             return true;
         }
@@ -244,7 +287,10 @@ public class FollowerTuner extends LinearOpMode {
     private void finishTuningWorkflow() {
         telemetry.clearAll();
         context.addInterfaceHeader();
-        telemetry.addLine("All follower tuning phases are complete.");
+        telemetry.addLine("Follower tuning complete for " + context.constants.getActiveProfile() + ".");
+        if (context.getFollower().getDrivetrain() instanceof drivetrains.DualActuated) {
+            telemetry.addLine("Run this tuner again and select the other mode to tune it separately.");
+        }
 
         // FTCodeSim does not move its Driver Station out of RUNNING when a LinearOpMode calls
         // requestOpModeStop(). Keep the final lifecycle alive until the red Stop button is used.

@@ -6,9 +6,6 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.Locale;
@@ -88,6 +85,9 @@ public class TunerContext {
 
     /** Adds controls which must remain visible independently of the current phase. */
     public void addInterfaceHeader() {
+        if (follower != null && follower.getDrivetrain() instanceof drivetrains.DualActuated) {
+            getTelemetry().addData("Tuning profile", constants.getActiveProfile());
+        }
         if (debugMode) {
             getTelemetry().addLine("DEBUG MODE");
             getTelemetry().addLine("Hold Right Stick Button to exit debug mode.");
@@ -105,21 +105,12 @@ public class TunerContext {
         follower.setPose(pose);
     }
 
-    public void saveConstants() {
-        JSONObject constantsJSON = constants.toJson();
+    public boolean saveConstants() {
+        JSONObject constantsJSON = new JSONObject();
         try {
-            File outputFolder = ApexStorage.getDirectory();
-
-            boolean folderExists = outputFolder.exists();
-            if (!folderExists) { folderExists = outputFolder.mkdirs(); }
-
-            if (folderExists) {
-                FileWriter fileWriter = new FileWriter(ApexStorage.getConstantsFile());
-                fileWriter.write(constantsJSON.toString(4));
-                fileWriter.close();
-            } else {
-                throw new IOException("Failed to create output folder");
-            }
+            constantsJSON = constants.toJson();
+            ApexStorage.saveConstants(constantsJSON.toString(4));
+            return true;
         } catch (Exception e) {
             getTelemetry().addLine("WARNING: Values were not saved successfully");
             getTelemetry().addLine("Error: " + e.getMessage());
@@ -139,6 +130,7 @@ public class TunerContext {
             }
 
             getTelemetry().update();
+            return false;
         }
     }
 }

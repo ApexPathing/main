@@ -2,6 +2,7 @@ package localizers;
 
 import geometry.Angle;
 import geometry.Dist;
+import geometry.DistUnit;
 import geometry.Pose;
 import geometry.Vector;
 import localizers.util.AdaptiveKalmanFilter;
@@ -140,6 +141,30 @@ public abstract class BaseLocalizer<T extends BaseLocalizerConstants<T>> {
      * update() call.
      */
     public abstract void setPose(Pose newPose);
+
+    /**
+     * Integrates a robot-frame displacement as a constant-curvature arc.
+     *
+     * <p>The translational delta is the body-frame twist accumulated over the update. The SE(2)
+     * exponential scales its midpoint-heading projection by the arc-to-chord ratio, which also
+     * has a well-behaved straight-line limit.</p>
+     */
+    protected static Pose integrateArc(Pose start, double deltaX, double deltaY,
+                                       double deltaHeading, double finalHeading) {
+        double halfHeading = deltaHeading * 0.5;
+        double chordScale = Math.abs(halfHeading) < 1e-6
+                ? 1.0 - halfHeading * halfHeading / 6.0
+                : Math.sin(halfHeading) / halfHeading;
+        double projectionHeading = start.getHeading().getRad() + halfHeading;
+        double cos = Math.cos(projectionHeading);
+        double sin = Math.sin(projectionHeading);
+        double fieldDeltaX = chordScale * (deltaX * cos - deltaY * sin);
+        double fieldDeltaY = chordScale * (deltaX * sin + deltaY * cos);
+        return new Pose(
+                Vector.of(start.getX().getIn() + fieldDeltaX,
+                        start.getY().getIn() + fieldDeltaY, DistUnit.IN),
+                Angle.fromRad(finalHeading));
+    }
 
     /**
      * Calculates the current velocity and/or acceleration for localizers that don't natively

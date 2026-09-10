@@ -6,8 +6,6 @@ import com.qualcomm.robotcore.hardware.IMU;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
 import geometry.Angle;
-import geometry.DistUnit;
-import geometry.GeometryFactory;
 import geometry.Pose;
 
 /**
@@ -16,15 +14,13 @@ import geometry.Pose;
  * @author Topher F. - 23571 alum
  * @author Dylan B. - 18597 RoboClovers - Delta
  */
-public class DriveEncoders extends BaseLocalizer<DriveEncoders.Constants> {
-    private final static GeometryFactory factory = new GeometryFactory()
-            .setDistUnit(DistUnit.IN).setAngleUnit(geometry.AngleUnit.RAD);
+public class MecanumDriveEncoders extends BaseLocalizer<MecanumDriveEncoders.Constants> {
     private final OdometryPod frontLeft, frontRight, backLeft, backRight;
     private final IMU imu;
 
     private double correction = 0.0;
 
-    public DriveEncoders(Constants constants, HardwareMap hardwareMap) {
+    public MecanumDriveEncoders(Constants constants, HardwareMap hardwareMap) {
         super(constants);
 
         frontLeft = new OdometryPod(hardwareMap, constants.frontLeftName, config.ticksPerInch);
@@ -59,14 +55,8 @@ public class DriveEncoders extends BaseLocalizer<DriveEncoders.Constants> {
         double currentYaw = Angle.normalize(
                 imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS) - correction
         );
-        double deltaYaw = Angle.normalize(currentYaw - oldYaw);
-        double avgYaw = oldYaw + deltaYaw / 2.0;
-
-        factory.pose(
-                pose.getX(DistUnit.IN) + (deltaX * Math.cos(avgYaw) - deltaY * Math.sin(avgYaw)),
-                pose.getY(DistUnit.IN) + (deltaX * Math.sin(avgYaw) + deltaY * Math.cos(avgYaw)),
-                currentYaw
-        );
+        double deltaYaw = Angle.wrap(currentYaw - oldYaw);
+        pose = integrateArc(pose, deltaX, deltaY, deltaYaw, currentYaw);
 
         calculate(UpdateType.BOTH);
     }
@@ -119,7 +109,7 @@ public class DriveEncoders extends BaseLocalizer<DriveEncoders.Constants> {
                 );
             }
 
-            return new DriveEncoders(this, hardwareMap);
+            return new MecanumDriveEncoders(this, hardwareMap);
         }
 
         /** Sets the name of the motor that the front left encoder is attached to. */

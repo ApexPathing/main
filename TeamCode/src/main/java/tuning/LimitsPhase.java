@@ -239,6 +239,9 @@ public class LimitsPhase extends TuningPhase {
         maxima[trial][1] = percentile(accelerations, 0.95);
 
         trial++;
+        if (trial == LimitTrial.LEFT.ordinal() && !context.getFollower().getDrivetrain().isHolonomic()) {
+            trial++;
+        }
         timer.reset();
         stage = LimitStage.PROMPT;
     }
@@ -309,7 +312,8 @@ public class LimitsPhase extends TuningPhase {
         double fullAngularAcceleration = maxima[LimitTrial.COUNTERCLOCKWISE.ordinal()][1];
 
         if (fullForwardVelocity <= 0 || fullForwardAcceleration <= 0 ||
-                fullStrafeVelocity <= 0 || fullStrafeAcceleration <= 0 ||
+                (context.getFollower().getDrivetrain().isHolonomic()
+                        && (fullStrafeVelocity <= 0 || fullStrafeAcceleration <= 0)) ||
                 fullAngularVelocity <= 0 || fullAngularAcceleration <= 0) {
             throw new IllegalStateException("One or more measured limits is non-positive. " +
                     "Forward=" + Arrays.toString(maxima[LimitTrial.FORWARD.ordinal()]) +

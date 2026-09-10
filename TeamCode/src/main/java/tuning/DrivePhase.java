@@ -47,7 +47,8 @@ public class DrivePhase extends TuningPhase {
         testPath = () -> factory.path(
                 context.getFollower().getPose(),
                 context.getFollower().getPose().plus(factory.pose(target, 0.0, 0.0))
-        ).interpolateWith(InterpolationStyle.CONSTANT_START_HEADING).quickBuild();
+        ).interpolateWith(context.getFollower().getDrivetrain().isHolonomic()
+                ? InterpolationStyle.CONSTANT_START_HEADING : InterpolationStyle.TANGENT_OPTIMAL).quickBuild();
     }
 
     @Override

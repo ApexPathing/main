@@ -11,6 +11,19 @@ import org.junit.Test;
 import paths.movements.Path;
 
 public class CentripetalPhaseTest {
+    private String previousStorage;
+
+    @org.junit.Before public void useDesktopStorage() {
+        previousStorage = System.getProperty(core.ApexStorage.DIRECTORY_PROPERTY);
+        System.setProperty(core.ApexStorage.DIRECTORY_PROPERTY,
+                new java.io.File("build/centripetal-tests").getAbsolutePath());
+    }
+
+    @org.junit.After public void restoreStorage() {
+        if (previousStorage == null) { System.clearProperty(core.ApexStorage.DIRECTORY_PROPERTY); }
+        else { System.setProperty(core.ApexStorage.DIRECTORY_PROPERTY, previousStorage); }
+    }
+
     @Test
     public void turnsAroundNearEndpointWithoutWaitingForFullPoseSettling() {
         assertTrue(CentripetalPhase.readyForTurnaround(0.99, 1.0, 4.0));

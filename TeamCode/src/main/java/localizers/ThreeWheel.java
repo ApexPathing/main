@@ -3,7 +3,6 @@ package localizers;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import geometry.Angle;
-import geometry.GeometryFactory;
 import geometry.Pose;
 import geometry.Vector;
 import geometry.DistUnit;
@@ -15,8 +14,6 @@ import geometry.DistUnit;
  * @author Dylan B. - 18597 RoboClovers - Delta
  */
 public class ThreeWheel extends BaseLocalizer<ThreeWheel.Constants> {
-    private final static GeometryFactory factory = new GeometryFactory()
-            .setDistUnit(DistUnit.IN).setAngleUnit(geometry.AngleUnit.RAD);
     private final OdometryPod forwardLeftPod, forwardRightPod, strafePod;
     private final double forwardOffsetIn, strafeOffsetIn;
 
@@ -43,16 +40,9 @@ public class ThreeWheel extends BaseLocalizer<ThreeWheel.Constants> {
         double deltaYaw = (forwardLeftPod.getDeltaInches() - forwardRightPod.getDeltaInches()) /
                 forwardOffsetIn;
         double yaw = Angle.normalize(oldYaw + deltaYaw);
-        double avgYaw = oldYaw + deltaYaw / 2.0;
-
         double deltaX = strafePod.getDeltaInches() - deltaYaw * strafeOffsetIn;
         double deltaY = (forwardLeftPod.getDeltaInches() + forwardRightPod.getDeltaInches()) / 2.0;
-
-        factory.pose(
-                pose.getX(DistUnit.IN) + (deltaX * Math.cos(avgYaw) - deltaY * Math.sin(avgYaw)),
-                pose.getY(DistUnit.IN) + (deltaX * Math.sin(avgYaw) + deltaY * Math.cos(avgYaw)),
-                yaw
-        );
+        pose = integrateArc(pose, deltaX, deltaY, deltaYaw, yaw);
 
         calculate(UpdateType.BOTH);
     }

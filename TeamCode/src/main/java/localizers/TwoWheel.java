@@ -7,7 +7,6 @@ import com.qualcomm.robotcore.hardware.IMU;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
 import geometry.Angle;
-import geometry.GeometryFactory;
 import geometry.Pose;
 import geometry.Vector;
 import geometry.DistUnit;
@@ -19,8 +18,6 @@ import geometry.DistUnit;
  * @author Dylan B. - 18597 RoboClovers - Delta
  */
 public class TwoWheel extends BaseLocalizer<TwoWheel.Constants> {
-    private final static GeometryFactory factory = new GeometryFactory()
-            .setDistUnit(DistUnit.IN).setAngleUnit(geometry.AngleUnit.RAD);
     private final OdometryPod forwardPod, strafePod;
     private final IMU imu;
     private final double forwardOffsetIn, strafeOffsetIn;
@@ -48,15 +45,10 @@ public class TwoWheel extends BaseLocalizer<TwoWheel.Constants> {
         double currentYaw = Angle.normalize(
                 imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS) - correction
         );
-        double deltaYaw = Angle.normalize(currentYaw - oldYaw);
-        double avgYaw = oldYaw + deltaYaw / 2.0;
+        double deltaYaw = Angle.wrap(currentYaw - oldYaw);
         double deltaX = forwardPod.getDeltaInches() - forwardOffsetIn * deltaYaw;
         double deltaY = strafePod.getDeltaInches() - strafeOffsetIn * deltaYaw;
-        factory.pose(
-                pose.getX(DistUnit.IN) + (deltaX * Math.cos(avgYaw) - deltaY * Math.sin(avgYaw)),
-                pose.getY(DistUnit.IN) + (deltaX * Math.sin(avgYaw) + deltaY * Math.cos(avgYaw)),
-                currentYaw
-        );
+        pose = integrateArc(pose, deltaX, deltaY, deltaYaw, currentYaw);
 
         calculate(UpdateType.BOTH);
     }

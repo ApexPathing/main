@@ -16,6 +16,26 @@ public class BaseLocalizerTest {
     private static final double EPSILON = 1e-9;
 
     @Test
+    public void arcIntegrationFollowsExactQuarterCircle() {
+        Pose result = BaseLocalizer.integrateArc(
+                Pose.zero(), 15.0, 0.0, Math.PI / 2.0, Math.PI / 2.0);
+
+        assertEquals(30.0 / Math.PI, result.getX().getIn(), EPSILON);
+        assertEquals(30.0 / Math.PI, result.getY().getIn(), EPSILON);
+        assertEquals(Math.PI / 2.0, result.getHeading().getRad(), EPSILON);
+    }
+
+    @Test
+    public void arcIntegrationHasExactStraightLineLimit() {
+        Pose start = pose(4.0, -2.0, Math.PI / 2.0);
+        Pose result = BaseLocalizer.integrateArc(start, 2.0, 3.0, 0.0, Math.PI / 2.0);
+
+        assertEquals(1.0, result.getX().getIn(), EPSILON);
+        assertEquals(0.0, result.getY().getIn(), EPSILON);
+        assertEquals(Math.PI / 2.0, result.getHeading().getRad(), EPSILON);
+    }
+
+    @Test
     public void nativeVelocityUsesSharedVelocityAndAccelerationFilter() throws Exception {
         NativeVelocityLocalizer localizer = new NativeVelocityLocalizer();
         localizer.setVelocityFilterMode(BaseLocalizer.VelocityFilterMode.MOVING_AVERAGE);

@@ -126,9 +126,11 @@ public class VelocityFeedbackPhase extends TuningPhase {
             context.getFollower().setPose(start);
         }
         forwardPath = factory.path(start, end)
-                .interpolateWith(InterpolationStyle.CONSTANT_START_HEADING).profiledBuild();
+                .interpolateWith(context.getFollower().getDrivetrain().isHolonomic()
+                        ? InterpolationStyle.CONSTANT_START_HEADING : InterpolationStyle.TANGENT_OPTIMAL).profiledBuild();
         backwardPath = factory.path(end, start)
-                .interpolateWith(InterpolationStyle.CONSTANT_START_HEADING).profiledBuild();
+                .interpolateWith(context.getFollower().getDrivetrain().isHolonomic()
+                        ? InterpolationStyle.CONSTANT_START_HEADING : InterpolationStyle.TANGENT_OPTIMAL).profiledBuild();
 
         Pose turned = factory.pose(-24, 0, 45);
         forwardTurn = factory.turn(start).turnTo(turned.getHeading()).profiledBuild();

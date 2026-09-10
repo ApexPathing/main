@@ -36,6 +36,14 @@ public abstract class TuningPhase {
         TuningState state = TuningState.SELECT_MODE;
 
         while (opMode.opModeIsActive()) {
+            if (context.getFollower().getDrivetrain() instanceof drivetrains.DualActuated
+                    && ((drivetrains.DualActuated) context.getFollower().getDrivetrain()).isTransitioning()) {
+                context.getFollower().update(false);
+                context.getTelemetry().addLine("Waiting for drivetrain mode to settle...");
+                context.getTelemetry().update();
+                opMode.sleep(20);
+                continue;
+            }
             context.updateDebugMode(false);
             context.getTelemetry().clearAll();
             context.addInterfaceHeader();

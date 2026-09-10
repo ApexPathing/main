@@ -15,6 +15,9 @@ import paths.Callback;
  * @author Sohum Arora - 22985 Paraducks
  */
 public class Turn extends FollowerMovement {
+    private FollowerConstants.Profile driveProfile;
+    public FollowerConstants.Profile getDriveProfile() { return driveProfile; }
+    public void setDriveProfile(FollowerConstants.Profile profile) { driveProfile = profile; }
     private final Pose startPose;
     private FFLut FFLut;
     private final double angularVelLimitRad;
@@ -54,8 +57,10 @@ public class Turn extends FollowerMovement {
     public Turn reversed() {
         Turn result = new Turn(endPose, startPose.getHeading(), angularVelLimitRad,
                 angularAccelLimitRad);
+        result.setDriveProfile(driveProfile);
         if (FFLut != null) {
             FollowerConstants constants = FollowerConstants.getInstance();
+            if (driveProfile != null) { constants = constants.forProfile(driveProfile); }
             double velocityLimit = Double.isFinite(angularVelLimitRad)
                     ? angularVelLimitRad : constants.angularVelLimitRad;
             double accelerationLimit = Double.isFinite(angularAccelLimitRad)

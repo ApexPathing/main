@@ -205,6 +205,9 @@ public class Follower {
         this.drivetrain = drivetrainConstants.build(hardwareMap);
         this.localizer = constants.localizerConstants().build(hardwareMap);
         this.constants = FollowerConstants.getInstance();
+        this.constants.configure(drivetrain.getDrivetrainType(),
+                drivetrain.isHolonomic() ? FollowerConstants.Profile.HOLONOMIC
+                        : FollowerConstants.Profile.TANK, tuningMode);
 
         this.headingTol = drivetrainConstants.headingTolerance.getRad();
         this.distanceTol = drivetrainConstants.distanceTolerance.getIn();
@@ -422,6 +425,13 @@ public class Follower {
      * @param holdPose whether to hold the most recently commanded end pose when idle
      */
     public void update(boolean holdPose) {
+        synchronizeDriveProfile();
+        if (drivetrain instanceof DualActuated && ((DualActuated) drivetrain).isTransitioning()) {
+            drivetrain.stop();
+            localizer.update();
+            turnProfileLastUpdateNanos = System.nanoTime();
+            return;
+        }
         localizer.update();
         diagnostics.recordPose(localizer.getPose());
 
@@ -893,9 +903,10 @@ public class Follower {
             MotionParameters targets =
                     path.getFeedforwardLut().getFFParams(distanceTraveled);
 
-            double v_d = t < 1.0 ? Math.max(targets.getTangentialVel(),
-                    MIN_PROFILE_MOVEMENT_VELOCITY_IN_PER_SECOND) : 0.0;
-            double a_d = targets.getTangentialAccel();
+            double driveSign = Math.cos(headingTarg.getRad() - velVec.getTheta().getRad()) < 0 ? -1.0 : 1.0;
+            double v_d = driveSign * (t < 1.0 ? Math.max(targets.getTangentialVel(),
+                    MIN_PROFILE_MOVEMENT_VELOCITY_IN_PER_SECOND) : 0.0);
+            double a_d = driveSign * targets.getTangentialAccel();
             double omega_d = targets.getAngularVel();
             double alpha_d = targets.getAngularAccel();
 
@@ -927,7 +938,7 @@ public class Follower {
                     Angle.fromRad(-currentHeading.getRad())).getX().getIn();
             trackingVelocityTarget = v_d;
             trackingMeasuredVelocity = actualForwardVelocity;
-            trackingProgressVelocity = actualForwardVelocity;
+            trackingProgressVelocity = actualForwardVelocity * driveSign;
             trackingAngularVelocityTarget = omega_d;
             trackingEndpointBlend = 0.0;
             pathVelocitySampleAvailable = true;
@@ -943,7 +954,7 @@ public class Follower {
                     scaleBrakingAcceleration(v_d, a_d, actualForwardVelocity),
                     translationalKV, translationalKA,
                     constants.translationalFeedforwardKS);
-            double endError = pathEndpointTangentError(path.getEndPose().getVec(), currentPos,
+            double endError = driveSign * pathEndpointTangentError(path.getEndPose().getVec(), currentPos,
                     segment.getFirstDerivative(1.0).normalize());
             double endpointPower = driveController.calculateEndDistance(endError,
                     -actualForwardVelocity);
@@ -1014,6 +1025,20 @@ public class Follower {
             );
         }
 
+        if (drivetrain instanceof DualActuated) {
+            FollowerConstants.Profile intended = movement instanceof Path
+                    ? (((Path) movement).getPathType() == Path.PathType.TANK
+                        ? FollowerConstants.Profile.TANK : FollowerConstants.Profile.HOLONOMIC)
+                    : movement instanceof Turn && ((Turn) movement).getDriveProfile() != null
+                        ? ((Turn) movement).getDriveProfile()
+                        : (drivetrain.isHolonomic() ? FollowerConstants.Profile.HOLONOMIC
+                            : FollowerConstants.Profile.TANK);
+            constants.forProfile(intended); // Reject missing calibration before changing hardware.
+            if (intended == FollowerConstants.Profile.TANK) {
+                ((DualActuated) drivetrain).activateTractionState();
+            } else { ((DualActuated) drivetrain).activateHolonomicState(); }
+            synchronizeDriveProfile();
+        }
         this.currentMovement = movement;
         this.completionToleranceEnteredNanos = 0L;
         this.previousPathDistanceIn = Double.NaN;
@@ -1041,15 +1066,9 @@ public class Follower {
             Path pathSegmentMove = (Path) currentMovement;
             this.segment = pathSegmentMove.getParametricPath();
             diagnostics.recordCurrentPath(pathSegmentMove);
-            if (drivetrain instanceof DualActuated) {
-                if (pathSegmentMove.getPathType() == Path.PathType.HOLONOMIC) {
-                    ((DualActuated) drivetrain).activateHolonomicState();
-                } else {
-                    ((DualActuated) drivetrain).activateTractionState();
-                }
-            }
         }
 
+        synchronizeDriveProfile();
         headingController.reset();
         turnController.reset();
         driveController.reset();
@@ -1274,6 +1293,44 @@ public class Follower {
     public void enableDriveController() { this.driveControllerEnabled = true; }
 
     public void enableControllers() { enableHeadingController(); enableDriveController(); }
+
+    /** Applies all cached controller values after selecting or importing a tuning profile. */
+    public void refreshConstants() {
+        translationalKV = constants.translationalKV;
+        translationalKA = constants.translationalKA;
+        angularKV = constants.angularKV;
+        angularKA = constants.angularKA;
+        centripetalGain = constants.kCentripetal;
+        velocityFeedbackGain = constants.velocityFeedbackGain;
+        angularVelocityFeedbackGain = constants.angularVelocityFeedbackGain;
+        headingController.setCoefficients(constants.angularCoeffs);
+        turnController.setCoefficients(constants.angularCoeffs);
+        turnController.setMotionGains(angularKV, angularKA, constants.angularFeedforwardKS,
+                angularVelocityFeedbackGain);
+        driveController.setCoefficients(constants.translationalCoeffs);
+        driveController.setVelocityLimits(Dist.fromIn(constants.forwardVelLimitIn),
+                Dist.fromIn(constants.strafeVelLimitIn), false);
+        headingController.reset();
+        turnController.reset();
+        driveController.reset();
+    }
+
+    private void synchronizeDriveProfile() {
+        if (!(drivetrain instanceof DualActuated)) { return; }
+        FollowerConstants.Profile profile = drivetrain.isHolonomic()
+                ? FollowerConstants.Profile.HOLONOMIC : FollowerConstants.Profile.TANK;
+        if (isBusy() && currentMovement instanceof Path
+                && ((((Path) currentMovement).getPathType() == Path.PathType.TANK)
+                    != (profile == FollowerConstants.Profile.TANK))) {
+            stop();
+            throw new IllegalStateException("Drivetrain mode changed during an active path");
+        }
+        if (constants.getActiveProfile() != profile) {
+            try { constants.selectProfile(profile); }
+            catch (RuntimeException e) { drivetrain.stop(); throw e; }
+            refreshConstants();
+        }
+    }
 
     public void setHeadingCoefficients(PDSCoefficients coefficients) {
         headingController.setCoefficients(coefficients);
