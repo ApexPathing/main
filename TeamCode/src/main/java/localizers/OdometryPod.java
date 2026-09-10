@@ -1,6 +1,5 @@
 package localizers;
 
-import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
@@ -24,6 +23,7 @@ public class OdometryPod {
         this.name = name;
         this.odometry = hardwareMap.get(DcMotorEx.class, this.name);
         this.ticksPerInch = ticksPerInch;
+        reset();
     }
 
     public String getName() { return this.name; }
@@ -35,9 +35,9 @@ public class OdometryPod {
     }
 
     public void reset() {
-        lastTicks = 0;
-        currentTicks = 0;
-        odometry.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        currentTicks = odometry.getCurrentPosition();
+        lastTicks = currentTicks;
+        deltaTicks = 0.0;
     }
 
     /** @return the amount of inches the encoder has moved since the last reset */
@@ -45,5 +45,11 @@ public class OdometryPod {
 
     /** @return the amount of inches the encoder has moved since the last loop. */
     public double getDeltaInches() { return deltaTicks / ticksPerInch; }
+
+    /** Returns the current raw SDK encoder position without changing the motor run mode. */
+    public int getTicks() { return currentTicks; }
+
+    /** Returns raw encoder ticks accumulated during the most recent update. */
+    public double getDeltaTicks() { return deltaTicks; }
 }
 

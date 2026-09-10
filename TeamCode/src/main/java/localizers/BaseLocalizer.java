@@ -54,6 +54,8 @@ public abstract class BaseLocalizer<T extends BaseLocalizerConstants<T>> {
     private Pose prevPose = Pose.zero();
     private Pose prevRawVelocity = Pose.zero();
     private long prevTimeNs = -1;
+    private long lastMeasurementTimeNanos = -1;
+    private boolean lastMeasurementValid;
 
     private int lastSize = 0;
     private int FILTER_WINDOW_SIZE = 7; //TODO: Verify this number and make it a constant or delete it
@@ -95,6 +97,12 @@ public abstract class BaseLocalizer<T extends BaseLocalizerConstants<T>> {
      *  @return the current raw acceleration estimate of the robot from the localizer
      */
     public Pose getRawAccel() { return rawAcceleration; }
+
+    /** Returns the timestamp of the last valid measurement accepted by this localizer. */
+    public long getLastMeasurementTimeNanos() { return lastMeasurementTimeNanos; }
+
+    /** Returns whether the most recent hardware update supplied a valid measurement. */
+    public boolean isLastMeasurementValid() { return lastMeasurementValid; }
 
     /** @return the velocity filter's moving-average window size in samples */
     public int getFilterWindowSize() { return FILTER_WINDOW_SIZE; }
@@ -172,6 +180,7 @@ public abstract class BaseLocalizer<T extends BaseLocalizerConstants<T>> {
      **/
     protected void calculate(UpdateType updateType) {
         long currentTimeNs = System.nanoTime();
+        markMeasurementValid(currentTimeNs);
 
         if (prevTimeNs == -1) {
             prevTimeNs = currentTimeNs;
@@ -194,6 +203,7 @@ public abstract class BaseLocalizer<T extends BaseLocalizerConstants<T>> {
      */
     protected void calculate(Pose measuredVelocity) {
         long currentTimeNs = System.nanoTime();
+        markMeasurementValid(currentTimeNs);
         if (prevTimeNs == -1) {
             rawVelocity = measuredVelocity;
             rawAcceleration = Pose.zero();
@@ -260,9 +270,19 @@ public abstract class BaseLocalizer<T extends BaseLocalizerConstants<T>> {
         prevPose = newPose;
         prevRawVelocity = Pose.zero();
         prevTimeNs = -1;
+        lastMeasurementTimeNanos = -1;
+        lastMeasurementValid = false;
         xFilter.reset();
         yFilter.reset();
         headingFilter.reset();
+    }
+
+    /** Marks a hardware update invalid without pretending a cached value is a new sample. */
+    protected void markMeasurementInvalid() { lastMeasurementValid = false; }
+
+    private void markMeasurementValid(long timestamp) {
+        lastMeasurementTimeNanos = timestamp;
+        lastMeasurementValid = true;
     }
 
     public void setIsTuning(boolean isTuning) {

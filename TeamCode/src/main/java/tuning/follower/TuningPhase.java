@@ -1,4 +1,4 @@
-package tuning;
+package tuning.follower;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 

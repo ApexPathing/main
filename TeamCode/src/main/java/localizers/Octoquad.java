@@ -17,6 +17,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Locale;
 
+import org.json.JSONObject;
+
 import geometry.Angle;
 import geometry.AngleUnit;
 import geometry.Dist;
@@ -73,7 +75,16 @@ public class Octoquad extends BaseLocalizer<Octoquad.Constants> {
                     Angle.of(localizer.velHeading_radS, AngleUnit.RAD)
             );
             calculate(measuredVelocity);
+        } else {
+            markMeasurementInvalid();
         }
+    }
+
+    /** Reads raw X/Y pod encoder positions for calibration. */
+    public int[] getPodTicks() {
+        Driver.EncoderDataBlock data = octoquad.readAllEncoderData();
+        if (!data.crcOk) { throw new IllegalStateException("Octoquad encoder CRC failed"); }
+        return new int[] {data.positions[config.xPort], data.positions[config.yPort]};
     }
 
     @Override
@@ -95,6 +106,23 @@ public class Octoquad extends BaseLocalizer<Octoquad.Constants> {
         public EncoderDirection yPodDirection = EncoderDirection.FORWARD;
         public Dist encoderResolution = Dist.zero();
         public double angularScalar = 1.0;
+
+        @Override
+        public JSONObject getCalibrationValues() {
+            try {
+                return CalibrationJson.vector(offsets)
+                        .put("encoderResolutionIn", encoderResolution.getIn())
+                        .put("angularScalar", angularScalar);
+            } catch (Exception e) { throw new IllegalStateException(e); }
+        }
+
+        @Override
+        public void applyCalibrationValues(JSONObject values) {
+            offsets = CalibrationJson.vector(values, offsets);
+            encoderResolution = Dist.fromIn(CalibrationJson.positive(values,
+                    "encoderResolutionIn", encoderResolution.getIn()));
+            angularScalar = CalibrationJson.positive(values, "angularScalar", angularScalar);
+        }
 
         @Override
         public Octoquad build(HardwareMap hardwareMap) {

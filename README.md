@@ -18,7 +18,8 @@ Before running it, set `RUN_INTERACTIVE_SIMULATOR` to `true` in
 `SimulateApexPathing.java`. Set it back to `false` afterward so ordinary unit-test runs do not wait
 indefinitely for the interactive simulator windows to close.
 
-The simulated Driver Station presents `Apex Auto Test`, `Apex TeleOp Test`, and `Follower Tuner`.
+The simulated Driver Station presents `Apex Auto Test`, `Apex TeleOp Test`, `Follower Tuner`, and
+`Localization Tuner`.
 Select one, then press Init and Start; FTCodeSim initializes and runs only that selected OpMode.
 Stop it before selecting another. This is an interactive JUnit test and remains active until the
 simulator windows are closed. Tuner output from a simulation is stored under
@@ -44,3 +45,25 @@ graph-ready CSV files beside `constants.json` (`FIRST/ApexPathing` on the Robot 
 `build/ftcodesim-data` in desktop simulation). Feedforward CSV rows include measured velocity and
 acceleration plus fitted power and residuals; PDS CSV rows include gains, trial cost, target,
 position, error, velocity, commanded power, and safeguard status over time.
+
+## Localization tuner
+
+Run `Localization Tuner` before follower tuning. It follows the same phase-picker pattern as the
+follower tuner and uses a consistent Prepare, Record, Review lifecycle. The available procedures
+are a hardware check, forward and strafe distance scale, rotation geometry, velocity/acceleration
+filtering, and a free-drive validation loop. Phases that do not apply to the configured drivetrain
+or localizer are shown as `N/A`.
+
+Distance procedures drive at fixed low power in both directions and ask for the physical distance
+measured on the floor. Rotation uses a hardware-map IMU named `imu` by default. Its relative
+quaternion measurement does not require the hub mounting orientation; Dpad Left/Right selects a
+manual reference if the IMU is unavailable or broken. Manual rotation disables forward and strafe
+input. Filter tuning lets the operator choose adaptive Kalman or moving average. Kalman collection
+includes still, free-drive, and stopped intervals, then displays the learned R/Q values and records
+a CSV beside the constants files. The tuner reports evidence and leaves the choice to the operator.
+
+Accepted results are saved immediately to `FIRST/ApexPathing/localization.json`, with a backup at
+`localization.json.bak`. Follower constants remain in `constants.json`. A DualActuated robot shares
+one localizer across both modes by default. Override `usesSharedLocalizer()` and
+`localizerConstants(Profile)` in the robot's `ApexConstants` implementation when tank and
+holonomic modes need separate localizers.

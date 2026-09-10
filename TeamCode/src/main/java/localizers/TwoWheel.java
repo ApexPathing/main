@@ -5,6 +5,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.IMU;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.json.JSONObject;
 
 import geometry.Angle;
 import geometry.Pose;
@@ -41,6 +42,8 @@ public class TwoWheel extends BaseLocalizer<TwoWheel.Constants> {
 
     @Override
     public void update() {
+        forwardPod.update();
+        strafePod.update();
         double oldYaw = pose.getHeading(geometry.AngleUnit.RAD);
         double currentYaw = Angle.normalize(
                 imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS) - correction
@@ -52,6 +55,9 @@ public class TwoWheel extends BaseLocalizer<TwoWheel.Constants> {
 
         calculate(UpdateType.BOTH);
     }
+
+    /** Returns raw forward/perpendicular encoder positions for calibration. */
+    public int[] getPodTicks() { return new int[] {forwardPod.getTicks(), strafePod.getTicks()}; }
 
 
     @Override
@@ -71,6 +77,19 @@ public class TwoWheel extends BaseLocalizer<TwoWheel.Constants> {
         public RevHubOrientationOnRobot hubOrientation;
         public Vector offsets = Vector.zero();
         public double ticksPerInch = 1.0;
+
+        @Override
+        public JSONObject getCalibrationValues() {
+            try {
+                return CalibrationJson.vector(offsets).put("ticksPerInch", ticksPerInch);
+            } catch (Exception e) { throw new IllegalStateException(e); }
+        }
+
+        @Override
+        public void applyCalibrationValues(JSONObject values) {
+            ticksPerInch = CalibrationJson.positive(values, "ticksPerInch", ticksPerInch);
+            offsets = CalibrationJson.vector(values, offsets);
+        }
 
         @Override
         public BaseLocalizer<?> build(HardwareMap hardwareMap) {

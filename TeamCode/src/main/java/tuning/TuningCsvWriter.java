@@ -10,13 +10,13 @@ import java.util.Locale;
 import core.ApexStorage;
 
 /** Small failure-tolerant CSV writer for tuner evidence captured on robot or desktop. */
-final class TuningCsvWriter {
+public final class TuningCsvWriter {
     private final File file;
     private final FileWriter writer;
     private String error;
     private int rowsSinceFlush;
 
-    static TuningCsvWriter open(String prefix, String... header) {
+    public static TuningCsvWriter open(String prefix, String... header) {
         try {
             File directory = ApexStorage.getDirectory();
             if (!directory.exists() && !directory.mkdirs()) {
@@ -44,7 +44,7 @@ final class TuningCsvWriter {
         this.error = error;
     }
 
-    void writeRow(Object... values) {
+    public void writeRow(Object... values) {
         if (writer == null) { return; }
         try {
             for (int i = 0; i < values.length; i++) {
@@ -64,7 +64,7 @@ final class TuningCsvWriter {
         }
     }
 
-    void close() {
+    public void close() {
         if (writer == null) { return; }
         try {
             writer.close();
@@ -73,9 +73,9 @@ final class TuningCsvWriter {
         }
     }
 
-    String getPath() { return file == null ? "Unavailable" : file.getAbsolutePath(); }
+    public String getPath() { return file == null ? "Unavailable" : file.getAbsolutePath(); }
 
-    String getError() { return error; }
+    public String getError() { return error; }
 
     private static String escape(Object value) {
         String text = value == null ? "" : String.valueOf(value);

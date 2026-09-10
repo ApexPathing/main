@@ -9,15 +9,15 @@ import java.util.function.Predicate;
 import core.Follower;
 import core.FollowerConstants;
 import geometry.Pose;
-import tuning.CentripetalPhase;
-import tuning.DrivePhase;
-import tuning.FeedforwardTuner;
-import tuning.HeadingPhase;
-import tuning.LimitsPhase;
-import tuning.StaticFrictionPhase;
-import tuning.TunerContext;
-import tuning.TuningPhase;
-import tuning.VelocityFeedbackPhase;
+import tuning.follower.CentripetalPhase;
+import tuning.follower.DrivePhase;
+import tuning.follower.FeedforwardTuner;
+import tuning.follower.HeadingPhase;
+import tuning.follower.LimitsPhase;
+import tuning.follower.StaticFrictionPhase;
+import tuning.follower.TunerContext;
+import tuning.follower.TuningPhase;
+import tuning.follower.VelocityFeedbackPhase;
 
 /**
  * This OpMode is used to tune the Apex Pathing Follower. It allows the user to select a tuning

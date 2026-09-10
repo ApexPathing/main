@@ -18,6 +18,7 @@ import org.firstinspires.ftc.teamcode.apexpathing.AutoTest;
 import org.firstinspires.ftc.teamcode.apexpathing.Constants;
 import org.firstinspires.ftc.teamcode.apexpathing.ExampleAutoPath;
 import org.firstinspires.ftc.teamcode.apexpathing.FollowerTuner;
+import org.firstinspires.ftc.teamcode.apexpathing.LocalizationTuner;
 import org.firstinspires.ftc.teamcode.apexpathing.TeleOpTest;
 import org.json.JSONObject;
 import org.junit.Test;
@@ -65,6 +66,7 @@ public class ApexSimulationTest {
         assertTrue(registeredClasses.contains(AutoTest.class));
         assertTrue(registeredClasses.contains(TeleOpTest.class));
         assertTrue(registeredClasses.contains(FollowerTuner.class));
+        assertTrue(registeredClasses.contains(LocalizationTuner.class));
     }
 
     @Test

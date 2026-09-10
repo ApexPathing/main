@@ -1,4 +1,4 @@
-package tuning;
+package tuning.follower;
 
 import geometry.AngleUnit;
 import geometry.Pose;

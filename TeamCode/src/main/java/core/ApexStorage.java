@@ -24,38 +24,59 @@ public final class ApexStorage {
     public static File getConstantsFile() {
         return new File(getDirectory(), "constants.json");
     }
+
+    /** Returns the localization calibration file used by the localization tuner. */
+    public static File getLocalizationFile() {
+        return new File(getDirectory(), "localization.json");
+    }
     /** Write a synced temporary file, retaining the prior file for recovery. */
     public static synchronized void saveConstants(String json) throws java.io.IOException {
+        saveJson(getConstantsFile(), json);
+    }
+
+    /** Atomically saves localization calibration while retaining its previous version. */
+    public static synchronized void saveLocalization(String json) throws java.io.IOException {
+        saveJson(getLocalizationFile(), json);
+    }
+
+    private static void saveJson(File target, String json) throws java.io.IOException {
         File directory = getDirectory();
         if (!directory.isDirectory() && !directory.mkdirs()) {
-            throw new java.io.IOException("Cannot create constants directory");
+            throw new java.io.IOException("Cannot create tuning-data directory");
         }
-        File target = getConstantsFile();
-        File temporary = new File(directory, "constants.json.tmp");
-        File backup = new File(directory, "constants.json.bak");
+        File temporary = new File(directory, target.getName() + ".tmp");
+        File backup = new File(directory, target.getName() + ".bak");
         try (java.io.FileOutputStream output = new java.io.FileOutputStream(temporary)) {
             output.write(json.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             output.getFD().sync();
         }
         if (target.exists()) {
             if (backup.exists() && !backup.delete()) {
-                throw new java.io.IOException("Cannot replace constants backup");
+                throw new java.io.IOException("Cannot replace " + target.getName() + " backup");
             }
             if (!target.renameTo(backup)) {
-                throw new java.io.IOException("Cannot back up constants");
+                throw new java.io.IOException("Cannot back up " + target.getName());
             }
         }
         if (!temporary.renameTo(target)) {
             if (backup.exists() && !backup.renameTo(target)) {
-                throw new java.io.IOException("Save failed; recover constants.json.bak");
+                throw new java.io.IOException("Save failed; recover " + target.getName() + ".bak");
             }
-            throw new java.io.IOException("Cannot install new constants");
+            throw new java.io.IOException("Cannot install " + target.getName());
         }
     }
 
     public static File getReadableConstantsFile() {
-        File target = getConstantsFile();
-        File backup = new File(getDirectory(), "constants.json.bak");
+        return readableFile(getConstantsFile());
+    }
+
+    /** Returns the primary localization file, or its backup after an interrupted replacement. */
+    public static File getReadableLocalizationFile() {
+        return readableFile(getLocalizationFile());
+    }
+
+    private static File readableFile(File target) {
+        File backup = new File(getDirectory(), target.getName() + ".bak");
         return !target.exists() && backup.exists() ? backup : target;
     }
 }

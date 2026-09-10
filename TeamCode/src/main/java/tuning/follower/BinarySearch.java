@@ -1,4 +1,4 @@
-package tuning;
+package tuning.follower;
 
 /**
  * A binary search algorithm that finds a value within a specified range. The search continues until

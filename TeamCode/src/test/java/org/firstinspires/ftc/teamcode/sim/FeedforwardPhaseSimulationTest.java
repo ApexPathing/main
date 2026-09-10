@@ -16,8 +16,8 @@ import java.util.ArrayList;
 import java.util.List;
 import core.ApexStorage;
 import core.Follower;
-import tuning.FeedforwardTuner;
-import tuning.TunerContext;
+import tuning.follower.FeedforwardTuner;
+import tuning.follower.TunerContext;
 
 /** Exercises collection, fitting and independent validation through the real tuner UI. */
 public class FeedforwardPhaseSimulationTest {

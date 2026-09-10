@@ -12,6 +12,9 @@ import java.util.Set;
 import java.util.function.DoubleSupplier;
 import java.util.function.IntSupplier;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import geometry.Pose;
 
 /**
@@ -81,6 +84,9 @@ public class TankDriveEncoders extends BaseLocalizer<TankDriveEncoders.Constants
         calculate(UpdateType.BOTH);
     }
 
+    /** Returns raw encoder positions with all configured left motors followed by right motors. */
+    public int[] getEncoderTicks() { return previousTicks.clone(); }
+
     @Override
     public void setPose(Pose newPose) {
         double currentYaw = yaw.getAsDouble();
@@ -144,6 +150,48 @@ public class TankDriveEncoders extends BaseLocalizer<TankDriveEncoders.Constants
         public final List<Encoder> rightEncoders = new ArrayList<>();
         public String imuName;
         public RevHubOrientationOnRobot hubOrientation;
+
+        @Override
+        public JSONObject getCalibrationValues() {
+            try {
+                JSONObject result = new JSONObject();
+                result.put("left", encoders(leftEncoders));
+                result.put("right", encoders(rightEncoders));
+                return result;
+            } catch (Exception e) { throw new IllegalStateException(e); }
+        }
+
+        @Override
+        public void applyCalibrationValues(JSONObject values) {
+            applyEncoders(values.optJSONArray("left"), leftEncoders);
+            applyEncoders(values.optJSONArray("right"), rightEncoders);
+            validateEncoders();
+        }
+
+        private static JSONArray encoders(List<Encoder> encoders) throws Exception {
+            JSONArray result = new JSONArray();
+            for (Encoder encoder : encoders) {
+                result.put(new JSONObject().put("name", encoder.name)
+                        .put("ticksPerInch", encoder.ticksPerInch));
+            }
+            return result;
+        }
+
+        private static void applyEncoders(JSONArray saved, List<Encoder> target) {
+            if (saved == null) { return; }
+            for (int i = 0; i < saved.length(); i++) {
+                JSONObject value = saved.optJSONObject(i);
+                if (value == null) { continue; }
+                String name = value.optString("name", "");
+                for (int j = 0; j < target.size(); j++) {
+                    Encoder current = target.get(j);
+                    if (current.name.equals(name)) {
+                        target.set(j, new Encoder(current.name, CalibrationJson.positive(value,
+                                "ticksPerInch", current.ticksPerInch), current.reversed));
+                    }
+                }
+            }
+        }
 
         public Constants addLeftEncoder(String name, double ticksPerInch, boolean reversed) {
             leftEncoders.add(new Encoder(name, ticksPerInch, reversed));

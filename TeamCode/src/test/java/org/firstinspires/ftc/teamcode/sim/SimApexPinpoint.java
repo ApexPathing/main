@@ -29,6 +29,15 @@ final class SimApexPinpoint extends Pinpoint.Driver implements SimHardwareDevice
 
     private Pose pose = Pose.zero();
     private Pose velocity = Pose.zero();
+    private MotionVector previousSimPose;
+    private double xTicks;
+    private double yTicks;
+    private double xOffsetInches;
+    private double yOffsetInches;
+    private double ticksPerInch = 19.89436789 * 25.4;
+    private double yawScalar = 1.0;
+    private double xDirection = 1.0;
+    private double yDirection = 1.0;
 
     SimApexPinpoint(SimulatedDrivetrain drivetrain, double fieldCenterInches) {
         super(fakeI2c(), false);
@@ -42,14 +51,26 @@ final class SimApexPinpoint extends Pinpoint.Driver implements SimHardwareDevice
         MotionVector simPose = drivetrain.position;
         MotionVector simVelocity = drivetrain.velocity;
 
+        if (previousSimPose != null) {
+            double deltaHeading = Angle.wrap(simPose.theta - previousSimPose.theta);
+            double heading = previousSimPose.theta + deltaHeading / 2.0;
+            double fieldX = simPose.x - previousSimPose.x;
+            double fieldY = simPose.y - previousSimPose.y;
+            double forward = fieldX * Math.cos(heading) + fieldY * Math.sin(heading);
+            double strafe = -fieldX * Math.sin(heading) + fieldY * Math.cos(heading);
+            xTicks += xDirection * (forward + xOffsetInches * deltaHeading) * ticksPerInch;
+            yTicks += yDirection * (strafe + yOffsetInches * deltaHeading) * ticksPerInch;
+        }
+        previousSimPose = simPose;
+
         // Convert FTCodeSim's corner origin to Apex's centered origin. ApexSimulation mirrors the
         // simulator wheel slots so its Y and heading axes already match Apex's conventions.
         pose = apexPose(
                 simPose.x - fieldCenterInches,
                 simPose.y - fieldCenterInches,
-                simPose.theta
+                simPose.theta * yawScalar
         );
-        velocity = apexPose(simVelocity.x, simVelocity.y, simVelocity.theta);
+        velocity = apexPose(simVelocity.x, simVelocity.y, simVelocity.theta * yawScalar);
     }
 
     @Override
@@ -74,29 +95,48 @@ final class SimApexPinpoint extends Pinpoint.Driver implements SimHardwareDevice
                 newPose.getY().getIn() + fieldCenterInches,
                 newPose.getHeading().getRad()
         ));
+        previousSimPose = drivetrain.position;
         update(0.0);
     }
 
     @Override
     public void resetPosAndIMU() {
+        xTicks = 0.0;
+        yTicks = 0.0;
         setPosition(Pose.zero());
     }
 
     @Override
-    public void setOffsets(Vector offset) { }
+    public void setOffsets(Vector offset) {
+        xOffsetInches = offset.getX().getIn();
+        yOffsetInches = offset.getY().getIn();
+    }
 
     @Override
     public void setEncoderDirections(Pinpoint.EncoderDirection xEncoder,
-                                     Pinpoint.EncoderDirection yEncoder) { }
+                                     Pinpoint.EncoderDirection yEncoder) {
+        xDirection = xEncoder == Pinpoint.EncoderDirection.REVERSED ? -1.0 : 1.0;
+        yDirection = yEncoder == Pinpoint.EncoderDirection.REVERSED ? -1.0 : 1.0;
+    }
 
     @Override
-    public void setEncoderResolution(Pinpoint.GoBildaPods pods) { }
+    public void setEncoderResolution(Pinpoint.GoBildaPods pods) {
+        ticksPerInch = (pods == Pinpoint.GoBildaPods.goBILDA_SWINGARM_POD
+                ? 13.26291192 : 19.89436789) * 25.4;
+    }
 
     @Override
-    public void setEncoderResolution(Dist ticksPerUnit) { }
+    public void setEncoderResolution(Dist ticksPerUnit) {
+        ticksPerInch = ticksPerUnit.getMm() * 25.4;
+    }
 
     @Override
-    public void setYawScalar(double yawOffset) { }
+    public void setYawScalar(double yawOffset) { yawScalar = yawOffset; }
+
+    @Override
+    public int[] getEncoderPositions() {
+        return new int[] {(int) Math.round(xTicks), (int) Math.round(yTicks)};
+    }
 
     @Override
     protected synchronized boolean doInitialize() {

@@ -69,7 +69,8 @@ public class Follower {
     private static final double MIN_COMPLETION_HEADING_RADIANS = Math.toRadians(2.0);
     private final FollowerConstants constants;
     private final BaseDrivetrain<?> drivetrain;
-    private final BaseLocalizer<?> localizer;
+    private BaseLocalizer<?> localizer;
+    private final LocalizerSet localizerSet;
 
     private enum HolonomicDriveModel { ANISOTROPIC, ISOTROPIC }
 
@@ -203,11 +204,14 @@ public class Follower {
         BaseDrivetrainConstants<?> drivetrainConstants = constants.drivetrainConstants();
 
         this.drivetrain = drivetrainConstants.build(hardwareMap);
-        this.localizer = constants.localizerConstants().build(hardwareMap);
         this.constants = FollowerConstants.getInstance();
         this.constants.configure(drivetrain.getDrivetrainType(),
                 drivetrain.isHolonomic() ? FollowerConstants.Profile.HOLONOMIC
                         : FollowerConstants.Profile.TANK, tuningMode);
+        this.localizerSet = new LocalizerSet(constants, hardwareMap,
+                drivetrain.getDrivetrainType(), drivetrain.isHolonomic()
+                ? FollowerConstants.Profile.HOLONOMIC : FollowerConstants.Profile.TANK);
+        this.localizer = localizerSet.getLocalizer();
 
         this.headingTol = drivetrainConstants.headingTolerance.getRad();
         this.distanceTol = drivetrainConstants.distanceTolerance.getIn();
@@ -1330,6 +1334,8 @@ public class Follower {
             catch (RuntimeException e) { drivetrain.stop(); throw e; }
             refreshConstants();
         }
+        localizerSet.select(profile);
+        localizer = localizerSet.getLocalizer();
     }
 
     public void setHeadingCoefficients(PDSCoefficients coefficients) {

@@ -4,6 +4,7 @@ import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.IMU;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.json.JSONObject;
 
 import geometry.Angle;
 import geometry.Pose;
@@ -39,6 +40,12 @@ public class MecanumDriveEncoders extends BaseLocalizer<MecanumDriveEncoders.Con
 
     @Override
     public void update() {
+        frontLeft.update();
+        frontRight.update();
+        if (backLeft != null) {
+            backLeft.update();
+            backRight.update();
+        }
         double blDelta = 0;
         double brDelta = 0;
         if (backLeft != null) {
@@ -46,19 +53,28 @@ public class MecanumDriveEncoders extends BaseLocalizer<MecanumDriveEncoders.Con
             brDelta = backRight.getDeltaInches();
         }
 
-        double deltaY = (frontLeft.getDeltaInches() + frontRight.getDeltaInches() +
-                blDelta + brDelta) / 4.0;
-        double deltaX = (-frontLeft.getDeltaInches() + frontRight.getDeltaInches() +
-                blDelta - brDelta) / 4.0;
+        int encoderCount = backLeft == null ? 2 : 4;
+        double forward = (frontLeft.getDeltaInches() + frontRight.getDeltaInches() +
+                blDelta + brDelta) / encoderCount;
+        double strafe = backLeft == null ? 0.0 :
+                (-frontLeft.getDeltaInches() + frontRight.getDeltaInches() +
+                        blDelta - brDelta) / 4.0;
 
         double oldYaw = pose.getHeading(geometry.AngleUnit.RAD);
         double currentYaw = Angle.normalize(
                 imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS) - correction
         );
         double deltaYaw = Angle.wrap(currentYaw - oldYaw);
-        pose = integrateArc(pose, deltaX, deltaY, deltaYaw, currentYaw);
+        pose = integrateArc(pose, forward, strafe, deltaYaw, currentYaw);
 
         calculate(UpdateType.BOTH);
+    }
+
+    /** Returns raw wheel encoder positions in front-left, front-right, back-left, back-right order. */
+    public int[] getEncoderTicks() {
+        return new int[] {frontLeft.getTicks(), frontRight.getTicks(),
+                backLeft == null ? 0 : backLeft.getTicks(),
+                backRight == null ? 0 : backRight.getTicks()};
     }
 
     @Override
@@ -83,6 +99,17 @@ public class MecanumDriveEncoders extends BaseLocalizer<MecanumDriveEncoders.Con
         public String imuName;
         public RevHubOrientationOnRobot hubOrientation;
         public double ticksPerInch = 1.0;
+
+        @Override
+        public JSONObject getCalibrationValues() {
+            try { return new JSONObject().put("ticksPerInch", ticksPerInch); }
+            catch (Exception e) { throw new IllegalStateException(e); }
+        }
+
+        @Override
+        public void applyCalibrationValues(JSONObject values) {
+            ticksPerInch = CalibrationJson.positive(values, "ticksPerInch", ticksPerInch);
+        }
 
         @Override
         public BaseLocalizer<?> build(HardwareMap hardwareMap) {
