@@ -33,17 +33,30 @@ the menu open until a phase is explicitly selected. After Start, the sticks driv
 field-centrically on menus, prompts, results, and idle manual-tuning screens; tuner-controlled
 motion takes exclusive control until its test finishes. All phases remain selectable for retuning.
 After a phase's results are accepted, Follower Tuner saves them and advances through every
-remaining phase in order. Manual feedforward verification drives forward 48 inches and then turns
-180 degrees, reporting separate drive and angular velocity RMS errors. The simulation asks you to
-use the red Stop button only after the final Velocity Feedback phase is complete.
+remaining phase in order. Feedforward now runs first and uses Road Runner-style slow power ramps
+to fit moving kS and kV together, separately for forward motion and counterclockwise turning.
+Press A to start each ramp from rest. Power rises by 0.1 per second up to 0.9; X stops early for
+review. Automatic travel cutoffs are 96 inches from the drive start or two turns, but the operator
+must stop before obstacles and allow braking room. Controllers are disabled during measurement.
+Use the sticks between runs to reposition. Review kS, kV, R-squared and sample count. Y excludes
+the largest residual, B restores exclusions, X discards/retries the ramp, and A accepts a valid fit.
+Acceptance requires at least 20 moving samples, a velocity span of 2 in/s (drive) or 0.2 rad/s
+(turn), R-squared >= 0.90, kV > 0 and 0 <= kS < 0.9. Both axes must be accepted before constants
+are applied. kA is left unchanged. The old breakaway-power stage and feedforward binary searches
+have been removed; existing position-controller breakaway settings remain separate from moving
+feedforward kS. Fits use Apex's normalized motor-power units and no battery-voltage compensation:
+kS is power, drive kV is power/(in/s), and turn kV is power/(rad/s). Tune with a representative
+battery. The simulation asks you to use the red Stop button only after the final Velocity Feedback
+phase is complete.
 
 Automatic PDS tuning uses repeated bounded point-to-point tests and central finite differences to
-refine kP and kD from generic starting guesses. It runs immediately after breakaway-power tuning
+refine kP and kD from generic starting guesses. It runs immediately after feedforward ramp tuning
 and before movement-limits tuning. It scores time-weighted squared position error, backs off after
 worse updates, and restores the best measured gains before operator validation. PDS and feedforward runs save
 graph-ready CSV files beside `constants.json` (`FIRST/ApexPathing` on the Robot Controller and
-`build/ftcodesim-data` in desktop simulation). Feedforward CSV rows include measured velocity and
-acceleration plus fitted power and residuals; PDS CSV rows include gains, trial cost, target,
+`build/ftcodesim-data` in desktop simulation). Feedforward ramp CSV rows include axis, time,
+measured velocity, preceding applied power and sample eligibility. Separate accepted-fit CSVs
+include the exclusion mask and fitted coefficients. PDS CSV rows include gains, trial cost, target,
 position, error, velocity, commanded power, and safeguard status over time.
 
 ## Localization tuner

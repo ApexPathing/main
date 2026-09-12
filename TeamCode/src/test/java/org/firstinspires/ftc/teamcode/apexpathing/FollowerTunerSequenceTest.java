@@ -20,19 +20,18 @@ public class FollowerTunerSequenceTest {
     }
 
     @Test
-    public void controllerTuningRunsBetweenBreakawayAndLimits() {
+    public void rampRunsBeforeControllersAndLimits() {
         assertArrayEquals(new FollowerTuner.Phase[] {
-                        FollowerTuner.Phase.STATIC_FRICTION,
+                        FollowerTuner.Phase.FEEDFORWARD,
                         FollowerTuner.Phase.HEADING,
                         FollowerTuner.Phase.DRIVE,
                         FollowerTuner.Phase.LIMITS,
-                        FollowerTuner.Phase.FEEDFORWARD,
                         FollowerTuner.Phase.CENTRIPETAL,
                         FollowerTuner.Phase.VELOCITY_FEEDBACK
                 },
                 FollowerTuner.Phase.values());
         assertEquals(FollowerTuner.Phase.HEADING,
-                FollowerTuner.nextPhase(FollowerTuner.Phase.STATIC_FRICTION));
+                FollowerTuner.nextPhase(FollowerTuner.Phase.FEEDFORWARD));
         assertEquals(FollowerTuner.Phase.LIMITS,
                 FollowerTuner.nextPhase(FollowerTuner.Phase.DRIVE));
     }
@@ -41,6 +40,19 @@ public class FollowerTunerSequenceTest {
     public void centripetalCompletionAdvancesToVelocityFeedback() {
         assertEquals(FollowerTuner.Phase.VELOCITY_FEEDBACK,
                 FollowerTuner.nextPhase(FollowerTuner.Phase.CENTRIPETAL));
+    }
+
+    @Test
+    public void feedforwardCompletionDoesNotRequireAccelerationOrNonzeroFriction() throws Exception {
+        core.FollowerConstants constants = core.FollowerConstants.fromJson(
+                new org.json.JSONObject().put("drivetrainType", "MECANUM"));
+        constants.angularKV = .1;
+        constants.translationalKV = .01;
+        constants.angularKA = constants.translationalKA = 0;
+        constants.angularFeedforwardKS = constants.translationalFeedforwardKS = 0;
+        assertTrue(FollowerTuner.Phase.FEEDFORWARD.isTunedPredicate.test(constants));
+        constants.angularKV = 0;
+        assertFalse(FollowerTuner.Phase.FEEDFORWARD.isTunedPredicate.test(constants));
     }
 
     @Test
@@ -61,14 +73,14 @@ public class FollowerTunerSequenceTest {
 
         try {
             assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.HEADING));
-            assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.STATIC_FRICTION));
+            assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.FEEDFORWARD));
             assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.LIMITS));
             assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.DRIVE));
             assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.VELOCITY_FEEDBACK));
 
             FollowerTuner.Phase.HEADING.tuned = true;
             assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.HEADING));
-            assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.STATIC_FRICTION));
+            assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.FEEDFORWARD));
             assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.LIMITS));
             assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.DRIVE));
         } finally {

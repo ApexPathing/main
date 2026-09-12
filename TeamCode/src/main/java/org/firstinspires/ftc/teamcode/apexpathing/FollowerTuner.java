@@ -11,10 +11,9 @@ import core.FollowerConstants;
 import geometry.Pose;
 import tuning.follower.CentripetalPhase;
 import tuning.follower.DrivePhase;
-import tuning.follower.FeedforwardTuner;
+import tuning.follower.phases.FeedforwardTuner;
 import tuning.follower.HeadingPhase;
 import tuning.follower.LimitsPhase;
-import tuning.follower.StaticFrictionPhase;
 import tuning.follower.TunerContext;
 import tuning.follower.TuningPhase;
 import tuning.follower.VelocityFeedbackPhase;
@@ -36,9 +35,10 @@ public class FollowerTuner extends LinearOpMode {
      * Tuners are ran in the order of the enum ordinals
      */
     enum Phase {
-        STATIC_FRICTION(StaticFrictionPhase::new, constants ->
-                constants.angularCoeffs.kS != 0.0 &&
-                        constants.translationalCoeffs.kS != 0.0),
+        FEEDFORWARD(FeedforwardTuner::new, constants ->
+                constants.angularKV > 0.0 && constants.translationalKV > 0.0 &&
+                        constants.angularFeedforwardKS >= 0.0 &&
+                        constants.translationalFeedforwardKS >= 0.0),
         HEADING(HeadingPhase::new, constants ->
                 constants.angularCoeffs.kP != 0.0),
         DRIVE(DrivePhase::new, constants ->
@@ -50,11 +50,6 @@ public class FollowerTuner extends LinearOpMode {
                         constants.strafeAccelLimitIn != 0.0)) &&
                         constants.angularVelLimitRad != 0.0 &&
                         constants.angularAccelLimitRad != 0.0),
-        FEEDFORWARD(FeedforwardTuner::new, constants ->
-                constants.angularKV != 0.0 &&
-                        constants.angularKA != 0.0 &&
-                        constants.translationalKV != 0.0 &&
-                        constants.translationalKA != 0.0),
         CENTRIPETAL(CentripetalPhase::new, constants ->
                 constants.kCentripetal != 0.0),
         VELOCITY_FEEDBACK(VelocityFeedbackPhase::new, constants ->
@@ -280,7 +275,7 @@ public class FollowerTuner extends LinearOpMode {
     }
 
     private static String phaseDisplayName(Phase phase) {
-        if (phase == Phase.STATIC_FRICTION) { return "BREAKAWAY POWER"; }
+        if (phase == Phase.FEEDFORWARD) { return "FEEDFORWARD kS / kV RAMP"; }
         return phase.name().replace('_', ' ');
     }
 

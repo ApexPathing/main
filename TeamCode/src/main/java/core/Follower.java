@@ -1433,7 +1433,8 @@ public class Follower {
         this.translationalKA = translationalKA;
         this.angularKV = angularKV;
         this.angularKA = angularKA;
-        turnController.setMotionGains(angularKV, angularKA, angularVelocityFeedbackGain);
+        turnController.setMotionGains(
+                angularKV, angularKA, constants.angularFeedforwardKS, angularVelocityFeedbackGain);
     }
 
     /** Applies refined moving-friction and dynamic feedforward gains. */
