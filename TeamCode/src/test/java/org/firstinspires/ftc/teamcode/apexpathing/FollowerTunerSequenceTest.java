@@ -26,6 +26,7 @@ public class FollowerTunerSequenceTest {
                         FollowerTuner.Phase.HEADING,
                         FollowerTuner.Phase.DRIVE,
                         FollowerTuner.Phase.LIMITS,
+                        FollowerTuner.Phase.ACCELERATION_FEEDFORWARD,
                         FollowerTuner.Phase.CENTRIPETAL,
                         FollowerTuner.Phase.VELOCITY_FEEDBACK
                 },
@@ -34,6 +35,10 @@ public class FollowerTunerSequenceTest {
                 FollowerTuner.nextPhase(FollowerTuner.Phase.FEEDFORWARD));
         assertEquals(FollowerTuner.Phase.LIMITS,
                 FollowerTuner.nextPhase(FollowerTuner.Phase.DRIVE));
+        assertEquals(FollowerTuner.Phase.ACCELERATION_FEEDFORWARD,
+                FollowerTuner.nextPhase(FollowerTuner.Phase.LIMITS));
+        assertEquals(FollowerTuner.Phase.CENTRIPETAL,
+                FollowerTuner.nextPhase(FollowerTuner.Phase.ACCELERATION_FEEDFORWARD));
     }
 
     @Test
@@ -75,6 +80,7 @@ public class FollowerTunerSequenceTest {
             assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.HEADING));
             assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.FEEDFORWARD));
             assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.LIMITS));
+            assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.ACCELERATION_FEEDFORWARD));
             assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.DRIVE));
             assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.VELOCITY_FEEDBACK));
 
@@ -82,6 +88,7 @@ public class FollowerTunerSequenceTest {
             assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.HEADING));
             assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.FEEDFORWARD));
             assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.LIMITS));
+            assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.ACCELERATION_FEEDFORWARD));
             assertTrue(FollowerTuner.phaseAvailable(FollowerTuner.Phase.DRIVE));
         } finally {
             for (int i = 0; i < phases.length; i++) { phases[i].tuned = original[i]; }

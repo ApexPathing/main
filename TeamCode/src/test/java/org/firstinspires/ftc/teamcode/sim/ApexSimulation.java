@@ -2,8 +2,10 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import org.codeblooded.ftcodesim.hardware.SimHardwareMap;
 import org.codeblooded.ftcodesim.hardware.drivetrain.SimMecanumConfig;
+import org.codeblooded.ftcodesim.hardware.drivetrain.SimTankConfig;
 import org.codeblooded.ftcodesim.hardware.drivetrain.SimulatedDrivetrain;
 import org.codeblooded.ftcodesim.hardware.drivetrain.SimulatedMecanum;
+import org.codeblooded.ftcodesim.hardware.drivetrain.SimulatedTank;
 import org.codeblooded.ftcodesim.input.DefaultKeybinds;
 import org.codeblooded.ftcodesim.physics.MotionVector;
 import org.codeblooded.ftcodesim.physics.RobotGeometry;
@@ -20,11 +22,13 @@ import core.ApexStorage;
 
 /** Shared FTCodeSim configuration used by every Apex Pathing OpMode. */
 public final class ApexSimulation {
+    static final String TANK_SIMULATION_PROPERTY = "apex.simulation.tank";
     public static final String FRONT_LEFT_MOTOR = "frontLeftMotor";
     public static final String FRONT_RIGHT_MOTOR = "frontRightMotor";
     public static final String BACK_LEFT_MOTOR = "backLeftMotor";
     public static final String BACK_RIGHT_MOTOR = "backRightMotor";
     public static final String PINPOINT = "pinpoint";
+    public static final String IMU = "imu";
 
     // FTCodeSim's DECODE field is represented in corner-origin coordinates.
     static final double FIELD_CENTER_INCHES = 141.5 / 2.0;
@@ -32,16 +36,40 @@ public final class ApexSimulation {
     private ApexSimulation() { }
 
     public static SimConfig createConfig() {
+        System.setProperty(TANK_SIMULATION_PROPERTY, "false");
+        return createConfig(createHardware());
+    }
+
+    /** Creates an interactive Code Sim configuration backed by differential-drive physics. */
+    public static SimConfig createTankConfig() {
+        System.setProperty(TANK_SIMULATION_PROPERTY, "true");
+        return createConfig(createTankHardware());
+    }
+
+    static boolean isTankSimulation() {
+        return Boolean.parseBoolean(System.getProperty(TANK_SIMULATION_PROPERTY, "false"));
+    }
+
+    private static SimConfig createConfig(Hardware hardware) {
         SimConfig config = new SimConfig();
         config.gamepad1Keybinds = new DefaultKeybinds();
         config.gamepad2Keybinds = new DefaultKeybinds();
-        config.simHardwareMap = createHardware().hardwareMap;
+        hardware.hardwareMap.register(IMU, SimApexImu.create(hardware.drivetrain));
+        config.simHardwareMap = hardware.hardwareMap;
         config.loopTimeMs = 20;
         return config;
     }
 
     public static FTCodeSim createSimulator() throws IOException {
         FTCodeSim simulator = new FTCodeSim(createConfig());
+        ApexAdvantageScopeLayout.install();
+        installTelemetryAdapter(simulator);
+        return simulator;
+    }
+
+    /** Creates Code Sim with the tank hardware used by the tank-only test OpModes. */
+    public static FTCodeSim createTankSimulator() throws IOException {
+        FTCodeSim simulator = new FTCodeSim(createTankConfig());
         ApexAdvantageScopeLayout.install();
         installTelemetryAdapter(simulator);
         return simulator;
@@ -62,8 +90,8 @@ public final class ApexSimulation {
         config.backRightMotorName = BACK_LEFT_MOTOR;
 
         // These are the measured Code Blooded drivetrain values from FTCodeSim's DECODE example.
-        config.wheelbase = 9.37008;
-        config.trackWidth = 9.13386;
+        config.wheelbase = 14;
+        config.trackWidth = 14;
         config.wheelRadius = 1.889765;
         config.staticVelocityRegion = 2;
         config.staticFriction = 45;
@@ -83,6 +111,49 @@ public final class ApexSimulation {
                 FIELD_CENTER_INCHES,
                 0.0
         ));
+        hardwareMap.register(PINPOINT, new SimApexPinpoint(drivetrain, FIELD_CENTER_INCHES));
+        return new Hardware(hardwareMap, drivetrain);
+    }
+
+    static Hardware createTankHardware() {
+        configureDesktopStorage();
+
+        SimTankConfig config = new SimTankConfig();
+        // Apex uses positive turn for left/CCW. SimulatedTank's wheel-slot convention is the
+        // opposite, and SimMotor ignores SDK motor direction, so mirror the physical slots while
+        // retaining the production tank motor mix.
+        config.frontLeftMotorName = FRONT_RIGHT_MOTOR;
+        config.frontRightMotorName = FRONT_LEFT_MOTOR;
+        config.backLeftMotorName = BACK_RIGHT_MOTOR;
+        config.backRightMotorName = BACK_LEFT_MOTOR;
+        config.trackWidth = 14.0;
+        config.wheelRadius = 2.0;
+        config.staticVelocityRegion = 0.05;
+        config.staticFriction = 0.1;
+        config.maxAcceleration = 150;
+        config.maxVelocity = 75;
+        config.naturalDeceleration = 40;
+        config.robotGeometry = new RobotGeometry(12, 18, 2, 0);
+
+        SimulatedDrivetrain drivetrain = new SimulatedTank(config);
+        SimHardwareMap hardwareMap = new StableSimHardwareMap();
+        hardwareMap.register(drivetrain);
+        // Use duty-independent back EMF: power = kS*sign(v) + kV*v + kA*a.
+        // The library default multiplies back EMF by duty, so its steady-state response
+        // is nonlinear and cannot be represented by Apex's constant kS/kV coefficients.
+        double kS = 0.06;
+        double kV = (1.0 - kS) / config.maxVelocity;
+        double kA = (1.0 - kS) / config.maxAcceleration;
+        for (String name : drivetrain.motorNames) {
+            org.codeblooded.ftcodesim.hardware.devices.SimMotor motor =
+                    (org.codeblooded.ftcodesim.hardware.devices.SimMotor) hardwareMap.get(
+                            com.qualcomm.robotcore.hardware.DcMotorEx.class, name);
+            double[] coefficients = {1.0 / (kA * config.wheelRadius * config.nominalVoltage),
+                    0.0, kV / kA, kS / (kA * config.wheelRadius)};
+            motor.config.modelCoefficients = coefficients;
+            motor.config.zeroPowerBrakeCoefficients = coefficients.clone();
+        }
+        drivetrain.setPosition(new MotionVector(FIELD_CENTER_INCHES, FIELD_CENTER_INCHES, 0.0));
         hardwareMap.register(PINPOINT, new SimApexPinpoint(drivetrain, FIELD_CENTER_INCHES));
         return new Hardware(hardwareMap, drivetrain);
     }

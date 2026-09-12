@@ -48,6 +48,20 @@ public class FFLut {
      * @return interpolated motion parameters for the follower
      */
     public MotionParameters getFFParams(double progression) {
+        return getFFParams(progression, false);
+    }
+
+    /**
+     * Tank stopping profiles preserve constant braking acceleration in the final
+     * interval ending at rest: v^2 = v0^2 + 2*a*ds. Independently blending the
+     * terminal zero velocity and zero acceleration weakens braking before arrival.
+     * Interior interpolation retains the existing curve tracking behavior.
+     */
+    public MotionParameters getTankFFParams(double distance) {
+        return getFFParams(distance, true);
+    }
+
+    private MotionParameters getFFParams(double progression, boolean constantAcceleration) {
         if (params.length == 1 || progression <= params[0].getProgression()) {
             return copyOf(params[0]);
         }
@@ -67,6 +81,21 @@ public class FFLut {
                 if (Math.abs(denominator) < 1e-9) { return copyOf(params2); }
 
                 double interpolationFraction = (progression - s0) / denominator;
+                if (constantAcceleration && i == params.length - 1
+                        && params2.getTangentialVel() == 0.0 && params1.getTangentialVel() > 0.0) {
+                    MotionParameters result = getFFParams(params1, interpolationFraction, params2, progression);
+                    double v0 = params1.getTangentialVel(), v1 = params2.getTangentialVel();
+                    double acceleration = (v1*v1-v0*v0)/(2*denominator);
+                    double velocity = Math.sqrt(Math.max(0, v0*v0+2*acceleration*(progression-s0)));
+                    double curvature0 = v0 > 1e-9 ? params1.getAngularVel()/v0
+                            : v1 > 1e-9 ? params2.getAngularVel()/v1 : 0;
+                    double curvature1 = v1 > 1e-9 ? params2.getAngularVel()/v1 : curvature0;
+                    double curvature = curvature0 + interpolationFraction*(curvature1-curvature0);
+                    return result.setTangentialVel(velocity).setTangentialAccel(acceleration)
+                            .setAngularVel(curvature*velocity)
+                            .setAngularAccel(curvature*acceleration
+                                    + (curvature1-curvature0)/denominator*velocity*velocity);
+                }
                 return getFFParams(params1, interpolationFraction, params2, progression);
             }
         }

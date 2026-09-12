@@ -1,2 +1,2 @@
-/** Localization geometry, sensor-reference, filter, and validation tuning workflows. */
+/** Shared framework, context, and localizer adapters for localization tuning. */
 package tuning.localizer;

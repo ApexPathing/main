@@ -81,7 +81,9 @@ public class Pinpoint extends BaseLocalizer<Pinpoint.Constants> {
             try {
                 return CalibrationJson.vector(offsets)
                         .put("customEncoderResolutionIn", customEncoderResolution.getIn())
-                        .put("angularScalar", angularScalar);
+                        .put("angularScalar", angularScalar)
+                        .put("xPodDirection", xPodDirection.name())
+                        .put("yPodDirection", yPodDirection.name());
             } catch (Exception e) { throw new IllegalStateException(e); }
         }
 
@@ -91,6 +93,8 @@ public class Pinpoint extends BaseLocalizer<Pinpoint.Constants> {
             customEncoderResolution = Dist.fromIn(CalibrationJson.finite(values,
                     "customEncoderResolutionIn", customEncoderResolution.getIn()));
             angularScalar = CalibrationJson.finite(values, "angularScalar", angularScalar);
+            xPodDirection = direction(values, "xPodDirection", xPodDirection);
+            yPodDirection = direction(values, "yPodDirection", yPodDirection);
         }
 
         @Override
@@ -139,6 +143,12 @@ public class Pinpoint extends BaseLocalizer<Pinpoint.Constants> {
         public Constants setAngularScalar(double angularScalar) {
             this.angularScalar = angularScalar;
             return this;
+        }
+
+        private static EncoderDirection direction(JSONObject values, String key,
+                                                  EncoderDirection fallback) {
+            try { return EncoderDirection.valueOf(values.optString(key, fallback.name())); }
+            catch (IllegalArgumentException ignored) { return fallback; }
         }
     }
 

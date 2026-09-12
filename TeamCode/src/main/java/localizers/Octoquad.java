@@ -112,7 +112,9 @@ public class Octoquad extends BaseLocalizer<Octoquad.Constants> {
             try {
                 return CalibrationJson.vector(offsets)
                         .put("encoderResolutionIn", encoderResolution.getIn())
-                        .put("angularScalar", angularScalar);
+                        .put("angularScalar", angularScalar)
+                        .put("xPodDirection", xPodDirection.name())
+                        .put("yPodDirection", yPodDirection.name());
             } catch (Exception e) { throw new IllegalStateException(e); }
         }
 
@@ -122,6 +124,8 @@ public class Octoquad extends BaseLocalizer<Octoquad.Constants> {
             encoderResolution = Dist.fromIn(CalibrationJson.positive(values,
                     "encoderResolutionIn", encoderResolution.getIn()));
             angularScalar = CalibrationJson.positive(values, "angularScalar", angularScalar);
+            xPodDirection = direction(values, "xPodDirection", xPodDirection);
+            yPodDirection = direction(values, "yPodDirection", yPodDirection);
         }
 
         @Override
@@ -171,6 +175,12 @@ public class Octoquad extends BaseLocalizer<Octoquad.Constants> {
         public Constants setYawScalar(double angularScalar) {
             this.angularScalar = angularScalar;
             return this;
+        }
+
+        private static EncoderDirection direction(JSONObject values, String key,
+                                                  EncoderDirection fallback) {
+            try { return EncoderDirection.valueOf(values.optString(key, fallback.name())); }
+            catch (IllegalArgumentException ignored) { return fallback; }
         }
     }
 

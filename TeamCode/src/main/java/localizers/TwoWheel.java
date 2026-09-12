@@ -28,10 +28,12 @@ public class TwoWheel extends BaseLocalizer<TwoWheel.Constants> {
         super(constants);
 
         this.strafePod = new OdometryPod(
-                hardwareMap, constants.strafePodName, constants.ticksPerInch
+                hardwareMap, constants.strafePodName, constants.ticksPerInch,
+                constants.strafePodReversed
         );
         this.forwardPod = new OdometryPod(
-                hardwareMap, constants.forwardPodName, constants.ticksPerInch
+                hardwareMap, constants.forwardPodName, constants.ticksPerInch,
+                constants.forwardPodReversed
         );
         this.imu = hardwareMap.get(IMU.class, constants.imuName);
         this.imu.initialize(new IMU.Parameters(constants.hubOrientation));
@@ -77,11 +79,15 @@ public class TwoWheel extends BaseLocalizer<TwoWheel.Constants> {
         public RevHubOrientationOnRobot hubOrientation;
         public Vector offsets = Vector.zero();
         public double ticksPerInch = 1.0;
+        public boolean forwardPodReversed;
+        public boolean strafePodReversed;
 
         @Override
         public JSONObject getCalibrationValues() {
             try {
-                return CalibrationJson.vector(offsets).put("ticksPerInch", ticksPerInch);
+                return CalibrationJson.vector(offsets).put("ticksPerInch", ticksPerInch)
+                        .put("forwardPodReversed", forwardPodReversed)
+                        .put("strafePodReversed", strafePodReversed);
             } catch (Exception e) { throw new IllegalStateException(e); }
         }
 
@@ -89,6 +95,8 @@ public class TwoWheel extends BaseLocalizer<TwoWheel.Constants> {
         public void applyCalibrationValues(JSONObject values) {
             ticksPerInch = CalibrationJson.positive(values, "ticksPerInch", ticksPerInch);
             offsets = CalibrationJson.vector(values, offsets);
+            forwardPodReversed = values.optBoolean("forwardPodReversed", forwardPodReversed);
+            strafePodReversed = values.optBoolean("strafePodReversed", strafePodReversed);
         }
 
         @Override
@@ -151,6 +159,14 @@ public class TwoWheel extends BaseLocalizer<TwoWheel.Constants> {
         /** Sets the number of encoder ticks per inch of travel. */
         public TwoWheel.Constants setTicksPerInch(double ticksPerInch) {
             this.ticksPerInch = ticksPerInch;
+            return this;
+        }
+
+        /** Sets software reversals for the forward and strafe pods. */
+        public TwoWheel.Constants setEncoderDirections(boolean forwardPodReversed,
+                                                       boolean strafePodReversed) {
+            this.forwardPodReversed = forwardPodReversed;
+            this.strafePodReversed = strafePodReversed;
             return this;
         }
     }

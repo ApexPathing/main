@@ -66,7 +66,7 @@ public class PathProfileConvergenceTest {
         constants.angularVelLimitRad = Math.toRadians(291.0);
         constants.angularAccelLimitRad = Math.toRadians(2000.0);
 
-        geometry = new GeometryFactory(true)
+        geometry = new GeometryFactory()
                 .setDistUnit(DistUnit.IN)
                 .setAngleUnit(AngleUnit.DEG);
         path = new HolonomicPathBuilder(

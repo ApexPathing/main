@@ -1,5 +1,7 @@
 package tuning.localizer;
 
+import tuning.localizer.phases.*;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -47,6 +49,10 @@ public final class LocalizerAdapters {
         @Override public boolean supportsSpinCalibration() { return false; }
         @Override public CalibrationSnapshot snapshot(BaseLocalizer<?> localizer) {
             return new CalibrationSnapshot(localizer.getPose(), ticks(localizer));
+        }
+        @Override public CalibrationCandidate fitDirections(BaseLocalizerConstants<?> config,
+                                                             List<DirectionTrial> trials) {
+            return candidate(copy(config), "No encoder direction settings are required.");
         }
         int[] ticks(BaseLocalizer<?> localizer) { return new int[0]; }
         JSONObject copy(BaseLocalizerConstants<?> config) {
@@ -101,6 +107,23 @@ public final class LocalizerAdapters {
         @Override int[] ticks(BaseLocalizer<?> localizer) {
             return ((MecanumDriveEncoders) localizer).getEncoderTicks();
         }
+        @Override public CalibrationCandidate fitDirections(BaseLocalizerConstants<?> raw,
+                                                             List<DirectionTrial> trials) {
+            MecanumDriveEncoders.Constants config = (MecanumDriveEncoders.Constants) raw;
+            DirectionTrial forward = trial(trials, CalibrationAxis.FORWARD);
+            JSONObject values = copy(config);
+            put(values, "frontLeftReversed", corrected(config.frontLeftReversed,
+                    delta(forward, 0, "front-left encoder")));
+            put(values, "frontRightReversed", corrected(config.frontRightReversed,
+                    delta(forward, 1, "front-right encoder")));
+            if (config.backLeftName != null && config.backRightName != null) {
+                put(values, "backLeftReversed", corrected(config.backLeftReversed,
+                        delta(forward, 2, "back-left encoder")));
+                put(values, "backRightReversed", corrected(config.backRightReversed,
+                        delta(forward, 3, "back-right encoder")));
+            }
+            return candidate(values, "Encoder directions ready to save.");
+        }
         @Override public CalibrationCandidate fitDistance(BaseLocalizerConstants<?> config,
                 CalibrationAxis axis, CalibrationSnapshot start, CalibrationSnapshot end,
                 double measured) {
@@ -115,6 +138,18 @@ public final class LocalizerAdapters {
         }
         @Override int[] ticks(BaseLocalizer<?> localizer) {
             return ((TankDriveEncoders) localizer).getEncoderTicks();
+        }
+        @Override public CalibrationCandidate fitDirections(BaseLocalizerConstants<?> raw,
+                                                             List<DirectionTrial> trials) {
+            TankDriveEncoders.Constants config = (TankDriveEncoders.Constants) raw;
+            DirectionTrial forward = trial(trials, CalibrationAxis.FORWARD);
+            JSONObject values = copy(config);
+            JSONArray left = values.optJSONArray("left");
+            JSONArray right = values.optJSONArray("right");
+            int channel = 0;
+            channel = setTankDirections(config.leftEncoders, left, forward, channel);
+            setTankDirections(config.rightEncoders, right, forward, channel);
+            return candidate(values, "Encoder directions ready to save.");
         }
         @Override public CalibrationCandidate fitDistance(BaseLocalizerConstants<?> raw,
                 CalibrationAxis axis, CalibrationSnapshot start, CalibrationSnapshot end,
@@ -159,6 +194,19 @@ public final class LocalizerAdapters {
         TwoWheelAdapter() { super("Two-wheel odometry + IMU"); }
         @Override public boolean supportsSpinCalibration() { return true; }
         @Override int[] ticks(BaseLocalizer<?> localizer) { return ((TwoWheel) localizer).getPodTicks(); }
+        @Override public CalibrationCandidate fitDirections(BaseLocalizerConstants<?> raw,
+                                                             List<DirectionTrial> trials) {
+            TwoWheel.Constants config = (TwoWheel.Constants) raw;
+            JSONObject values = copy(config);
+            put(values, "forwardPodReversed", corrected(config.forwardPodReversed,
+                    delta(trial(trials, CalibrationAxis.FORWARD), 0, "forward pod")));
+            DirectionTrial strafe = findTrial(trials, CalibrationAxis.STRAFE);
+            if (strafe != null) {
+                put(values, "strafePodReversed", corrected(config.strafePodReversed,
+                        delta(strafe, 1, "strafe pod")));
+            }
+            return candidate(values, "Pod directions ready to save.");
+        }
         @Override public CalibrationCandidate fitDistance(BaseLocalizerConstants<?> config,
                 CalibrationAxis axis, CalibrationSnapshot start, CalibrationSnapshot end,
                 double measured) {
@@ -167,8 +215,11 @@ public final class LocalizerAdapters {
         @Override public CalibrationCandidate fitSpin(BaseLocalizerConstants<?> config,
                                                        List<SpinTrial> trials) {
             JSONObject values = copy(config);
+            TwoWheel.Constants twoWheel = (TwoWheel.Constants) config;
             double tpi = requirePositive(values.optDouble("ticksPerInch"), "ticksPerInch");
-            double[] offsets = rawOffsets(trials, tpi, new int[] {0, 1}, new double[] {1, 1});
+            double[] offsets = rawOffsets(trials, tpi, new int[] {0, 1}, new double[] {
+                    twoWheel.forwardPodReversed ? -1 : 1,
+                    twoWheel.strafePodReversed ? -1 : 1});
             put(values, "xIn", offsets[0]); put(values, "yIn", offsets[1]);
             return spinCandidate(values, trials, offsets, "Forward offset", "Strafe offset");
         }
@@ -178,6 +229,22 @@ public final class LocalizerAdapters {
         ThreeWheelAdapter() { super("Three-wheel odometry"); }
         @Override public boolean supportsSpinCalibration() { return true; }
         @Override int[] ticks(BaseLocalizer<?> localizer) { return ((ThreeWheel) localizer).getPodTicks(); }
+        @Override public CalibrationCandidate fitDirections(BaseLocalizerConstants<?> raw,
+                                                             List<DirectionTrial> trials) {
+            ThreeWheel.Constants config = (ThreeWheel.Constants) raw;
+            DirectionTrial forward = trial(trials, CalibrationAxis.FORWARD);
+            JSONObject values = copy(config);
+            put(values, "forwardLeftPodReversed", corrected(config.forwardLeftPodReversed,
+                    delta(forward, 0, "forward-left pod")));
+            put(values, "forwardRightPodReversed", corrected(config.forwardRightPodReversed,
+                    delta(forward, 1, "forward-right pod")));
+            DirectionTrial strafe = findTrial(trials, CalibrationAxis.STRAFE);
+            if (strafe != null) {
+                put(values, "strafePodReversed", corrected(config.strafePodReversed,
+                        delta(strafe, 2, "strafe pod")));
+            }
+            return candidate(values, "Pod directions ready to save.");
+        }
         @Override public CalibrationCandidate fitDistance(BaseLocalizerConstants<?> config,
                 CalibrationAxis axis, CalibrationSnapshot start, CalibrationSnapshot end,
                 double measured) {
@@ -185,14 +252,15 @@ public final class LocalizerAdapters {
         }
         @Override public CalibrationCandidate fitSpin(BaseLocalizerConstants<?> config,
                                                        List<SpinTrial> trials) {
+            ThreeWheel.Constants threeWheel = (ThreeWheel.Constants) config;
             JSONObject values = copy(config);
             double tpi = requirePositive(values.optDouble("ticksPerInch"), "ticksPerInch");
             double[] results = new double[2];
             for (SpinTrial trial : trials) {
                 requireSpin(trial);
-                int left = trial.end.rawTicks[0] - trial.start.rawTicks[0];
-                int right = trial.end.rawTicks[1] - trial.start.rawTicks[1];
-                int strafe = trial.end.rawTicks[2] - trial.start.rawTicks[2];
+                int left = signedDelta(trial, 0, threeWheel.forwardLeftPodReversed);
+                int right = signedDelta(trial, 1, threeWheel.forwardRightPodReversed);
+                int strafe = signedDelta(trial, 2, threeWheel.strafePodReversed);
                 results[0] += (left - right) / tpi / trial.angleRad;
                 results[1] += strafe / tpi / trial.angleRad;
             }
@@ -225,6 +293,19 @@ public final class LocalizerAdapters {
     private static final class PinpointAdapter extends ComputerAdapter {
         PinpointAdapter() { super("goBILDA Pinpoint"); }
         @Override int[] ticks(BaseLocalizer<?> localizer) { return ((Pinpoint) localizer).getPodTicks(); }
+        @Override public CalibrationCandidate fitDirections(BaseLocalizerConstants<?> raw,
+                                                             List<DirectionTrial> trials) {
+            Pinpoint.Constants config = (Pinpoint.Constants) raw;
+            JSONObject values = copy(config);
+            put(values, "xPodDirection", corrected(config.xPodDirection.name(),
+                    delta(trial(trials, CalibrationAxis.FORWARD), 0, "X pod")));
+            DirectionTrial strafe = findTrial(trials, CalibrationAxis.STRAFE);
+            if (strafe != null) {
+                put(values, "yPodDirection", corrected(config.yPodDirection.name(),
+                        delta(strafe, 1, "Y pod")));
+            }
+            return candidate(values, "Pod directions ready to save.");
+        }
         @Override double countsPerInch(BaseLocalizerConstants<?> raw) {
             Pinpoint.Constants config = (Pinpoint.Constants) raw;
             if (config.customEncoderResolution.getIn() > 0) {
@@ -249,6 +330,19 @@ public final class LocalizerAdapters {
     private static final class OctoquadAdapter extends ComputerAdapter {
         OctoquadAdapter() { super("Digital Chicken Labs Octoquad"); }
         @Override int[] ticks(BaseLocalizer<?> localizer) { return ((Octoquad) localizer).getPodTicks(); }
+        @Override public CalibrationCandidate fitDirections(BaseLocalizerConstants<?> raw,
+                                                             List<DirectionTrial> trials) {
+            Octoquad.Constants config = (Octoquad.Constants) raw;
+            JSONObject values = copy(config);
+            put(values, "xPodDirection", corrected(config.xPodDirection.name(),
+                    delta(trial(trials, CalibrationAxis.FORWARD), 0, "X pod")));
+            DirectionTrial strafe = findTrial(trials, CalibrationAxis.STRAFE);
+            if (strafe != null) {
+                put(values, "yPodDirection", corrected(config.yPodDirection.name(),
+                        delta(strafe, 1, "Y pod")));
+            }
+            return candidate(values, "Pod directions ready to save.");
+        }
         @Override double countsPerInch(BaseLocalizerConstants<?> raw) {
             return ((Octoquad.Constants) raw).encoderResolution.get(DistUnit.MM) * 25.4;
         }
@@ -291,6 +385,56 @@ public final class LocalizerAdapters {
                             + format(values.optDouble("angularScalar", current)),
                     "OTOS offset is preserved; closed full turns cannot identify it.");
         }
+    }
+
+    private static int setTankDirections(List<TankDriveEncoders.Encoder> specs, JSONArray output,
+                                         DirectionTrial forward, int channel) {
+        for (int i = 0; i < specs.size(); i++, channel++) {
+            TankDriveEncoders.Encoder spec = specs.get(i);
+            JSONObject value = output.optJSONObject(i);
+            put(value, "reversed", corrected(spec.reversed,
+                    delta(forward, channel, spec.name)));
+        }
+        return channel;
+    }
+
+    private static DirectionTrial trial(List<DirectionTrial> trials, CalibrationAxis axis) {
+        DirectionTrial result = findTrial(trials, axis);
+        if (result != null) { return result; }
+        throw new IllegalArgumentException(axis + " direction trial is missing");
+    }
+
+    private static DirectionTrial findTrial(List<DirectionTrial> trials, CalibrationAxis axis) {
+        for (DirectionTrial value : trials) {
+            if (value.axis == axis) { return value; }
+        }
+        return null;
+    }
+
+    private static int delta(DirectionTrial trial, int channel, String label) {
+        if (channel >= trial.start.rawTicks.length || channel >= trial.end.rawTicks.length) {
+            throw new IllegalArgumentException(label + " channel is unavailable");
+        }
+        int value = trial.end.rawTicks[channel] - trial.start.rawTicks[channel];
+        if (Math.abs(value) < 5) {
+            throw new IllegalArgumentException(label + " did not move enough");
+        }
+        return value;
+    }
+
+    private static int signedDelta(SpinTrial trial, int channel, boolean reversed) {
+        int value = trial.end.rawTicks[channel] - trial.start.rawTicks[channel];
+        return reversed ? -value : value;
+    }
+
+    private static boolean corrected(boolean currentlyReversed, int rawDelta) {
+        double directedDelta = rawDelta * (currentlyReversed ? -1.0 : 1.0);
+        return directedDelta >= 0.0 ? currentlyReversed : !currentlyReversed;
+    }
+
+    private static String corrected(String current, int configuredDelta) {
+        if (configuredDelta >= 0) { return current; }
+        return "REVERSED".equals(current) ? "FORWARD" : "REVERSED";
     }
 
     private static CalibrationCandidate measuredScalar(BaseLocalizerConstants<?> config,
@@ -348,9 +492,6 @@ public final class LocalizerAdapters {
         List<String> metrics = new ArrayList<>(Arrays.asList(
                 first + ": " + format(offsets[0]) + " in",
                 second + ": " + format(offsets[1]) + " in"));
-        if (trials.size() >= 2) {
-            metrics.add("CW/CCW trials: " + trials.size());
-        }
         return new CalibrationCandidate(values, metrics);
     }
 
@@ -386,6 +527,16 @@ public final class LocalizerAdapters {
 
     private static void put(JSONObject object, String key, double value) {
         if (!Double.isFinite(value)) { throw new IllegalArgumentException(key + " is not finite"); }
+        try { object.put(key, value); }
+        catch (Exception e) { throw new IllegalStateException(e); }
+    }
+
+    private static void put(JSONObject object, String key, boolean value) {
+        try { object.put(key, value); }
+        catch (Exception e) { throw new IllegalStateException(e); }
+    }
+
+    private static void put(JSONObject object, String key, String value) {
         try { object.put(key, value); }
         catch (Exception e) { throw new IllegalStateException(e); }
     }

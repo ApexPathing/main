@@ -172,7 +172,8 @@ public class TankDriveEncoders extends BaseLocalizer<TankDriveEncoders.Constants
             JSONArray result = new JSONArray();
             for (Encoder encoder : encoders) {
                 result.put(new JSONObject().put("name", encoder.name)
-                        .put("ticksPerInch", encoder.ticksPerInch));
+                        .put("ticksPerInch", encoder.ticksPerInch)
+                        .put("reversed", encoder.reversed));
             }
             return result;
         }
@@ -187,7 +188,8 @@ public class TankDriveEncoders extends BaseLocalizer<TankDriveEncoders.Constants
                     Encoder current = target.get(j);
                     if (current.name.equals(name)) {
                         target.set(j, new Encoder(current.name, CalibrationJson.positive(value,
-                                "ticksPerInch", current.ticksPerInch), current.reversed));
+                                "ticksPerInch", current.ticksPerInch),
+                                value.optBoolean("reversed", current.reversed)));
                     }
                 }
             }

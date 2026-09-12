@@ -8,7 +8,7 @@ import geometry.Dist;
 import geometry.DistUnit;
 import geometry.Pose;
 import geometry.Vector;
-import tuning.localizer.CalibrationAxis;
+import tuning.localizer.phases.CalibrationAxis;
 import tuning.localizer.LocalizerAdapter;
 import tuning.localizer.LocalizerAdapters;
 
@@ -21,15 +21,22 @@ public class LocalizerCalibrationValuesTest {
         assertRoundTrip(new TankDriveEncoders.Constants()
                 .addLeftEncoder("l1", 100, false).addLeftEncoder("l2", 110, true)
                 .addRightEncoder("r1", 105, false));
-        assertRoundTrip(new MecanumDriveEncoders.Constants().setTicksPerInch(95));
+        assertRoundTrip(new MecanumDriveEncoders.Constants().setTicksPerInch(95)
+                .setEncoderDirections(true, false, true, false));
         assertRoundTrip(new TwoWheel.Constants().setTicksPerInch(101)
-                .setOffsets(Vector.of(2, 3, DistUnit.IN)));
+                .setOffsets(Vector.of(2, 3, DistUnit.IN))
+                .setEncoderDirections(true, false));
         assertRoundTrip(new ThreeWheel.Constants().setTicksPerInch(102)
-                .setOffsets(Vector.of(11, -4, DistUnit.IN)));
+                .setOffsets(Vector.of(11, -4, DistUnit.IN))
+                .setEncoderDirections(true, false, true));
         assertRoundTrip(new Pinpoint.Constants().setOffsets(2, -3, DistUnit.IN)
-                .setEncoderResolution(Dist.of(19.8, DistUnit.MM)).setAngularScalar(1.01));
+                .setEncoderResolution(Dist.of(19.8, DistUnit.MM)).setAngularScalar(1.01)
+                .setEncoderDirections(Pinpoint.EncoderDirection.REVERSED,
+                        Pinpoint.EncoderDirection.FORWARD));
         assertRoundTrip(new Octoquad.Constants().setOffsets(1, 2, DistUnit.IN)
-                .setEncoderResolution(Dist.of(20.1, DistUnit.MM)).setYawScalar(0.99));
+                .setEncoderResolution(Dist.of(20.1, DistUnit.MM)).setYawScalar(0.99)
+                .setEncoderDirections(Octoquad.EncoderDirection.REVERSED,
+                        Octoquad.EncoderDirection.FORWARD));
         assertRoundTrip(new OTOS.Constants().setOffset(new Pose(
                 Vector.of(1, 2, DistUnit.IN), Angle.fromRad(0.1)))
                 .setLinearScalar(1.01).setAngularScalar(0.99));

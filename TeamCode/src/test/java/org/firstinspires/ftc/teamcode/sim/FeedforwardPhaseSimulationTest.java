@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.sim;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
@@ -16,34 +17,108 @@ import java.util.ArrayList;
 import java.util.List;
 import core.ApexStorage;
 import core.Follower;
-import tuning.follower.FeedforwardTuner;
+import core.LocalizationConstants;
+import controllers.PDSController.PDSCoefficients;
+import tuning.follower.phases.FeedforwardTuner;
 import tuning.follower.TunerContext;
 
-/** Exercises collection, fitting and independent validation through the real tuner UI. */
+/** Exercises ramp regression and acceptance through the real tuner UI. */
 public class FeedforwardPhaseSimulationTest {
+    private java.lang.reflect.Field singleton;
+    private Object previousConstants;
+
+    @org.junit.Before public void isolateConstants() throws Exception {
+        singleton = core.FollowerConstants.class.getDeclaredField("instance");
+        singleton.setAccessible(true);
+        previousConstants = singleton.get(null);
+        singleton.set(null, null);
+    }
+
+    @org.junit.After public void restoreConstants() throws Exception {
+        singleton.set(null, previousConstants);
+    }
+
+    @Test
+    public void acceptedLocalizationStatusIsAvailableToTuner() throws Exception {
+        String previousDirectory = System.getProperty(ApexStorage.DIRECTORY_PROPERTY);
+        System.setProperty(ApexStorage.DIRECTORY_PROPERTY,
+                Files.createTempDirectory("apex-feedforward-prerequisite-").toString());
+        try {
+            ApexSimulation.Hardware hardware = ApexSimulation.createHardware();
+            Constants robot = new Constants();
+            Follower untuned = new Follower(robot, hardware.hardwareMap, true);
+            assertFalse(untuned.hasAcceptedKalmanFilterTuning());
+
+            LocalizationConstants localization = LocalizationConstants.empty();
+            localization.capture("DEFAULT", robot.localizerConstants(), untuned.getLocalizer(),
+                    LocalizationConstants.Status.ACCEPTED,
+                    LocalizationConstants.Status.ACCEPTED);
+            localization.save();
+
+            Follower tuned = new Follower(robot, hardware.hardwareMap, true);
+            assertTrue(tuned.hasAcceptedKalmanFilterTuning());
+        } finally {
+            if (previousDirectory == null) {
+                System.clearProperty(ApexStorage.DIRECTORY_PROPERTY);
+            } else {
+                System.setProperty(ApexStorage.DIRECTORY_PROPERTY, previousDirectory);
+            }
+        }
+    }
+
     @Test(timeout = 150000)
-    public void automaticFeedforwardPhasePassesIndependentValidation() throws Exception {
+    public void automaticFeedforwardRampFitsBothAxes() throws Exception {
+        runRamp(false);
+    }
+
+    @Test(timeout = 150000)
+    public void tankFeedforwardRampRecoversLowFrictionModel() throws Exception {
+        runRamp(true);
+    }
+
+    private void runRamp(boolean tank) throws Exception {
         String previousDirectory = System.getProperty(ApexStorage.DIRECTORY_PROPERTY);
         System.setProperty(ApexStorage.DIRECTORY_PROPERTY,
                 Files.createTempDirectory("apex-feedforward-phase-").toString());
         SimLinearOpModeBridge.Session session = null;
         try {
-            ApexSimulation.Hardware hardware = ApexSimulation.createHardware();
+            ApexSimulation.Hardware hardware = tank ? ApexSimulation.createTankHardware()
+                    : ApexSimulation.createHardware();
             List<String> frames = Collections.synchronizedList(new ArrayList<>());
             ApexSimTelemetry telemetry = new ApexSimTelemetry(frames::add);
             telemetry.setMsTransmissionInterval(0);
+            java.util.concurrent.atomic.AtomicReference<TunerContext> tunedContext = new java.util.concurrent.atomic.AtomicReference<>();
             LinearOpMode opMode = new LinearOpMode() {
                 @Override public void runOpMode() throws InterruptedException {
+                    core.ApexConstants robot = tank ? new TankSimulationConstants() : new Constants();
+                    Follower seed = new Follower(robot, hardwareMap, true);
+                    LocalizationConstants localization = LocalizationConstants.empty();
+                    localization.capture("DEFAULT", robot.localizerConstants(), seed.getLocalizer(),
+                            LocalizationConstants.Status.ACCEPTED,
+                            LocalizationConstants.Status.ACCEPTED);
+                    try { localization.save(); }
+                    catch (java.io.IOException e) { throw new IllegalStateException(e); }
                     TunerContext context = new TunerContext(this);
-                    context.setFollower(new Follower(new Constants(), hardwareMap, true));
+                    context.setFollower(new Follower(robot, hardwareMap, true));
                     context.constants.forwardVelLimitIn = 65;
                     context.constants.forwardAccelLimitIn = 148;
                     context.constants.angularVelLimitRad = 7;
                     context.constants.angularAccelLimitRad = 14.5;
-                    context.constants.translationalCoeffs.kS = .24;
-                    context.constants.angularCoeffs.kS = .24;
+                    context.constants.translationalCoeffs = new PDSCoefficients(.20, .04, .24);
+                    context.constants.angularCoeffs = new PDSCoefficients(2.40, .45, .24);
+                    context.getFollower().setDriveCoefficients(context.constants.translationalCoeffs);
+                    context.getFollower().setHeadingCoefficients(context.constants.angularCoeffs);
+                    if (tank) {
+                        // This phase identifies kS/kV only; provide the independently known
+                        // inertia and velocity-loop gains before testing its resulting fit.
+                        context.getFollower().setFeedforwardGains(0.94 / 75, 0.94 / 150,
+                                7 * 0.94 / 75, 7 * 0.94 / 150);
+                        context.getFollower().setVelocityFeedback(0.02, 0.15);
+                    }
                     waitForStart();
+                    tunedContext.set(context);
                     new FeedforwardTuner(context).run(this);
+
                 }
             };
             opMode.hardwareMap = hardware.hardwareMap;
@@ -77,8 +152,32 @@ public class FeedforwardPhaseSimulationTest {
                 Thread.sleep(5);
             }
             System.out.println(frame);
-            assertTrue("Tuner failed to validate: " + frame,
-                    frame.contains("phase complete with results") && frame.contains("PASSED"));
+            TunerContext context = tunedContext.get();
+            if (tank) {
+                org.junit.Assert.assertEquals(0.06,
+                        context.constants.translationalFeedforwardKS, 0.005);
+                org.junit.Assert.assertEquals(0.06,
+                        context.constants.angularFeedforwardKS, 0.005);
+                org.junit.Assert.assertEquals(0.94 / 75,
+                        context.constants.translationalKV, 0.0005);
+                org.junit.Assert.assertEquals(7 * 0.94 / 75,
+                        context.constants.angularKV, 0.003);
+            }
+            assertTrue("Tuner failed to converge: " + frame,
+                    frame.contains("phase complete with results") && frame.contains("kS/kV accepted"));
+            if (tank) {
+                SimLinearOpModeBridge.stop(session);
+                session = null;
+                Follower follower = context.getFollower();
+                geometry.GeometryFactory factory = new geometry.GeometryFactory(follower)
+                        .setDistUnit(geometry.DistUnit.IN).setAngleUnit(geometry.AngleUnit.DEG);
+                geometry.Pose start = factory.pose(0, 0, 0);
+                follower.setPose(start);
+                paths.movements.Path curve = factory.tankPath(start, factory.pose(18, 0),
+                                factory.pose(30, 6), factory.pose(36, 18, 45))
+                        .interpolateWith(paths.heading.InterpolationStyle.TANGENT_FORWARD).profiledBuild();
+                TankPathFollowingSimulationTest.follow(hardware, follower, curve, 15);
+            }
         } finally {
             if (session != null) { SimLinearOpModeBridge.stop(session); }
             if (previousDirectory == null) { System.clearProperty(ApexStorage.DIRECTORY_PROPERTY); }

@@ -9,6 +9,7 @@ import com.qualcomm.robotcore.hardware.Gamepad;
 import org.codeblooded.ftcodesim.hardware.devices.SimMotor;
 import org.codeblooded.ftcodesim.physics.MotionVector;
 import org.firstinspires.ftc.teamcode.apexpathing.FollowerTuner;
+import org.firstinspires.ftc.teamcode.apexpathing.Constants;
 import org.junit.Test;
 
 import java.io.File;
@@ -19,6 +20,8 @@ import java.util.List;
 import controllers.PDSController.PDSCoefficients;
 import core.ApexStorage;
 import core.FollowerConstants;
+import core.Follower;
+import core.LocalizationConstants;
 
 /** End-to-end coverage for the automatic follower-tuning workflow. */
 public class FollowerTunerTelemetryTest {
@@ -26,6 +29,7 @@ public class FollowerTunerTelemetryTest {
     public void idleScreensAllowDrivingAndActiveRoutineOwnsTheDrivetrain() throws Exception {
         resetFollowerConstants();
         ApexSimulation.Hardware hardware = ApexSimulation.createHardware();
+        seedAcceptedLocalization(hardware);
         ApexSimTelemetry telemetry = new ApexSimTelemetry(frame -> { });
         telemetry.setMsTransmissionInterval(0);
 
@@ -46,6 +50,11 @@ public class FollowerTunerTelemetryTest {
                     frontMotorProduct(hardware) > 0.0);
 
             tuner.gamepad1.left_stick_y = 0.0f;
+            pump(session, tuner, telemetry, hardware, 30);
+            // Select heading explicitly; the first phase is now the feedforward ramp.
+            tuner.gamepad1.dpad_down = true;
+            pump(session, tuner, telemetry, hardware, 30);
+            tuner.gamepad1.dpad_down = false;
             pump(session, tuner, telemetry, hardware, 30);
             pressA(session, tuner, telemetry, hardware);
 
@@ -81,6 +90,7 @@ public class FollowerTunerTelemetryTest {
     public void automaticWorkflowCompletesFromStaticFrictionThroughFeedback() throws Exception {
         resetFollowerConstants();
         ApexSimulation.Hardware hardware = ApexSimulation.createHardware();
+        seedAcceptedLocalization(hardware);
         List<String> frames = Collections.synchronizedList(new ArrayList<>());
         ApexSimTelemetry telemetry = new ApexSimTelemetry(frames::add);
         telemetry.setMsTransmissionInterval(0);
@@ -100,7 +110,7 @@ public class FollowerTunerTelemetryTest {
             SimLinearOpModeBridge.start(session);
 
             long deadline = System.nanoTime() + 390_000_000_000L;
-            while (!latestFrame(frames).contains("All follower tuning phases are complete") &&
+            while (!latestFrame(frames).contains("Follower tuning complete for") &&
                     System.nanoTime() < deadline) {
                 String frame = latestFrame(frames);
                 assertTrue("Automatic feedforward validation failed:\n" + frame,
@@ -115,7 +125,7 @@ public class FollowerTunerTelemetryTest {
 
             assertTrue("Automatic follower tuning did not finish. Latest telemetry:\n" +
                             latestFrame(frames),
-                    latestFrame(frames).contains("All follower tuning phases are complete"));
+                    latestFrame(frames).contains("Follower tuning complete for"));
         } finally {
             SimLinearOpModeBridge.stop(session);
         }
@@ -211,5 +221,15 @@ public class FollowerTunerTelemetryTest {
         constants.strafeAccelLimitIn = 0.0;
         constants.angularVelLimitRad = 0.0;
         constants.angularAccelLimitRad = 0.0;
+    }
+
+    private static void seedAcceptedLocalization(ApexSimulation.Hardware hardware) throws Exception {
+        Constants robot = new Constants();
+        Follower seed = new Follower(robot, hardware.hardwareMap, true);
+        LocalizationConstants localization = LocalizationConstants.empty();
+        localization.capture("DEFAULT", robot.localizerConstants(), seed.getLocalizer(),
+                LocalizationConstants.Status.ACCEPTED,
+                LocalizationConstants.Status.ACCEPTED);
+        localization.save();
     }
 }

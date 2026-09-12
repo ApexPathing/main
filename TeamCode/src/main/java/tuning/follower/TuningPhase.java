@@ -41,12 +41,10 @@ public abstract class TuningPhase {
                 context.getFollower().update(false);
                 context.getTelemetry().addLine("Waiting for drivetrain mode to settle...");
                 context.getTelemetry().update();
-                opMode.sleep(20);
+                context.pauseLoop();
                 continue;
             }
-            context.updateDebugMode(false);
-            context.getTelemetry().clearAll();
-            context.addInterfaceHeader();
+            context.beginFrame();
 
             switch (state) {
                 case SELECT_MODE:
@@ -66,7 +64,7 @@ public abstract class TuningPhase {
                     }
                     break;
                 case TUNING:
-                    context.getFollower().update();
+                    context.getFollower().update(holdPointDuringRoutine());
                     boolean complete;
                     if (manualMode) {
                         complete = manualTuned();
@@ -95,7 +93,7 @@ public abstract class TuningPhase {
             // and then one discrete update creates enormous acceleration spikes (especially in
             // FTCodeSim, whose physics advances every 20 ms). Use a deterministic 50 Hz sampling
             // cadence for every tuner phase.
-            opMode.sleep(20);
+            context.pauseLoop();
         }
 
         context.getFollower().stop();
@@ -132,6 +130,9 @@ public abstract class TuningPhase {
      * the shared loop can pass the gamepad sticks through to the follower.
      */
     protected boolean routineMotionActive() { return context.getFollower().isBusy(); }
+
+    /** Lets a phase use the follower's idle point-hold controller between direct-drive runs. */
+    protected boolean holdPointDuringRoutine() { return false; }
 
     /** Displays a compact editable value list without spending a separate line on selection. */
     protected void addTunableValue(String label, double value, boolean selected) {

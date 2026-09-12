@@ -19,6 +19,11 @@ import localizers.BaseLocalizerConstants;
 import localizers.TankDriveEncoders;
 import localizers.ThreeWheel;
 import localizers.TwoWheel;
+import tuning.localizer.phases.CalibrationAxis;
+import tuning.localizer.phases.CalibrationCandidate;
+import tuning.localizer.phases.CalibrationSnapshot;
+import tuning.localizer.phases.DirectionTrial;
+import tuning.localizer.phases.SpinTrial;
 
 import static org.junit.Assert.assertEquals;
 
@@ -97,6 +102,44 @@ public class LocalizerAdaptersTest {
                 .optDouble("ticksPerInch"), EPS);
     }
 
+    @Test public void directionFitCorrectsEveryRawEncoderChannel() {
+        MecanumDriveEncoders.Constants mecanum = new MecanumDriveEncoders.Constants()
+                .setFrontLeftName("fl").setFrontRightName("fr")
+                .setBackLeftName("bl").setBackRightName("br")
+                .setEncoderDirections(false, false, false, false);
+        JSONObject mecanumValues = LocalizerAdapters.create(mecanum).fitDirections(mecanum,
+                Arrays.asList(direction(CalibrationAxis.FORWARD,
+                        new int[] {0, 0, 0, 0}, new int[] {-100, 100, -100, 100})))
+                .getValues();
+        assertEquals(true, mecanumValues.optBoolean("frontLeftReversed"));
+        assertEquals(false, mecanumValues.optBoolean("frontRightReversed"));
+        assertEquals(true, mecanumValues.optBoolean("backLeftReversed"));
+        assertEquals(false, mecanumValues.optBoolean("backRightReversed"));
+
+        TankDriveEncoders.Constants tank = new TankDriveEncoders.Constants()
+                .addLeftEncoder("left", 100, false)
+                .addRightEncoder("right", 100, true);
+        JSONObject tankValues = LocalizerAdapters.create(tank).fitDirections(tank,
+                Arrays.asList(direction(CalibrationAxis.FORWARD,
+                        new int[] {0, 0}, new int[] {-100, -100}))).getValues();
+        assertEquals(true, tankValues.optJSONArray("left").optJSONObject(0)
+                .optBoolean("reversed"));
+        assertEquals(true, tankValues.optJSONArray("right").optJSONObject(0)
+                .optBoolean("reversed"));
+
+        Pinpoint.Constants pinpoint = new Pinpoint.Constants().setEncoderDirections(
+                Pinpoint.EncoderDirection.FORWARD, Pinpoint.EncoderDirection.FORWARD);
+        JSONObject pinpointValues = LocalizerAdapters.create(pinpoint).fitDirections(pinpoint,
+                Arrays.asList(
+                        direction(CalibrationAxis.FORWARD,
+                                new int[] {0, 0}, new int[] {-100, 0}),
+                        direction(CalibrationAxis.STRAFE,
+                                new int[] {-100, 0}, new int[] {-100, -100})))
+                .getValues();
+        assertEquals("REVERSED", pinpointValues.optString("xPodDirection"));
+        assertEquals("REVERSED", pinpointValues.optString("yPodDirection"));
+    }
+
     @Test public void remainingBuiltInFitsProduceExpectedScalesAndOffsets() {
         MecanumDriveEncoders.Constants mecanum = new MecanumDriveEncoders.Constants()
                 .setTicksPerInch(100.0);
@@ -168,5 +211,10 @@ public class LocalizerAdaptersTest {
     private static CalibrationSnapshot snapshot(double x, double y, double heading, int... ticks) {
         return new CalibrationSnapshot(new Pose(Vector.of(x, y, DistUnit.IN),
                 Angle.fromRad(heading)), ticks);
+    }
+
+    private static DirectionTrial direction(CalibrationAxis axis, int[] start, int[] end) {
+        return new DirectionTrial(axis, snapshot(0, 0, 0, start),
+                snapshot(1, 0, 0, end));
     }
 }

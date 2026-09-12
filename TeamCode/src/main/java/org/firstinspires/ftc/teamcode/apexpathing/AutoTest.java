@@ -13,19 +13,25 @@ import java.util.Locale;
 import java.util.Arrays;
 
 import core.ApexStorage;
+import core.ApexConstants;
 import core.Follower;
+import core.FollowerConstants;
 import feedforward.MotionParameters;
 import geometry.GeometryFactory;
+import geometry.AngleUnit;
+import geometry.DistUnit;
 import geometry.PathSegment;
 import geometry.Pose;
 import geometry.Vector;
 import paths.movements.FollowerMovement;
 import paths.movements.Path;
+import paths.movements.Turn;
+import paths.heading.InterpolationStyle;
 
 /**
- * Test autonomous OpMode for Apex Pathing that uses the {@link ExampleAutoPath}. Make sure the
+ * Test autonomous OpMode with separate explicit tank and holonomic routes. Make sure the
  * robot has been tuned with the {@link FollowerTuner} before running this OpMode. This OpMode will
- * first follow the test path, then follow the test turn, and finally stop.
+ * follows the selected curve, turn, and return, plus strafe checks for the holonomic route.
  *
  * @author Sohum Arora - 22985 Paraducks
  * @author Dylan B. - 18597 RoboClovers - Delta
@@ -42,12 +48,13 @@ public class AutoTest extends LinearOpMode {
     // margin for the measured transient (~7.2 in in FTCodeSim) while still catching gross drift.
     private static final double CROSS_TRACK_TOLERANCE_INCHES = 15;
 
-    ExampleAutoPath path;
+    AutoRoute path;
     AutoState currentState = AutoState.OUTBOUND_CURVE;
     private final ElapsedTime stageTimer = new ElapsedTime();
     private final ElapsedTime telemetryTimer = new ElapsedTime();
     private String failureReason = "None";
     private int passedStages;
+    private boolean includeStrafeChecks;
     private double lastPositionError;
     private double lastHeadingError;
     private double maximumCrossTrackError;
@@ -85,10 +92,23 @@ public class AutoTest extends LinearOpMode {
     @Override
     public void runOpMode() {
         resetRunState();
-        Follower follower = new Follower(new Constants(), hardwareMap);
-        path = new ExampleAutoPath(follower, GeometryFactory.PoseMirror.NONE);
+        Follower follower = new Follower(createConstants(), hardwareMap);
+        includeStrafeChecks = !useTankPath();
+        if (!includeStrafeChecks) {
+            FollowerConstants constants = follower.getConstants().forProfile(FollowerConstants.Profile.TANK);
+            if (!positive(constants.forwardVelLimitIn) || !positive(constants.forwardAccelLimitIn)
+                    || !positive(constants.angularVelLimitRad) || !positive(constants.angularAccelLimitRad)) {
+                fail(follower, "Tank follower constants are incomplete. Run localization and follower tuning first.");
+                telemetry.addLine(failureReason);
+                telemetry.update();
+                return;
+            }
+        }
+        path = useTankPath() ? buildTankPath() : buildHolonomicPath();
 
-        telemetry.addLine("Apex follower self-test: curve, turn, reverse return, and strafe.");
+        telemetry.addLine(includeStrafeChecks
+                ? "Apex follower self-test: curve, turn, reverse return, and strafe."
+                : "Apex tank self-test: curve, turn, and reverse return.");
         telemetry.addLine("Press Start to begin");
         telemetry.update();
 
@@ -126,7 +146,7 @@ public class AutoTest extends LinearOpMode {
                 }
 
                 telemetry.addData("Current check", currentState);
-                telemetry.addData("Passed checks", passedStages + " / 5");
+                telemetry.addData("Passed checks", passedStages + " / " + (includeStrafeChecks ? 5 : 3));
                 telemetry.addData("Stage time (s)", stageTimer.seconds());
                 telemetry.addData("Follower busy", follower.isBusy());
                 telemetry.addData("Callback state", path.callbackMessage);
@@ -152,6 +172,92 @@ public class AutoTest extends LinearOpMode {
 
         closeOutboundVelocityCsv();
         follower.stop();
+    }
+
+    /** Selects hardware while keeping all autonomous execution in this class. */
+    protected ApexConstants createConstants() { return new Constants(); }
+
+    /** Explicit route selection; a dual-actuated drive's current mode does not choose the path. */
+    protected boolean useTankPath() { return false; }
+
+    private AutoRoute buildTankPath() {
+        GeometryFactory factory = new GeometryFactory()
+                .setDistUnit(DistUnit.IN).setAngleUnit(AngleUnit.DEG);
+        AutoRoute route = new AutoRoute();
+        route.testPath = factory.tankPath(Pose.zero(),
+                        factory.arcPose(30, 0, 7), factory.arcPose(30, -30, 7),
+                        factory.arcPose(-30, -30, 7), factory.arcPose(-30, 30, 7),
+                        factory.pose(30, 30, 0))
+                .interpolateWith(InterpolationStyle.TANGENT_FORWARD)
+                .addDistanceCallback(.5, route::outboundCallback).profiledBuild();
+        // This route ends tangent to 0 degrees; the turn stage only settles that heading.
+        route.testTurn = factory.turn(route.testPath.getEndPose())
+                .setDriveProfile(FollowerConstants.Profile.TANK)
+                .turnTo(factory.angle(0)).quickBuild();
+        route.returnPath = factory.tankPath(route.testTurn.getEndPose(),
+                        factory.pose(0, 30), Pose.zero())
+                .interpolateWith(InterpolationStyle.TANGENT_BACKWARD)
+                .addDistanceCallback(.5, route::returnCallback).profiledBuild();
+        return route;
+    }
+
+    private AutoRoute buildHolonomicPath() {
+        GeometryFactory factory = new GeometryFactory()
+                .setDistUnit(DistUnit.IN).setAngleUnit(AngleUnit.DEG);
+        AutoRoute route = new AutoRoute();
+        route.testPath = factory.holonomicPath(Pose.zero(),
+                        factory.arcPose(30, 0, 7), factory.arcPose(30, -30, 7),
+                        factory.arcPose(-30, -30, 7), factory.arcPose(-30, 30, 7),
+                        factory.pose(30, 30, -90))
+                .interpolateWith(InterpolationStyle.TANGENT_OPTIMAL)
+                .addDistanceCallback(.5, route::outboundCallback).profiledBuild();
+        route.testTurn = factory.turn(route.testPath.getEndPose())
+                .setDriveProfile(FollowerConstants.Profile.HOLONOMIC)
+                .turnTo(factory.angle(0))
+                .addAngularCallback(factory.angle(-45), route::turnCallback).quickBuild();
+        route.returnPath = factory.holonomicPath(route.testTurn.getEndPose(),
+                        factory.pose(0, 30), Pose.zero())
+                .interpolateWith(InterpolationStyle.TANGENT_BACKWARD)
+                .setDistanceToStartFinalTurn(factory.dist(30))
+                .addDistanceCallback(.5, route::returnCallback).profiledBuild();
+        Pose strafeEnd = factory.pose(0, 24, 0);
+        route.strafeOutPath = factory.holonomicPath(Pose.zero(), strafeEnd)
+                .interpolateWith(InterpolationStyle.CONSTANT_START_HEADING).profiledBuild();
+        route.strafeBackPath = factory.holonomicPath(strafeEnd, Pose.zero())
+                .interpolateWith(InterpolationStyle.CONSTANT_START_HEADING).profiledBuild();
+        return route;
+    }
+
+    static final class AutoRoute {
+        Path testPath, returnPath, strafeOutPath, strafeBackPath;
+        Turn testTurn;
+        String callbackMessage = "Callback not triggered yet";
+        boolean outboundCallbackTriggered, turnCallbackTriggered, returnCallbackTriggered;
+
+        void outboundCallback() {
+            outboundCallbackTriggered = true;
+            callbackMessage = "Outbound distance callback triggered!";
+        }
+        void turnCallback() {
+            turnCallbackTriggered = true;
+            callbackMessage = "Angular callback triggered!";
+        }
+        void returnCallback() {
+            returnCallbackTriggered = true;
+            callbackMessage = "Return distance callback triggered!";
+        }
+    }
+
+    private static boolean positive(double value) {
+        return Double.isFinite(value) && value > 0.0;
+    }
+
+    public int getPassedStages() { return passedStages; }
+
+    public String getResult() {
+        if (currentState == AutoState.COMPLETE) { return "PASS"; }
+        if (currentState == AutoState.FAILED) { return "FAIL " + failureReason; }
+        return "NOT COMPLETE";
     }
 
     private void finishStage(Follower follower, Pose actualPose) {
@@ -188,7 +294,8 @@ public class AutoTest extends LinearOpMode {
         }
 
         passedStages++;
-        currentState = nextState(currentState);
+        currentState = !includeStrafeChecks && currentState == AutoState.REVERSE_RETURN
+                ? AutoState.COMPLETE : nextState(currentState);
         if (currentState == AutoState.COMPLETE) {
             follower.stop();
         } else {
@@ -223,7 +330,10 @@ public class AutoTest extends LinearOpMode {
     private boolean requiredCallbackTriggered(AutoState state) {
         switch (state) {
             case OUTBOUND_CURVE: return path.outboundCallbackTriggered;
-            case POINT_TURN: return path.turnCallbackTriggered;
+            case POINT_TURN:
+                return Math.abs(path.testTurn.getStartPose().getHeading()
+                        .getShortestAngleTo(path.testTurn.getEndPose().getHeading()).getRad()) < 1e-6
+                        || path.turnCallbackTriggered;
             case REVERSE_RETURN: return path.returnCallbackTriggered;
             default: return true;
         }
@@ -407,7 +517,8 @@ public class AutoTest extends LinearOpMode {
                             "centripetal_power,forward_velocity_power,heading_velocity_power," +
                             "drive_feedforward_power,heading_feedforward_power,total_demand," +
                             "command_power,saturated,controller_target_in_s,controller_measured_in_s," +
-                            "progress_velocity_in_s,signed_translation_ff,signed_velocity_feedback\n");
+                            "progress_velocity_in_s,signed_translation_ff,signed_velocity_feedback," +
+                            "left_front_command,right_front_command,endpoint_blend\n");
         } catch (IOException e) {
             outboundVelocityCsv = null;
             outboundVelocityCsvPath = "Unavailable";
@@ -418,7 +529,10 @@ public class AutoTest extends LinearOpMode {
     private void logOutboundVelocitySample(Follower follower) {
         if (outboundVelocityCsv == null || currentState != AutoState.OUTBOUND_CURVE) { return; }
         double elapsed = stageTimer.seconds();
-        if (elapsed - lastOutboundVelocityLogSeconds < VELOCITY_LOG_INTERVAL_SECONDS) { return; }
+        // Always retain the terminal measurement, even if the last periodic sample was
+        // less than 20 ms ago; otherwise the CSV can report a pre-completion speed.
+        if (follower.isBusy()
+                && elapsed - lastOutboundVelocityLogSeconds < VELOCITY_LOG_INTERVAL_SECONDS) { return; }
         lastOutboundVelocityLogSeconds = elapsed;
 
         PathSegment segment = path.testPath.getParametricPath();
@@ -426,7 +540,9 @@ public class AutoTest extends LinearOpMode {
         Vector closestPoint = segment.getPosition(t);
         double remaining = segment.getDistanceToEndIn(closestPoint, t);
         double traveled = segment.getLengthIn() - remaining;
-        MotionParameters target = path.testPath.getFeedforwardLut().getFFParams(traveled);
+        MotionParameters target = path.testPath.getPathType() == Path.PathType.TANK
+                ? path.testPath.getFeedforwardLut().getTankFFParams(traveled)
+                : path.testPath.getFeedforwardLut().getFFParams(traveled);
         Vector tangent = segment.getFirstDerivative(t).normalize();
         double rawVelocity = follower.getRawVelocity().getVec().dot(tangent).getIn();
         double kalmanVelocity = follower.getVelocity().getVec().dot(tangent).getIn();
@@ -449,7 +565,7 @@ public class AutoTest extends LinearOpMode {
                     Locale.US,
                     "%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f," +
                             "%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f," +
-                            "%.6f,%.6f,%.6f,%.6f,%s,%.6f,%.6f,%.6f,%.6f,%.6f%n",
+                            "%.6f,%.6f,%.6f,%.6f,%s,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f%n",
                     elapsed, traveled, target.getTangentialVel(), rawVelocity,
                     kalmanVelocity, target.getTangentialAccel(), target.getAngularVel(),
                     target.getAngularAccel(), target.getMotorPower(), crossTrackError, curvature,
@@ -460,7 +576,9 @@ public class AutoTest extends LinearOpMode {
                     commandPower, commandPower >= 0.98,
                     follower.getTrackingVelocityTarget(), follower.getTrackingMeasuredVelocity(),
                     follower.getTrackingProgressVelocity(), follower.getTrackingFeedforward(),
-                    follower.getTrackingVelocityFeedback()));
+                    follower.getTrackingVelocityFeedback(),
+                    follower.getDrivetrain().getLastFlPower(),
+                    follower.getDrivetrain().getLastFrPower(), follower.getTrackingEndpointBlend()));
             outboundVelocityRowsSinceFlush++;
             if (outboundVelocityRowsSinceFlush >= 25) {
                 outboundVelocityCsv.flush();

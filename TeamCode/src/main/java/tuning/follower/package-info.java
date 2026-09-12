@@ -1,2 +1,2 @@
-/** Follower-controller tuning phases and their shared follower-specific routines. */
+/** Shared framework and context for follower-controller tuning. */
 package tuning.follower;

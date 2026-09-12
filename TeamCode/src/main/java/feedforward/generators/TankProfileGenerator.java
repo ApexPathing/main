@@ -78,9 +78,10 @@ public class TankProfileGenerator extends BaseProfileGenerator {
     /**
      * Estimates normalized tank power for a local state.
      *
-     * <p>Translation uses {@code kV*v + kA*a + kS}. Heading uses the same structure with
-     * {@code omega} and {@code alpha}. The two absolute magnitudes are added because they share
-     * the same motor output budget.
+     * <p>Translation uses {@code kV*v + kA*a + kS}. Heading adds its velocity and acceleration
+     * terms, but not another kS: the translation command has already broken static friction on
+     * both shared tank sides. The two absolute magnitudes are added because they share the same
+     * motor output budget.
      */
     private double evaluatePower(double v, double fPrime, double fDoublePrime) {
         double transPower = Math.abs(v * constants.translationalKV +
@@ -88,10 +89,9 @@ public class TankProfileGenerator extends BaseProfileGenerator {
 
         double omega = fPrime * v;
         double alpha = fDoublePrime * (v * v) + fPrime * 0.0;
-        double headingKs = signedStatic(omega, alpha, constants.angularFeedforwardKS);
-
-        double rotPower = Math.abs(omega * constants.angularKV + alpha *
-                constants.angularKA + headingKs);
+        // Translation has already broken static friction on both tank sides. Adding the angular
+        // kS again would double-count the same wheels during a moving spatial path.
+        double rotPower = Math.abs(omega * constants.angularKV + alpha * constants.angularKA);
 
         return transPower + rotPower;
     }
@@ -117,8 +117,7 @@ public class TankProfileGenerator extends BaseProfileGenerator {
                 a_t * constants.getTranslationalKA(v, a_t)
                         + signedStatic(v, a_t, constants.translationalFeedforwardKS);
 
-        double headingKs = signedStatic(omega, alpha, constants.angularFeedforwardKS);
-        double pHeading = omega * constants.angularKV + alpha * constants.angularKA + headingKs;
+        double pHeading = omega * constants.angularKV + alpha * constants.angularKA;
 
         outResult.pForward = Math.abs(pForward);
         outResult.pLateral = 0.0;

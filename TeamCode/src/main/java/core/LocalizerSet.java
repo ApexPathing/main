@@ -24,6 +24,8 @@ public final class LocalizerSet {
             new EnumMap<>(FollowerConstants.Profile.class);
     private final EnumMap<FollowerConstants.Profile, BaseLocalizer<?>> localizers =
             new EnumMap<>(FollowerConstants.Profile.class);
+    private final EnumMap<FollowerConstants.Profile, Boolean> savedFiltersApplied =
+            new EnumMap<>(FollowerConstants.Profile.class);
     private FollowerConstants.Profile activeProfile;
 
     public LocalizerSet(ApexConstants robot, HardwareMap hardwareMap,
@@ -73,6 +75,13 @@ public final class LocalizerSet {
     /** Returns the calibration object shared with the tuner or runtime owner. */
     public LocalizationConstants getCalibration() { return calibration; }
 
+    /** True only when an accepted saved filter was valid and applied to the active localizer. */
+    public boolean hasAcceptedFilterCalibration() {
+        FollowerConstants.Profile key = storageProfile(activeProfile);
+        return Boolean.TRUE.equals(savedFiltersApplied.get(key))
+                && calibration.getStatus(key.name(), true) == LocalizationConstants.Status.ACCEPTED;
+    }
+
     /** Selects a drivetrain mode, lazily building its localizer and preserving field pose. */
     public void select(FollowerConstants.Profile profile) {
         if (!dualActuated) { return; }
@@ -97,7 +106,7 @@ public final class LocalizerSet {
         if (config == null) { throw new IllegalStateException("Missing localizer configuration for " + key); }
         if (applySavedCalibration) { calibration.applyGeometry(key.name(), config); }
         BaseLocalizer<?> localizer = config.build(hardwareMap);
-        calibration.applyFilter(key.name(), config, localizer);
+        savedFiltersApplied.put(key, calibration.applyFilter(key.name(), config, localizer));
         if (restorePose) { localizer.setPose(pose); }
         localizers.put(key, localizer);
     }

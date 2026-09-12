@@ -15,6 +15,7 @@ import java.util.Locale;
  * persistence remain the responsibility of the specific tuner context.</p>
  */
 public abstract class TunerContext {
+    private static final long LOOP_PERIOD_MILLIS = 20L;
     private static final long DEBUG_HOLD_NANOS = 1_500_000_000L;
     private static final DecimalFormat NORMAL_NUMBER_FORMAT = new DecimalFormat(
             "0.#####", DecimalFormatSymbols.getInstance(Locale.US));
@@ -60,6 +61,16 @@ public abstract class TunerContext {
             debugHoldHandled = true;
         }
     }
+
+    /** Starts a normal tuner frame with the shared debug and context headers. */
+    public void beginFrame() {
+        updateDebugMode(false);
+        getTelemetry().clearAll();
+        addInterfaceHeader();
+    }
+
+    /** Maintains the common 50 Hz tuner cadence. */
+    public void pauseLoop() { opMode.sleep(LOOP_PERIOD_MILLIS); }
 
     /** Adds the debug banner shared by all tuner screens. */
     protected void addDebugHeader() {

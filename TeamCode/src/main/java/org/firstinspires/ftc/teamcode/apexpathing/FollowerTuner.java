@@ -7,16 +7,21 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 import core.Follower;
+import core.ApexConstants;
 import core.FollowerConstants;
+import geometry.Angle;
+import geometry.Dist;
 import geometry.Pose;
-import tuning.follower.CentripetalPhase;
-import tuning.follower.DrivePhase;
+import geometry.Vector;
+import tuning.follower.phases.CentripetalPhase;
+import tuning.follower.phases.AccelerationFeedforwardPhase;
+import tuning.follower.phases.DrivePhase;
 import tuning.follower.phases.FeedforwardTuner;
-import tuning.follower.HeadingPhase;
-import tuning.follower.LimitsPhase;
+import tuning.follower.phases.HeadingPhase;
+import tuning.follower.phases.LimitsPhase;
 import tuning.follower.TunerContext;
 import tuning.follower.TuningPhase;
-import tuning.follower.VelocityFeedbackPhase;
+import tuning.follower.phases.VelocityFeedbackPhase;
 
 /**
  * This OpMode is used to tune the Apex Pathing Follower. It allows the user to select a tuning
@@ -50,6 +55,8 @@ public class FollowerTuner extends LinearOpMode {
                         constants.strafeAccelLimitIn != 0.0)) &&
                         constants.angularVelLimitRad != 0.0 &&
                         constants.angularAccelLimitRad != 0.0),
+        ACCELERATION_FEEDFORWARD(AccelerationFeedforwardPhase::new, constants ->
+                constants.translationalKA > 0.0 && constants.angularKA > 0.0),
         CENTRIPETAL(CentripetalPhase::new, constants ->
                 constants.kCentripetal != 0.0),
         VELOCITY_FEEDBACK(VelocityFeedbackPhase::new, constants ->
@@ -88,9 +95,9 @@ public class FollowerTuner extends LinearOpMode {
     public void runOpMode() {
         resetPhaseSelection();
         context = new TunerContext(this);
-        context.setFollower(new Follower(new Constants(), hardwareMap, true));
+        context.setFollower(new Follower(createConstants(), hardwareMap, true));
         context.constants.drivetrainType = context.getFollower().getDrivetrain().getDrivetrainType();
-        
+
         for (Phase phase : phases) { phase.updateTunedStatus(context.constants); }
         selectFirstIncompletePhase();
 
@@ -128,8 +135,10 @@ public class FollowerTuner extends LinearOpMode {
             return;
         }
 
-        context.getFollower().setPose(Pose.zero());
-
+        // temp set pose for dev testing
+        context.getFollower().setPose(new Pose(new Vector(
+                Dist.fromIn(-60), Dist.fromIn(-60)), Angle.fromDeg(45))
+        );
         while (opModeIsActive()) {
             if (phase.run(this)) { // Returns true if the phase is complete
                 if (!saveCurrentProfile()) { break; }
@@ -153,6 +162,9 @@ public class FollowerTuner extends LinearOpMode {
         context.getFollower().stop();
         resetPhaseSelection();
     }
+
+    /** Supplies the robot configuration, allowing simulator-specific tuner OpModes. */
+    protected ApexConstants createConstants() { return new Constants(); }
 
     private boolean saveCurrentProfile() {
         while (opModeIsActive()) {
@@ -219,7 +231,7 @@ public class FollowerTuner extends LinearOpMode {
                 telemetry.addLine("Y: assign legacy values to " + context.constants.getActiveProfile());
                 if (gamepad1.yWasPressed()) {
                     context.constants.assignLegacyToActiveProfile();
-                    context.getFollower().refreshConstants();
+                    context.getFollower().reset();
                     context.saveConstants();
                     for (Phase item : phases) { item.updateTunedStatus(context.constants); }
                     selectFirstIncompletePhase();
@@ -276,6 +288,7 @@ public class FollowerTuner extends LinearOpMode {
 
     private static String phaseDisplayName(Phase phase) {
         if (phase == Phase.FEEDFORWARD) { return "FEEDFORWARD kS / kV RAMP"; }
+        if (phase == Phase.ACCELERATION_FEEDFORWARD) { return "ACCELERATION FEEDFORWARD kA"; }
         return phase.name().replace('_', ' ');
     }
 

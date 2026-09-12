@@ -23,13 +23,16 @@ public class ThreeWheel extends BaseLocalizer<ThreeWheel.Constants> {
         super(constants);
 
         this.strafePod = new OdometryPod(
-                hardwareMap, constants.strafePodName, constants.ticksPerInch
+                hardwareMap, constants.strafePodName, constants.ticksPerInch,
+                constants.strafePodReversed
         );
         this.forwardLeftPod = new OdometryPod(
-                hardwareMap, constants.forwardLeftPodName, constants.ticksPerInch
+                hardwareMap, constants.forwardLeftPodName, constants.ticksPerInch,
+                constants.forwardLeftPodReversed
         );
         this.forwardRightPod = new OdometryPod(
-                hardwareMap, constants.forwardRightPodName, constants.ticksPerInch
+                hardwareMap, constants.forwardRightPodName, constants.ticksPerInch,
+                constants.forwardRightPodReversed
         );
 
         this.forwardOffsetIn = constants.offsets.getX(DistUnit.IN);
@@ -75,10 +78,18 @@ public class ThreeWheel extends BaseLocalizer<ThreeWheel.Constants> {
         public String strafePodName;
         public Vector offsets = Vector.zero();
         public double ticksPerInch = 1.0;
+        public boolean forwardLeftPodReversed;
+        public boolean forwardRightPodReversed;
+        public boolean strafePodReversed;
 
         @Override
         public JSONObject getCalibrationValues() {
-            try { return CalibrationJson.vector(offsets).put("ticksPerInch", ticksPerInch); }
+            try {
+                return CalibrationJson.vector(offsets).put("ticksPerInch", ticksPerInch)
+                        .put("forwardLeftPodReversed", forwardLeftPodReversed)
+                        .put("forwardRightPodReversed", forwardRightPodReversed)
+                        .put("strafePodReversed", strafePodReversed);
+            }
             catch (Exception e) { throw new IllegalStateException(e); }
         }
 
@@ -86,6 +97,11 @@ public class ThreeWheel extends BaseLocalizer<ThreeWheel.Constants> {
         public void applyCalibrationValues(JSONObject values) {
             ticksPerInch = CalibrationJson.positive(values, "ticksPerInch", ticksPerInch);
             offsets = CalibrationJson.vector(values, offsets);
+            forwardLeftPodReversed = values.optBoolean("forwardLeftPodReversed",
+                    forwardLeftPodReversed);
+            forwardRightPodReversed = values.optBoolean("forwardRightPodReversed",
+                    forwardRightPodReversed);
+            strafePodReversed = values.optBoolean("strafePodReversed", strafePodReversed);
         }
 
         @Override
@@ -132,6 +148,16 @@ public class ThreeWheel extends BaseLocalizer<ThreeWheel.Constants> {
         /** Sets the number of encoder ticks per inch of travel. */
         public ThreeWheel.Constants setTicksPerInch(double ticksPerInch) {
             this.ticksPerInch = ticksPerInch;
+            return this;
+        }
+
+        /** Sets software reversals for both parallel pods and the strafe pod. */
+        public ThreeWheel.Constants setEncoderDirections(boolean forwardLeftPodReversed,
+                                                         boolean forwardRightPodReversed,
+                                                         boolean strafePodReversed) {
+            this.forwardLeftPodReversed = forwardLeftPodReversed;
+            this.forwardRightPodReversed = forwardRightPodReversed;
+            this.strafePodReversed = strafePodReversed;
             return this;
         }
     }

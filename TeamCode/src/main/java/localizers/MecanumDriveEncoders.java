@@ -24,11 +24,15 @@ public class MecanumDriveEncoders extends BaseLocalizer<MecanumDriveEncoders.Con
     public MecanumDriveEncoders(Constants constants, HardwareMap hardwareMap) {
         super(constants);
 
-        frontLeft = new OdometryPod(hardwareMap, constants.frontLeftName, config.ticksPerInch);
-        frontRight = new OdometryPod(hardwareMap, constants.frontRightName, config.ticksPerInch);
+        frontLeft = new OdometryPod(hardwareMap, constants.frontLeftName, config.ticksPerInch,
+                constants.frontLeftReversed);
+        frontRight = new OdometryPod(hardwareMap, constants.frontRightName, config.ticksPerInch,
+                constants.frontRightReversed);
         if (constants.backLeftName != null && constants.backRightName != null) {
-            backLeft = new OdometryPod(hardwareMap, constants.backLeftName, config.ticksPerInch);
-            backRight = new OdometryPod(hardwareMap, constants.backRightName, config.ticksPerInch);
+            backLeft = new OdometryPod(hardwareMap, constants.backLeftName, config.ticksPerInch,
+                    constants.backLeftReversed);
+            backRight = new OdometryPod(hardwareMap, constants.backRightName, config.ticksPerInch,
+                    constants.backRightReversed);
         } else {
             backLeft = null;
             backRight = null;
@@ -99,16 +103,30 @@ public class MecanumDriveEncoders extends BaseLocalizer<MecanumDriveEncoders.Con
         public String imuName;
         public RevHubOrientationOnRobot hubOrientation;
         public double ticksPerInch = 1.0;
+        public boolean frontLeftReversed;
+        public boolean frontRightReversed;
+        public boolean backLeftReversed;
+        public boolean backRightReversed;
 
         @Override
         public JSONObject getCalibrationValues() {
-            try { return new JSONObject().put("ticksPerInch", ticksPerInch); }
+            try {
+                return new JSONObject().put("ticksPerInch", ticksPerInch)
+                        .put("frontLeftReversed", frontLeftReversed)
+                        .put("frontRightReversed", frontRightReversed)
+                        .put("backLeftReversed", backLeftReversed)
+                        .put("backRightReversed", backRightReversed);
+            }
             catch (Exception e) { throw new IllegalStateException(e); }
         }
 
         @Override
         public void applyCalibrationValues(JSONObject values) {
             ticksPerInch = CalibrationJson.positive(values, "ticksPerInch", ticksPerInch);
+            frontLeftReversed = values.optBoolean("frontLeftReversed", frontLeftReversed);
+            frontRightReversed = values.optBoolean("frontRightReversed", frontRightReversed);
+            backLeftReversed = values.optBoolean("backLeftReversed", backLeftReversed);
+            backRightReversed = values.optBoolean("backRightReversed", backRightReversed);
         }
 
         @Override
@@ -184,6 +202,18 @@ public class MecanumDriveEncoders extends BaseLocalizer<MecanumDriveEncoders.Con
         /** Sets the number of encoder ticks per inch of travel. */
         public Constants setTicksPerInch(double ticksPerInch) {
             this.ticksPerInch = ticksPerInch;
+            return this;
+        }
+
+        /** Sets software reversals for the four drive-encoder channels. */
+        public Constants setEncoderDirections(boolean frontLeftReversed,
+                                              boolean frontRightReversed,
+                                              boolean backLeftReversed,
+                                              boolean backRightReversed) {
+            this.frontLeftReversed = frontLeftReversed;
+            this.frontRightReversed = frontRightReversed;
+            this.backLeftReversed = backLeftReversed;
+            this.backRightReversed = backRightReversed;
             return this;
         }
     }

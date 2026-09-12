@@ -4,6 +4,7 @@ import core.Follower;
 import geometry.Angle;
 import geometry.Pose;
 import paths.heading.InterpolationStyle;
+import paths.builders.TurnBuilder;
 import paths.movements.Path;
 import paths.movements.Turn;
 import geometry.AngleUnit;
@@ -48,7 +49,7 @@ public class ExampleAutoPath {
     }
 
     private void build() {
-        testPath = factory.path(startPose, // Forward and left curve
+        testPath = factory.holonomicPath(startPose, // Forward and left curve
                         factory.arcPose(30, 0, 7),
                         factory.arcPose(30, -30, 7),
                         factory.arcPose(-30, -30, 7),
@@ -58,11 +59,17 @@ public class ExampleAutoPath {
                 .interpolateWith(InterpolationStyle.TANGENT_OPTIMAL)
                 .addDistanceCallback(0.5, this::exampleDistanceCallback)
                 .profiledBuild();
-        testTurn = factory.turn(testPath.getEndPose())
-                .turnTo(factory.angle(0))
-                .addAngularCallback(factory.angle(-45), this::exampleAngularCallback)
-                .quickBuild();
-        returnPath = factory.path(testTurn.getEndPose(),
+        Angle turnStart = testPath.getEndPose().getHeading();
+        Angle turnEnd = factory.angle(0);
+        Angle turnSweep = turnStart.getShortestAngleTo(turnEnd);
+        TurnBuilder turnBuilder = factory.turn(testPath.getEndPose()).turnTo(turnEnd);
+        // Only attach an angular callback when there is a real sweep.
+        if (Math.abs(turnSweep.getRad()) >= 1e-6) {
+            turnBuilder.addAngularCallback(turnStart.plus(turnSweep.times(.5)),
+                    this::exampleAngularCallback);
+        }
+        testTurn = turnBuilder.quickBuild();
+        returnPath = factory.holonomicPath(testTurn.getEndPose(),
                         factory.pose(0, 30),
                         startPose
                 )
@@ -71,10 +78,10 @@ public class ExampleAutoPath {
                 .addDistanceCallback(0.5, this::exampleReturnCallback)
                 .profiledBuild();
         Pose strafeEnd = factory.pose(0, 24, 0);
-        strafeOutPath = factory.path(startPose, strafeEnd)
+        strafeOutPath = factory.holonomicPath(startPose, strafeEnd)
                 .interpolateWith(InterpolationStyle.CONSTANT_START_HEADING)
                 .profiledBuild();
-        strafeBackPath = factory.path(strafeEnd, startPose)
+        strafeBackPath = factory.holonomicPath(strafeEnd, startPose)
                 .interpolateWith(InterpolationStyle.CONSTANT_START_HEADING)
                 .profiledBuild();
     }

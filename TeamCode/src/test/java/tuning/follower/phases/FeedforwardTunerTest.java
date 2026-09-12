@@ -4,6 +4,30 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class FeedforwardTunerTest {
+    @Test public void risingAndFallingRampsSeparateInertiaFromStaticFriction() {
+        RampRegression regression = new RampRegression(1);
+        for (double acceleration : new double[] {10, -10}) {
+            for (int i = 0; i < 40; i++) {
+                double velocity = 10 + i*.5;
+                regression.add(velocity, .06 + .0125*velocity + .0063*acceleration, acceleration);
+            }
+        }
+        RampRegression.Fit fit = regression.fit();
+        assertTrue(fit.valid(2));
+        assertEquals(.06, fit.kS, 1e-10);
+        assertEquals(.0125, fit.kV, 1e-10);
+        assertEquals(.0063, fit.kA, 1e-10);
+    }
+
+    @Test public void oneRampCannotDistinguishStaticFrictionFromConstantInertialPower() {
+        RampRegression regression = new RampRegression(1);
+        for (int i = 0; i < 40; i++) {
+            double velocity = 10+i*.5;
+            regression.add(velocity, .06+.0125*velocity+.0063*10, 10);
+        }
+        assertFalse(regression.fit().valid(2));
+    }
+
     @Test public void recoversDriveAndTurnCoefficientsFromMovingSamples() {
         for (double kV : new double[] { .012, .12 }) {
             RampRegression regression = new RampRegression(.1);

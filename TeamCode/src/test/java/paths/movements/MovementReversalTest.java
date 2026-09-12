@@ -23,7 +23,7 @@ public class MovementReversalTest {
     @Test
     public void reversedPathMirrorsGeometryHeadingAndConstraintSchedule() {
         GeometryFactory factory = new GeometryFactory();
-        Path original = factory.path(
+        Path original = factory.holonomicPath(
                         factory.pose(0.0, 0.0, 10.0),
                         factory.pose(18.0, 8.0, 45.0),
                         factory.pose(30.0, 24.0, 100.0))
@@ -65,7 +65,7 @@ public class MovementReversalTest {
     public void reversedMovementsClearCallbacksAndExposeTypedFluentMethods() {
         GeometryFactory factory = new GeometryFactory();
         AtomicInteger callbackCount = new AtomicInteger();
-        Path original = factory.path(factory.pose(0.0, 0.0, 0.0),
+        Path original = factory.holonomicPath(factory.pose(0.0, 0.0, 0.0),
                         factory.pose(12.0, 0.0, 0.0))
                 .addDistanceCallback(0.5, callbackCount::incrementAndGet)
                 .quickBuild();
@@ -89,7 +89,7 @@ public class MovementReversalTest {
     @Test
     public void doubleReversalRestoresMotionButNotCallbacks() {
         GeometryFactory factory = new GeometryFactory();
-        Path original = factory.path(factory.pose(0.0, 0.0, -20.0),
+        Path original = factory.holonomicPath(factory.pose(0.0, 0.0, -20.0),
                         factory.pose(10.0, 14.0, 70.0))
                 .interpolateWith(InterpolationStyle.SMOOTH_START_TO_END)
                 .addDistanceCallback(0.4, () -> { })

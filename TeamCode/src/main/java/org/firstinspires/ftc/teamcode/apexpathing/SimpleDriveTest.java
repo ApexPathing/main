@@ -26,7 +26,7 @@ public class SimpleDriveTest extends LinearOpMode {
     public void runOpMode() {
         Follower follower = new Follower(new Constants(), hardwareMap);
         GeometryFactory factory = new GeometryFactory(follower).setDistUnit(DistUnit.IN).setAngleUnit(AngleUnit.DEG);
-        Path path = factory.path(factory.pose(0, 0, 0), factory.pose(24, 0, 0))
+        Path path = factory.holonomicPath(factory.pose(0, 0, 0), factory.pose(24, 0, 0))
                 .interpolateWith(InterpolationStyle.TANGENT_FORWARD)
                 .quickBuild();
 

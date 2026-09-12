@@ -13,6 +13,7 @@ import drivetrains.DualActuated;
 import geometry.Pose;
 import localizers.BaseLocalizer;
 import localizers.BaseLocalizerConstants;
+import tuning.localizer.phases.CalibrationCandidate;
 
 /** Shared hardware, persistence, and drive control used by localization-tuner phases. */
 public final class LocalizationTunerContext extends tuning.TunerContext {
@@ -111,39 +112,12 @@ public final class LocalizationTunerContext extends tuning.TunerContext {
         }
     }
 
-    /** Records that the operator reviewed a complete validation drive. */
-    public boolean acceptValidation() {
-        JSONObject oldCalibration = copy(localizers.getCalibration().toJson());
-        try {
-            LocalizationConstants.Status geometry = localizers.getCalibration().getStatus(
-                    getSetupName(), false);
-            LocalizationConstants.Status filter = localizers.getCalibration().getStatus(
-                    getSetupName(), true);
-            localizers.getCalibration().capture(getSetupName(), getConfig(), getLocalizer(),
-                    geometry == LocalizationConstants.Status.UNCALIBRATED ? geometry
-                            : LocalizationConstants.Status.ACCEPTED,
-                    filter == LocalizationConstants.Status.UNCALIBRATED ? filter
-                            : LocalizationConstants.Status.ACCEPTED);
-            localizers.getCalibration().save();
-            lastSaveError = "";
-            return true;
-        } catch (Exception failure) {
-            localizers.getCalibration().restore(oldCalibration);
-            lastSaveError = failure.getMessage();
-            return false;
-        }
-    }
-
     @Override
     public void addInterfaceHeader() {
-        getTelemetry().addData("Localizer", adapter.getName());
         if (drivetrain instanceof DualActuated) {
             getTelemetry().addData("Drive mode", activeDriveProfile());
-            getTelemetry().addData("Localizer setup",
-                    localizers.isShared() ? "SHARED" : getSetupName());
         }
         addDebugHeader();
-        getTelemetry().addLine();
     }
 
     private FollowerConstants.Profile activeDriveProfile() {

@@ -21,10 +21,10 @@ public class ExampleAutoProfileRegressionTest {
     @Test
     public void initialAutoCurveHasUsableProfileStartup() {
         configureConstants();
-        GeometryFactory factory = new GeometryFactory(true)
+        GeometryFactory factory = new GeometryFactory()
                 .setDistUnit(DistUnit.IN)
                 .setAngleUnit(AngleUnit.DEG);
-        Path path = factory.path(Pose.zero(),
+        Path path = factory.holonomicPath(Pose.zero(),
                         factory.arcPose(30, 0, 7),
                         factory.arcPose(30, -30, 7),
                         factory.arcPose(-30, -30, 7),

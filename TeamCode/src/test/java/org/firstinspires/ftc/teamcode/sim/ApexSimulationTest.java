@@ -8,12 +8,14 @@ import static org.junit.Assert.assertTrue;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Gamepad;
+import com.qualcomm.robotcore.hardware.IMU;
 
 import org.codeblooded.ftcodesim.physics.MotionVector;
 import org.codeblooded.ftcodesim.hardware.devices.SimMotor;
 import org.codeblooded.ftcodesim.input.Keybinds;
 import org.codeblooded.ftcodesim.input.Keys;
 import org.codeblooded.ftcodesim.simulator.OpModeRegister;
+import org.codeblooded.ftcodesim.simulator.SimConfig;
 import org.firstinspires.ftc.teamcode.apexpathing.AutoTest;
 import org.firstinspires.ftc.teamcode.apexpathing.Constants;
 import org.firstinspires.ftc.teamcode.apexpathing.ExampleAutoPath;
@@ -83,6 +85,15 @@ public class ApexSimulationTest {
         // path used by AutoTest, TeleOpTest, and FollowerTuner.
         Follower follower = new Follower(new Constants(), hardware.hardwareMap);
         assertPose(Pose.zero(), follower.getPose());
+    }
+
+    @Test
+    public void interactiveConfigProvidesTheLocalizationTunersDefaultImu() {
+        SimConfig config = ApexSimulation.createConfig();
+        IMU imu = config.simHardwareMap.get(IMU.class, ApexSimulation.IMU);
+
+        assertNotNull(imu);
+        assertNotNull(imu.getRobotOrientationAsQuaternion());
     }
 
     @Test
@@ -356,10 +367,10 @@ public class ApexSimulationTest {
                 .setAngleUnit(geometry.AngleUnit.DEG);
         Pose start = factory.pose(-24, 0, 0);
         Pose end = factory.pose(24, 0, 0);
-        paths.movements.Path outbound = factory.path(start, end)
+        paths.movements.Path outbound = factory.holonomicPath(start, end)
                 .interpolateWith(paths.heading.InterpolationStyle.CONSTANT_START_HEADING)
                 .profiledBuild();
-        paths.movements.Path returning = factory.path(end, start)
+        paths.movements.Path returning = factory.holonomicPath(end, start)
                 .interpolateWith(paths.heading.InterpolationStyle.CONSTANT_START_HEADING)
                 .profiledBuild();
 
@@ -528,10 +539,10 @@ public class ApexSimulationTest {
         Pose start = factory.pose(-32, -16, 0);
         Pose middle = factory.pose(32, -16, 0);
         Pose end = factory.pose(32, 16, 90);
-        paths.movements.Path outbound = factory.path(start, middle, end)
+        paths.movements.Path outbound = factory.holonomicPath(start, middle, end)
                 .interpolateWith(paths.heading.InterpolationStyle.TANGENT_FORWARD)
                 .quickBuild();
-        paths.movements.Path returning = factory.path(end, middle, start)
+        paths.movements.Path returning = factory.holonomicPath(end, middle, start)
                 .interpolateWith(paths.heading.InterpolationStyle.TANGENT_BACKWARD)
                 .quickBuild();
 

@@ -3,11 +3,10 @@ package tuning.localizer;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
 /**
- * Common Prepare, Record, Review lifecycle for localization-tuner procedures.
- * A accepts, B cancels, and X repeats a completed recording.
+ * Common prepare, record, and confirmation lifecycle for localization-tuner procedures.
  */
 public abstract class TuningPhase {
-    protected enum State { PREPARE, RECORD, REVIEW }
+    protected enum State { PREPARE, RECORD, REVIEW, ERROR }
 
     protected final LocalizationTunerContext context;
     protected LinearOpMode opMode;
@@ -16,24 +15,21 @@ public abstract class TuningPhase {
 
     protected TuningPhase(LocalizationTunerContext context) { this.context = context; }
 
-    /** Runs until the result is accepted, canceled, or the OpMode stops. */
+    /** Runs until the result is accepted or the OpMode stops. */
     public final boolean run(LinearOpMode opMode) {
         this.opMode = opMode;
         state = State.PREPARE;
         reset();
         while (opMode.opModeIsActive()) {
-            context.updateDebugMode(false);
             context.update();
-            context.getTelemetry().clearAll();
-            context.addInterfaceHeader();
-            context.getTelemetry().addData("Phase", getName());
-            context.getTelemetry().addData("Step", state);
+            context.beginFrame();
+            context.getTelemetry().addLine(getName());
 
             if (context.isDriveTransitioning()) {
                 context.stop();
                 context.getTelemetry().addLine("Waiting for drivetrain mode to settle...");
                 context.getTelemetry().update();
-                opMode.sleep(20);
+                context.pauseLoop();
                 continue;
             }
 
@@ -44,17 +40,8 @@ public abstract class TuningPhase {
                     error = "";
                     beginRecording();
                     state = State.RECORD;
-                } else if (opMode.gamepad1.bWasPressed()) {
-                    context.stop();
-                    cancel();
-                    return false;
                 }
             } else if (state == State.RECORD) {
-                if (opMode.gamepad1.bWasPressed()) {
-                    context.stop();
-                    cancel();
-                    return false;
-                }
                 try {
                     if (record()) {
                         context.stop();
@@ -64,34 +51,26 @@ public abstract class TuningPhase {
                 } catch (RuntimeException failure) {
                     context.stop();
                     error = failure.getMessage();
-                    state = State.PREPARE;
-                    reset();
+                    state = State.ERROR;
                 }
-            } else {
+            } else if (state == State.REVIEW) {
                 context.stop();
                 showReview();
                 if (!error.isEmpty()) { context.getTelemetry().addData("Save error", error); }
-                context.getTelemetry().addLine("A: accept and save   X: record again   B: cancel");
+                context.getTelemetry().addLine("A: save");
                 if (opMode.gamepad1.aWasPressed()) {
                     if (accept()) { return true; }
                     error = context.getLastSaveError();
-                } else if (opMode.gamepad1.xWasPressed()) {
-                    cancel();
-                    reset();
-                    state = State.PREPARE;
-                } else if (opMode.gamepad1.bWasPressed()) {
-                    cancel();
-                    return false;
                 }
-            }
-            if (!error.isEmpty() && state == State.PREPARE) {
+            } else {
+                context.stop();
                 context.getTelemetry().addData("Could not record", error);
+                context.getTelemetry().addLine("Stop the OpMode and run the phase again.");
             }
             context.getTelemetry().update();
-            opMode.sleep(20);
+            context.pauseLoop();
         }
         context.stop();
-        cancel();
         return false;
     }
 
@@ -103,5 +82,4 @@ public abstract class TuningPhase {
     protected void finishRecording() { }
     protected abstract void showReview();
     protected abstract boolean accept();
-    protected void cancel() { }
 }

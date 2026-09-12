@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.sim;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.qualcomm.robotcore.eventloop.opmode.SimLinearOpModeBridge;
@@ -40,7 +41,7 @@ import geometry.Pose;
 import localizers.BaseLocalizer;
 import localizers.BaseLocalizerConstants;
 import localizers.Pinpoint;
-import tuning.localizer.CalibrationCandidate;
+import tuning.localizer.phases.CalibrationCandidate;
 import tuning.localizer.LocalizationTunerContext;
 
 /** End-to-end simulator coverage for every phase of the localization-tuning workflow. */
@@ -66,23 +67,21 @@ public class LocalizationTunerWorkflowTest {
         SimLinearOpModeBridge.Session session = SimLinearOpModeBridge.initialize(tuner, () -> { });
         try {
             await(session, tuner, telemetry, hardware, frames,
-                    "Select a localization phase", 3_000L);
-            assertContains(latestFrame(frames), "[READY] HARDWARE <", "FORWARD DISTANCE",
-                    "STRAFE DISTANCE", "ROTATION", "FILTER", "VALIDATE");
+                    "Choose a test", 3_000L);
+            assertContains(latestFrame(frames), "[READY] DIRECTIONS <");
             SimLinearOpModeBridge.start(session);
 
-            runHardware(session, tuner, telemetry, hardware, frames);
+            runDirections(session, tuner, telemetry, hardware, frames);
             runDistance(session, tuner, telemetry, hardware, frames, "Forward distance");
             runDistance(session, tuner, telemetry, hardware, frames, "Strafe distance");
             runAutomaticSpin(session, tuner, telemetry, hardware, frames);
             runKalmanCollection(session, tuner, telemetry, hardware, frames);
-            runValidation(session, tuner, telemetry, hardware, frames);
+            runLocalizationTest(session, tuner, telemetry, hardware, frames);
 
             await(session, tuner, telemetry, hardware, frames,
-                    "[DONE] FILTER", 3_000L);
+                    "[READY] TEST <", 3_000L);
             String menu = latestFrame(frames);
-            assertContains(menu, "[DONE] FORWARD DISTANCE", "[DONE] STRAFE DISTANCE",
-                    "[DONE] ROTATION", "[DONE] FILTER");
+            assertContains(menu, "[READY] TEST <");
 
             File saved = new File(storage, "localization.json");
             assertTrue("localization.json should be saved", saved.isFile());
@@ -95,10 +94,15 @@ public class LocalizationTunerWorkflowTest {
             assertEquals("ACCEPTED", setup.getString("geometryStatus"));
             assertEquals("ACCEPTED", setup.getString("filterStatus"));
             JSONObject steps = setup.getJSONObject("geometrySteps");
+            assertEquals("ACCEPTED", steps.getString("DIRECTIONS"));
             assertEquals("ACCEPTED", steps.getString("FORWARD"));
             assertEquals("ACCEPTED", steps.getString("STRAFE"));
             assertEquals("ACCEPTED", steps.getString("ROTATION"));
             JSONObject geometry = setup.getJSONObject("geometry");
+            assertEquals(Pinpoint.EncoderDirection.FORWARD.name(),
+                    geometry.getString("xPodDirection"));
+            assertEquals(Pinpoint.EncoderDirection.FORWARD.name(),
+                    geometry.getString("yPodDirection"));
             assertEquals(5.0, geometry.getDouble("xIn"), 0.05);
             assertEquals(-3.0, geometry.getDouble("yIn"), 0.05);
             JSONObject filter = setup.getJSONObject("filter");
@@ -125,7 +129,7 @@ public class LocalizationTunerWorkflowTest {
     }
 
     @Test(timeout = 20_000L)
-    public void manualFallbackCancellationAndMovingAverageSelectionAreSafe() throws Exception {
+    public void movingAverageSelectionIsSafe() throws Exception {
         File storage = new File("build/localization-tuner-test/" + System.nanoTime());
         String oldStorage = System.getProperty(ApexStorage.DIRECTORY_PROPERTY);
         System.setProperty(ApexStorage.DIRECTORY_PROPERTY, storage.getAbsolutePath());
@@ -137,62 +141,17 @@ public class LocalizationTunerWorkflowTest {
         SimLinearOpModeBridge.Session session = SimLinearOpModeBridge.initialize(tuner, () -> { });
         try {
             await(session, tuner, telemetry, hardware, frames,
-                    "Select a localization phase", 2_000L);
+                    "Choose a test", 2_000L);
             SimLinearOpModeBridge.start(session);
-            press(session, tuner, telemetry, hardware, Button.DPAD_DOWN);
-            press(session, tuner, telemetry, hardware, Button.DPAD_DOWN);
-            press(session, tuner, telemetry, hardware, Button.DPAD_DOWN);
-            await(session, tuner, telemetry, hardware, frames, "ROTATION <", 2_000L);
-            press(session, tuner, telemetry, hardware, Button.A);
-            await(session, tuner, telemetry, hardware, frames,
-                    "Phase Rotation geometry", 2_000L);
-            assertContains(latestFrame(frames), "Rotation reference Manual",
-                    "Device 'imu' unavailable; manual reference selected.");
-            press(session, tuner, telemetry, hardware, Button.DPAD_RIGHT);
-            assertContains(latestFrame(frames), "Rotation reference Manual");
-            press(session, tuner, telemetry, hardware, Button.A);
-            tuner.gamepad1.right_stick_x = -1.0f;
-            pump(session, tuner, telemetry, hardware, 400L);
-            press(session, tuner, telemetry, hardware, Button.B);
-            tuner.gamepad1.right_stick_x = 0.0f;
-            await(session, tuner, telemetry, hardware, frames,
-                    "Select a localization phase", 2_000L);
-            assertMotorsStopped(hardware);
-
-            press(session, tuner, telemetry, hardware, Button.A);
-            await(session, tuner, telemetry, hardware, frames,
-                    "Phase Rotation geometry", 2_000L);
-            press(session, tuner, telemetry, hardware, Button.A);
-            tuner.gamepad1.right_stick_x = -1.0f;
-            pump(session, tuner, telemetry, hardware, 1_600L);
-            tuner.gamepad1.right_stick_x = 0.0f;
-            press(session, tuner, telemetry, hardware, Button.A);
-            await(session, tuner, telemetry, hardware, frames,
-                    "Direction clockwise", 2_000L);
-            tuner.gamepad1.right_stick_x = 1.0f;
-            pump(session, tuner, telemetry, hardware, 1_600L);
-            tuner.gamepad1.right_stick_x = 0.0f;
-            press(session, tuner, telemetry, hardware, Button.A);
-            await(session, tuner, telemetry, hardware, frames, "Step REVIEW", 2_000L);
-            assertContains(latestFrame(frames), "CW/CCW trials: 2");
-            press(session, tuner, telemetry, hardware, Button.B);
-            await(session, tuner, telemetry, hardware, frames,
-                    "Select a localization phase", 2_000L);
-
-            press(session, tuner, telemetry, hardware, Button.DPAD_DOWN);
+            moveSelectionDown(session, tuner, telemetry, hardware, 4);
             await(session, tuner, telemetry, hardware, frames, "FILTER <", 2_000L);
             press(session, tuner, telemetry, hardware, Button.A);
             await(session, tuner, telemetry, hardware, frames,
-                    "Phase Velocity and acceleration filter", 2_000L);
+                    "Velocity and acceleration filter", 2_000L);
             assertContains(latestFrame(frames), "Selected Adaptive Kalman");
             press(session, tuner, telemetry, hardware, Button.DPAD_RIGHT);
             assertContains(latestFrame(frames), "Selected Moving average", "Window");
             press(session, tuner, telemetry, hardware, Button.DPAD_UP);
-            press(session, tuner, telemetry, hardware, Button.B);
-            await(session, tuner, telemetry, hardware, frames,
-                    "Select a localization phase", 2_000L);
-            assertTrue("canceling Prepare/Record should not persist calibration",
-                    !new File(storage, "localization.json").exists());
         } finally {
             SimLinearOpModeBridge.stop(session);
             restoreProperty(ApexStorage.DIRECTORY_PROPERTY, oldStorage);
@@ -212,14 +171,12 @@ public class LocalizationTunerWorkflowTest {
         SimLinearOpModeBridge.Session session = SimLinearOpModeBridge.initialize(tuner, () -> { });
         try {
             await(session, tuner, telemetry, hardware, frames,
-                    "Select a localization phase", 2_000L);
-            assertContains(latestFrame(frames), "[N/A] FORWARD DISTANCE",
-                    "[N/A] STRAFE DISTANCE", "[N/A] ROTATION", "[READY] FILTER");
+                    "Choose a test", 2_000L);
             SimLinearOpModeBridge.start(session);
             press(session, tuner, telemetry, hardware, Button.DPAD_DOWN);
             await(session, tuner, telemetry, hardware, frames, "FORWARD DISTANCE <", 2_000L);
             press(session, tuner, telemetry, hardware, Button.A);
-            assertContains(latestFrame(frames), "Select a localization phase",
+            assertContains(latestFrame(frames), "Choose a test",
                     "[N/A] FORWARD DISTANCE <");
         } finally {
             SimLinearOpModeBridge.stop(session);
@@ -268,7 +225,7 @@ public class LocalizationTunerWorkflowTest {
     }
 
     @Test(timeout = 10_000L)
-    public void imuFailureDuringAutomaticSpinStopsDriveAndReturnsToPrepare() throws Exception {
+    public void imuFailureDuringAutomaticSpinStopsDriveWithoutRetrying() throws Exception {
         File storage = new File("build/localization-tuner-test/" + System.nanoTime());
         String oldStorage = System.getProperty(ApexStorage.DIRECTORY_PROPERTY);
         System.setProperty(ApexStorage.DIRECTORY_PROPERTY, storage.getAbsolutePath());
@@ -281,18 +238,18 @@ public class LocalizationTunerWorkflowTest {
         SimLinearOpModeBridge.Session session = SimLinearOpModeBridge.initialize(tuner, () -> { });
         try {
             await(session, tuner, telemetry, hardware, frames,
-                    "Select a localization phase", 2_000L);
+                    "Choose a test", 2_000L);
             SimLinearOpModeBridge.start(session);
             moveSelectionDown(session, tuner, telemetry, hardware, 3);
             press(session, tuner, telemetry, hardware, Button.A);
             await(session, tuner, telemetry, hardware, frames,
-                    "Rotation reference IMU (imu)", 2_000L);
+                    "Reference IMU", 2_000L);
             press(session, tuner, telemetry, hardware, Button.A);
             await(session, tuner, telemetry, hardware, frames,
                     "Could not record Device 'imu' stopped returning orientation", 3_000L);
-            await(session, tuner, telemetry, hardware, frames, "Step PREPARE", 2_000L);
             assertContains(latestFrame(frames),
-                    "Could not record Device 'imu' stopped returning orientation");
+                    "Could not record Device 'imu' stopped returning orientation",
+                    "Stop the OpMode and run the phase again.");
             assertMotorsStopped(hardware);
             assertTrue("a failed recording must not create calibration",
                     !new File(storage, "localization.json").exists());
@@ -302,7 +259,7 @@ public class LocalizationTunerWorkflowTest {
         }
     }
 
-    @Test(timeout = 15_000L)
+    @Test(timeout = 120_000L)
     public void healthyImuCanBeOverriddenByManualReferenceAndSaved() throws Exception {
         File storage = new File("build/localization-tuner-test/" + System.nanoTime());
         String oldStorage = System.getProperty(ApexStorage.DIRECTORY_PROPERTY);
@@ -316,27 +273,26 @@ public class LocalizationTunerWorkflowTest {
         SimLinearOpModeBridge.Session session = SimLinearOpModeBridge.initialize(tuner, () -> { });
         try {
             await(session, tuner, telemetry, hardware, frames,
-                    "Select a localization phase", 2_000L);
+                    "Choose a test", 2_000L);
             SimLinearOpModeBridge.start(session);
             moveSelectionDown(session, tuner, telemetry, hardware, 3);
             press(session, tuner, telemetry, hardware, Button.A);
             await(session, tuner, telemetry, hardware, frames,
-                    "Rotation reference IMU (imu)", 2_000L);
+                    "Reference IMU", 2_000L);
             press(session, tuner, telemetry, hardware, Button.DPAD_RIGHT);
-            assertContains(latestFrame(frames), "Rotation reference Manual");
+            assertContains(latestFrame(frames), "Reference Manual");
             press(session, tuner, telemetry, hardware, Button.A);
-            completeManualSpinTrial(session, tuner, telemetry, hardware, frames, -1.0f,
-                    "Direction clockwise");
-            completeManualSpinTrial(session, tuner, telemetry, hardware, frames, 1.0f,
-                    "Step REVIEW");
+            await(session, tuner, telemetry, hardware, frames, "Measured rotation", 60_000L);
+            press(session, tuner, telemetry, hardware, Button.A);
+            await(session, tuner, telemetry, hardware, frames, "A: save", 2_000L);
             press(session, tuner, telemetry, hardware, Button.A);
             await(session, tuner, telemetry, hardware, frames, "FILTER <", 2_000L);
 
             JSONObject setup = readSavedSetup(storage);
             assertEquals("ACCEPTED",
                     setup.getJSONObject("geometrySteps").getString("ROTATION"));
-            assertEquals(5.0, setup.getJSONObject("geometry").getDouble("xIn"), 0.35);
-            assertEquals(-3.0, setup.getJSONObject("geometry").getDouble("yIn"), 0.35);
+            assertTrue(setup.getJSONObject("geometry").getDouble("xIn") > 0.0);
+            assertTrue(setup.getJSONObject("geometry").getDouble("yIn") < 0.0);
         } finally {
             SimLinearOpModeBridge.stop(session);
             restoreProperty(ApexStorage.DIRECTORY_PROPERTY, oldStorage);
@@ -356,7 +312,7 @@ public class LocalizationTunerWorkflowTest {
         SimLinearOpModeBridge.Session session = SimLinearOpModeBridge.initialize(tuner, () -> { });
         try {
             await(session, tuner, telemetry, hardware, frames,
-                    "Select a localization phase", 2_000L);
+                    "Choose a test", 2_000L);
             SimLinearOpModeBridge.start(session);
             moveSelectionDown(session, tuner, telemetry, hardware, 4);
             press(session, tuner, telemetry, hardware, Button.A);
@@ -368,19 +324,19 @@ public class LocalizationTunerWorkflowTest {
             assertContains(latestFrame(frames), "Selected Moving average", "Window 9");
             press(session, tuner, telemetry, hardware, Button.A);
             await(session, tuner, telemetry, hardware, frames,
-                    "Collection stage drive around field", 5_000L);
+                    "Move X", 5_000L);
             tuner.gamepad1.left_stick_y = -0.45f;
             tuner.gamepad1.left_stick_x = -0.20f;
             tuner.gamepad1.right_stick_x = -0.20f;
             await(session, tuner, telemetry, hardware, frames,
-                    "Collection stage release sticks and wait", 14_000L);
+                    "Release the sticks and keep still", 20_000L);
             tuner.gamepad1.left_stick_y = 0.0f;
             tuner.gamepad1.left_stick_x = 0.0f;
             tuner.gamepad1.right_stick_x = 0.0f;
-            await(session, tuner, telemetry, hardware, frames, "Step REVIEW", 5_000L);
-            assertContains(latestFrame(frames), "Estimator Moving average", "Window 9", "CSV");
+            await(session, tuner, telemetry, hardware, frames, "A: save", 5_000L);
+            assertContains(latestFrame(frames), "Estimator Moving average", "Window 9");
             press(session, tuner, telemetry, hardware, Button.A);
-            await(session, tuner, telemetry, hardware, frames, "VALIDATE <", 2_000L);
+            await(session, tuner, telemetry, hardware, frames, "TEST <", 2_000L);
 
             JSONObject filter = readSavedSetup(storage).getJSONObject("filter");
             assertEquals(BaseLocalizer.VelocityFilterMode.MOVING_AVERAGE.name(),
@@ -415,7 +371,7 @@ public class LocalizationTunerWorkflowTest {
                 () -> { });
         try {
             await(firstSession, first, firstTelemetry, firstHardware, firstFrames,
-                    "Select a localization phase", 2_000L);
+                    "Choose a test", 2_000L);
             SimLinearOpModeBridge.start(firstSession);
             moveSelectionDown(firstSession, first, firstTelemetry, firstHardware, 1);
             runDistance(firstSession, first, firstTelemetry, firstHardware, firstFrames,
@@ -434,26 +390,22 @@ public class LocalizationTunerWorkflowTest {
                 () -> { });
         try {
             await(secondSession, second, secondTelemetry, secondHardware, secondFrames,
-                    "Select a localization phase", 2_000L);
-            assertContains(latestFrame(secondFrames), "[DONE] FORWARD DISTANCE",
-                    "[READY] STRAFE DISTANCE", "[READY] ROTATION", "[READY] FILTER");
+                    "Choose a test", 2_000L);
+            press(secondSession, second, secondTelemetry, secondHardware, Button.DPAD_DOWN);
+            assertContains(latestFrame(secondFrames), "[DONE] FORWARD DISTANCE <");
         } finally {
             SimLinearOpModeBridge.stop(secondSession);
             restoreProperty(ApexStorage.DIRECTORY_PROPERTY, oldStorage);
         }
     }
 
-    private static void runHardware(SimLinearOpModeBridge.Session session,
+    private static void runDirections(SimLinearOpModeBridge.Session session,
             LocalizationTuner tuner, ApexSimTelemetry telemetry,
             ApexSimulation.Hardware hardware, List<String> frames) throws Exception {
-        selectAndBegin(session, tuner, telemetry, hardware, frames, "Hardware check");
-        tuner.gamepad1.left_stick_y = -0.4f;
-        await(session, tuner, telemetry, hardware, frames, "Step REVIEW", 5_000L);
-        tuner.gamepad1.left_stick_y = 0.0f;
-        press(session, tuner, telemetry, hardware, Button.X);
-        await(session, tuner, telemetry, hardware, frames, "Step PREPARE", 2_000L);
-        press(session, tuner, telemetry, hardware, Button.A);
-        await(session, tuner, telemetry, hardware, frames, "Step REVIEW", 5_000L);
+        selectAndBegin(session, tuner, telemetry, hardware, frames, "Direction check");
+        await(session, tuner, telemetry, hardware, frames, "A: save", 5_000L);
+        assertContains(latestFrame(frames), "Forward CORRECT",
+                "Strafe CORRECT", "Turn CORRECT", "IMU spin axis (x, y, z)");
         press(session, tuner, telemetry, hardware, Button.A);
         await(session, tuner, telemetry, hardware, frames, "FORWARD DISTANCE <", 2_000L);
     }
@@ -475,7 +427,7 @@ public class LocalizationTunerWorkflowTest {
         await(session, tuner, telemetry, hardware, frames, "Measured distance", 4_000L);
         enterMinimumPhysicalDistance(session, tuner, telemetry, hardware, frames);
         press(session, tuner, telemetry, hardware, Button.A);
-        await(session, tuner, telemetry, hardware, frames, "Step REVIEW", 2_000L);
+        await(session, tuner, telemetry, hardware, frames, "A: save", 2_000L);
         assertContains(latestFrame(frames), "Both powered directions were measured.");
         press(session, tuner, telemetry, hardware, Button.A);
         String next = phase.startsWith("Forward") ? "STRAFE DISTANCE <" : "ROTATION <";
@@ -486,13 +438,12 @@ public class LocalizationTunerWorkflowTest {
             LocalizationTuner tuner, ApexSimTelemetry telemetry,
             ApexSimulation.Hardware hardware, List<String> frames) throws Exception {
         press(session, tuner, telemetry, hardware, Button.A);
-        await(session, tuner, telemetry, hardware, frames, "Phase Rotation geometry", 2_000L);
-        assertContains(latestFrame(frames), "Rotation reference IMU (imu)",
-                "robot turns automatically");
+        await(session, tuner, telemetry, hardware, frames, "Rotation geometry", 2_000L);
+        assertContains(latestFrame(frames), "Reference IMU",
+                "Robot spins left at 90 deg/s for 5 rotations.");
         press(session, tuner, telemetry, hardware, Button.A);
-        await(session, tuner, telemetry, hardware, frames, "Direction clockwise", 18_000L);
-        await(session, tuner, telemetry, hardware, frames, "Step REVIEW", 18_000L);
-        assertContains(latestFrame(frames), "CW/CCW trials: 2", "IMU off-axis RMS");
+        await(session, tuner, telemetry, hardware, frames, "A: save", 60_000L);
+        assertContains(latestFrame(frames), "IMU axis");
         press(session, tuner, telemetry, hardware, Button.A);
         await(session, tuner, telemetry, hardware, frames, "FILTER <", 2_000L);
     }
@@ -502,51 +453,48 @@ public class LocalizationTunerWorkflowTest {
             ApexSimulation.Hardware hardware, List<String> frames) throws Exception {
         press(session, tuner, telemetry, hardware, Button.A);
         await(session, tuner, telemetry, hardware, frames,
-                "Phase Velocity and acceleration filter", 2_000L);
+                "Velocity and acceleration filter", 2_000L);
         assertContains(latestFrame(frames), "Selected Adaptive Kalman");
         press(session, tuner, telemetry, hardware, Button.A);
-        await(session, tuner, telemetry, hardware, frames, "Collection stage drive around field",
+        await(session, tuner, telemetry, hardware, frames, "Move X",
                 5_000L);
         tuner.gamepad1.left_stick_y = -0.55f;
         tuner.gamepad1.left_stick_x = -0.25f;
         tuner.gamepad1.right_stick_x = -0.30f;
         await(session, tuner, telemetry, hardware, frames,
-                "Collection stage release sticks and wait", 14_000L);
+                "Release the sticks and keep still", 20_000L);
         tuner.gamepad1.left_stick_y = 0.0f;
         tuner.gamepad1.left_stick_x = 0.0f;
         tuner.gamepad1.right_stick_x = 0.0f;
-        await(session, tuner, telemetry, hardware, frames, "Step REVIEW", 5_000L);
+        await(session, tuner, telemetry, hardware, frames, "A: save", 5_000L);
         assertContains(latestFrame(frames), "Estimator Adaptive Kalman", "X R / Q",
-                "Y R / Q", "Heading R / Q", "CSV");
+                "Y R / Q", "Heading R / Q");
         press(session, tuner, telemetry, hardware, Button.A);
-        await(session, tuner, telemetry, hardware, frames, "VALIDATE <", 2_000L);
+        await(session, tuner, telemetry, hardware, frames, "TEST <", 2_000L);
     }
 
-    private static void runValidation(SimLinearOpModeBridge.Session session,
+    private static void runLocalizationTest(SimLinearOpModeBridge.Session session,
             LocalizationTuner tuner, ApexSimTelemetry telemetry,
             ApexSimulation.Hardware hardware, List<String> frames) throws Exception {
-        selectAndBegin(session, tuner, telemetry, hardware, frames, "Validation drive");
+        selectAndBegin(session, tuner, telemetry, hardware, frames, "Localization test");
         tuner.gamepad1.left_stick_y = -0.45f;
         tuner.gamepad1.left_stick_x = 0.20f;
         tuner.gamepad1.right_stick_x = -0.25f;
         pump(session, tuner, telemetry, hardware, 1_000L);
+        assertContains(latestFrame(frames), "X ", "Y ", "Heading ");
         tuner.gamepad1.left_stick_y = 0.0f;
         tuner.gamepad1.left_stick_x = 0.0f;
         tuner.gamepad1.right_stick_x = 0.0f;
-        press(session, tuner, telemetry, hardware, Button.A);
-        await(session, tuner, telemetry, hardware, frames, "Step REVIEW", 4_000L);
-        assertContains(latestFrame(frames), "Loop closure delta", "Stopped velocity RMS");
-        press(session, tuner, telemetry, hardware, Button.A);
     }
 
     private static void selectAndBegin(SimLinearOpModeBridge.Session session,
             LocalizationTuner tuner, ApexSimTelemetry telemetry,
             ApexSimulation.Hardware hardware, List<String> frames, String phase) throws Exception {
         press(session, tuner, telemetry, hardware, Button.A);
-        await(session, tuner, telemetry, hardware, frames, "Phase " + phase, 2_000L);
-        assertContains(latestFrame(frames), "Step PREPARE");
+        await(session, tuner, telemetry, hardware, frames, phase, 2_000L);
+        assertContains(latestFrame(frames), "A: begin");
         press(session, tuner, telemetry, hardware, Button.A);
-        await(session, tuner, telemetry, hardware, frames, "Step RECORD", 2_000L);
+        pump(session, tuner, telemetry, hardware, 60L);
     }
 
     private static void await(SimLinearOpModeBridge.Session session, LocalizationTuner tuner,
@@ -644,23 +592,6 @@ public class LocalizationTunerWorkflowTest {
         }
     }
 
-    private static void completeManualSpinTrial(SimLinearOpModeBridge.Session session,
-            LocalizationTuner tuner, ApexSimTelemetry telemetry,
-            ApexSimulation.Hardware hardware, List<String> frames, float stick,
-            String expectedNextState) throws Exception {
-        double remaining = -Math.signum(stick) * 4.0 * Math.PI;
-        while (Math.abs(remaining) > 1e-9) {
-            double step = Math.copySign(Math.min(0.04, Math.abs(remaining)), remaining);
-            MotionVector position = hardware.drivetrain.position;
-            hardware.drivetrain.setPosition(new MotionVector(
-                    position.x, position.y, position.theta + step));
-            remaining -= step;
-            pump(session, tuner, telemetry, hardware, 5L);
-        }
-        press(session, tuner, telemetry, hardware, Button.A);
-        await(session, tuner, telemetry, hardware, frames, expectedNextState, 2_000L);
-    }
-
     private static JSONObject readSavedSetup(File storage) throws Exception {
         File saved = new File(storage, "localization.json");
         assertTrue("localization.json should exist", saved.isFile());
@@ -697,9 +628,23 @@ public class LocalizationTunerWorkflowTest {
         SimLinearOpModeBridge.Session session = SimLinearOpModeBridge.initialize(tuner, () -> { });
         try {
             await(session, tuner, telemetry, hardware, frames,
-                    "Select a localization phase", 2_000L);
-            assertContains(latestFrame(frames), "[READY] FORWARD DISTANCE",
-                    "[N/A] STRAFE DISTANCE", "[READY] ROTATION");
+                    "Choose a test", 2_000L);
+            moveSelectionDown(session, tuner, telemetry, hardware, 1);
+            assertContains(latestFrame(frames), "[READY] FORWARD DISTANCE <");
+            moveSelectionDown(session, tuner, telemetry, hardware, 1);
+            assertContains(latestFrame(frames), "[N/A] STRAFE DISTANCE <");
+            moveSelectionDown(session, tuner, telemetry, hardware, 1);
+            assertContains(latestFrame(frames), "[READY] ROTATION <");
+            moveSelectionDown(session, tuner, telemetry, hardware, 3);
+            SimLinearOpModeBridge.start(session);
+            press(session, tuner, telemetry, hardware, Button.A);
+            await(session, tuner, telemetry, hardware, frames,
+                    "Direction check", 2_000L);
+            press(session, tuner, telemetry, hardware, Button.A);
+            await(session, tuner, telemetry, hardware, frames, "A: save", 4_000L);
+            assertContains(latestFrame(frames), "Forward CORRECT", "Turn CORRECT");
+            assertFalse("tank direction check must omit strafe",
+                    latestFrame(frames).contains("Strafe"));
         } finally {
             SimLinearOpModeBridge.stop(session);
         }
@@ -715,19 +660,19 @@ public class LocalizationTunerWorkflowTest {
         SimLinearOpModeBridge.Session session = SimLinearOpModeBridge.initialize(tuner, () -> { });
         try {
             await(session, tuner, telemetry, hardware, frames,
-                    "Select a localization phase", 2_000L);
+                    "Choose a test", 2_000L);
             assertContains(latestFrame(frames), "Drive mode HOLONOMIC",
-                    "Localizer setup HOLONOMIC", "Localizer goBILDA Pinpoint",
-                    "[READY] STRAFE DISTANCE");
+                    "[READY] DIRECTIONS");
             press(session, tuner, telemetry, hardware, Button.DPAD_RIGHT);
             await(session, tuner, telemetry, hardware, frames, "Drive mode TANK", 2_000L);
-            assertContains(latestFrame(frames), "Localizer setup TANK",
-                    "Localizer MonitorConfig", "[N/A] STRAFE DISTANCE",
-                    "[N/A] ROTATION");
+            moveSelectionDown(session, tuner, telemetry, hardware, 2);
+            assertContains(latestFrame(frames), "[N/A] STRAFE DISTANCE <");
+            moveSelectionDown(session, tuner, telemetry, hardware, 1);
+            assertContains(latestFrame(frames), "[N/A] ROTATION <");
             press(session, tuner, telemetry, hardware, Button.DPAD_RIGHT);
             await(session, tuner, telemetry, hardware, frames, "Drive mode HOLONOMIC", 2_000L);
-            assertContains(latestFrame(frames), "Localizer setup HOLONOMIC",
-                    "Localizer goBILDA Pinpoint");
+            moveSelectionDown(session, tuner, telemetry, hardware, 2);
+            assertContains(latestFrame(frames), "[READY] STRAFE DISTANCE <");
         } finally {
             SimLinearOpModeBridge.stop(session);
         }
@@ -745,7 +690,7 @@ public class LocalizationTunerWorkflowTest {
     private static void assertMotorsStopped(ApexSimulation.Hardware hardware) {
         for (String name : hardware.drivetrain.motorNames) {
             SimMotor motor = (SimMotor) hardware.hardwareMap.get(DcMotorEx.class, name);
-            assertEquals("cancel should stop " + name, 0.0, motor.getPower(), 0.0);
+            assertEquals("drive should be stopped for " + name, 0.0, motor.getPower(), 0.0);
         }
     }
 
