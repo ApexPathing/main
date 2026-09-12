@@ -29,7 +29,7 @@ public class TurnProfileGenerator {
     /** Creates a generator from one explicit follower-configuration source. */
     public TurnProfileGenerator(double omega_max, double alpha_max, FollowerConstants constants) {
         this(omega_max, alpha_max, constants.angularKV, constants.angularKA,
-                constants.angularCoeffs.kS);
+                constants.angularFeedforwardKS);
     }
 
     /**
@@ -124,15 +124,22 @@ public class TurnProfileGenerator {
         // Convert the scalar profile into signed angular states. Acceleration belongs to the
         // segment beginning at each sample so the first row can command the turn from rest.
         double direction = Math.signum(signedTurn);
+        double elapsedSeconds = 0.0;
         for (int i = 0; i < steps - 1; i++) {
             double currentW = lut[i].getAngularVel();
             double nextW = lut[i + 1].getAngularVel();
+            lut[i].setTimeSeconds(elapsedSeconds);
+            double velocitySum = currentW + nextW;
+            if (velocitySum > EPSILON) {
+                elapsedSeconds += 2.0 * ds / velocitySum;
+            }
             lut[i].setAngularVel(direction * currentW);
 
             double acceleration = (nextW * nextW - currentW * currentW) /
                     (2.0 * ds);
             lut[i].setAngularAccel(direction * acceleration);
         }
+        lut[steps - 1].setTimeSeconds(elapsedSeconds);
         lut[steps - 1].setAngularVel(0.0);
         lut[steps - 1].setAngularAccel(0.0);
 

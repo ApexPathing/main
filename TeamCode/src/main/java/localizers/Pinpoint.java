@@ -15,6 +15,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 
+import org.json.JSONObject;
+
 import geometry.Dist;
 import geometry.Pose;
 import geometry.Vector;
@@ -55,6 +57,9 @@ public class Pinpoint extends BaseLocalizer<Pinpoint.Constants> {
         calculate(pinpoint.getVelocity());
     }
 
+    /** Returns the raw X/Y pod encoder positions from the last bulk update. */
+    public int[] getPodTicks() { return pinpoint.getEncoderPositions(); }
+
     @Override
     public void setPose(Pose newPose) {
         pinpoint.setPosition(newPose);
@@ -70,6 +75,27 @@ public class Pinpoint extends BaseLocalizer<Pinpoint.Constants> {
         public GoBildaPods encoderResolution = GoBildaPods.goBILDA_4_BAR_POD;
         public Dist customEncoderResolution = Dist.zero(); // Overrides encoderResolution if != 0
         public double angularScalar = 0; // Overrides the default
+
+        @Override
+        public JSONObject getCalibrationValues() {
+            try {
+                return CalibrationJson.vector(offsets)
+                        .put("customEncoderResolutionIn", customEncoderResolution.getIn())
+                        .put("angularScalar", angularScalar)
+                        .put("xPodDirection", xPodDirection.name())
+                        .put("yPodDirection", yPodDirection.name());
+            } catch (Exception e) { throw new IllegalStateException(e); }
+        }
+
+        @Override
+        public void applyCalibrationValues(JSONObject values) {
+            offsets = CalibrationJson.vector(values, offsets);
+            customEncoderResolution = Dist.fromIn(CalibrationJson.finite(values,
+                    "customEncoderResolutionIn", customEncoderResolution.getIn()));
+            angularScalar = CalibrationJson.finite(values, "angularScalar", angularScalar);
+            xPodDirection = direction(values, "xPodDirection", xPodDirection);
+            yPodDirection = direction(values, "yPodDirection", yPodDirection);
+        }
 
         @Override
         public Pinpoint build(HardwareMap hardwareMap) {
@@ -118,6 +144,12 @@ public class Pinpoint extends BaseLocalizer<Pinpoint.Constants> {
             this.angularScalar = angularScalar;
             return this;
         }
+
+        private static EncoderDirection direction(JSONObject values, String key,
+                                                  EncoderDirection fallback) {
+            try { return EncoderDirection.valueOf(values.optString(key, fallback.name())); }
+            catch (IllegalArgumentException ignored) { return fallback; }
+        }
     }
 
     /**
@@ -151,6 +183,8 @@ public class Pinpoint extends BaseLocalizer<Pinpoint.Constants> {
         private Pose velocity = geometryFactory.pose();
 
         private int loopTime = 0;
+        private int encoderX;
+        private int encoderY;
 
         private static final float goBILDA_SWINGARM_POD = 13.26291192f; // goBILDA Swingarm Pod TPM
         private static final float goBILDA_4_BAR_POD = 19.89436789f; // goBILDA 4 Bar Pod TPM
@@ -294,6 +328,8 @@ public class Pinpoint extends BaseLocalizer<Pinpoint.Constants> {
 
             byte[] bArr = deviceClient.read(Register.BULK_READ.bVal, 40);
             loopTime = byteArrayToInt(Arrays.copyOfRange(bArr, 4, 8), ByteOrder.LITTLE_ENDIAN);
+            encoderX = byteArrayToInt(Arrays.copyOfRange(bArr, 8, 12), ByteOrder.LITTLE_ENDIAN);
+            encoderY = byteArrayToInt(Arrays.copyOfRange(bArr, 12, 16), ByteOrder.LITTLE_ENDIAN);
 
             pose = geometryFactory.pose(
                     isPositionCorrupt(
@@ -331,6 +367,9 @@ public class Pinpoint extends BaseLocalizer<Pinpoint.Constants> {
                     )
             );
         }
+
+        /** Returns raw X/Y encoder counts captured by the latest bulk read. */
+        public int[] getEncoderPositions() { return new int[] {encoderX, encoderY}; }
 
         /**
          * Sets the odometry pod positions relative to the point that the odometry computer

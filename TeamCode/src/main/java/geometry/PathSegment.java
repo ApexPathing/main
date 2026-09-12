@@ -29,6 +29,8 @@ public class PathSegment {
         int numPoints = Math.max(2, calculatedPoints);
 
         this.LUTpoints = new PathPoint[numPoints];
+        Vector[] locations = new Vector[numPoints];
+        double[] distancesToEnd = new double[numPoints];
 
         double distFromEnd = 0.0;
         Vector lastPoint = null;
@@ -41,11 +43,18 @@ public class PathSegment {
                 distFromEnd += lastPoint.minus(location).getMag().getIn();
             }
             lastPoint = location;
-            LUTpoints[i] = new PathPoint(t, distFromEnd, location,
-                    getFirstDerivative(t), getSignedCurvature(t), getCurvatureDerivative(t));
+            locations[i] = location;
+            distancesToEnd[i] = distFromEnd;
         }
 
         this.length = distFromEnd;
+        // Curvature differentiation uses length to choose its sampling window. Populate it
+        // only after length is initialized, so the planner and runtime see identical geometry.
+        for (int i = 0; i < numPoints; i++) {
+            double t = (double) i / (numPoints - 1);
+            LUTpoints[i] = new PathPoint(t, distancesToEnd[i], locations[i],
+                    getFirstDerivative(t), getSignedCurvature(t), getCurvatureDerivative(t));
+        }
     }
 
     /**

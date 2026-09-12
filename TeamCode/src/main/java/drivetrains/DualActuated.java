@@ -19,6 +19,7 @@ public class DualActuated extends BaseDrivetrain<DualActuated.Constants> {
     }
 
     private DriveState state;
+    private long transitionEndsNanos;
     private final Collection<Actuator> actuators = new ArrayList<Actuator>();
 
     public DualActuated(Constants constants, HardwareMap hardwareMap) {
@@ -35,11 +36,18 @@ public class DualActuated extends BaseDrivetrain<DualActuated.Constants> {
 
     @Override
     public void moveWithVectors(double x, double y, double turn) {
+        if (isTransitioning()) { stop(); return; }
         if (state == DriveState.TANK) {
             setPowers(x - turn, x + turn, x - turn, x + turn);
         } else {
             setPowers(x - y - turn, x + y + turn, x + y - turn, x - y + turn);
         }
+    }
+
+    @Override
+    public void setPowers(double fl, double fr, double bl, double br) {
+        if (isTransitioning()) { super.setPowers(0, 0, 0, 0); }
+        else { super.setPowers(fl, fr, bl, br); }
     }
 
     @Override
@@ -58,8 +66,13 @@ public class DualActuated extends BaseDrivetrain<DualActuated.Constants> {
     /** @return the current state of the drivetrain (TANK or HOLONOMIC) */
     public DriveState getDriveState() { return state; }
 
+    public boolean isTransitioning() { return System.nanoTime() < transitionEndsNanos; }
+
     private void applyState(DriveState newState) {
+        if (newState == null) { throw new IllegalArgumentException("Drive state cannot be null"); }
+        stop();
         this.state = newState;
+        transitionEndsNanos = System.nanoTime() + (long) (constants.transitionSeconds * 1e9);
         for (Actuator actuator : actuators) {
             actuator.servo.setPosition(state == DriveState.TANK ?
                     actuator.tankPos : actuator.holonomicPos);
@@ -86,11 +99,24 @@ public class DualActuated extends BaseDrivetrain<DualActuated.Constants> {
 
     /** Configuration class for an Actuated Dual Drivetrain. */
     public static class Constants extends BaseDrivetrainConstants<Constants> {
+        /** Time allowed for deployment/locking before drive output resumes. */
+        public double transitionSeconds = 0.5;
+
+        public Constants setTransitionSeconds(double seconds) {
+            if (!Double.isFinite(seconds) || seconds < 0) {
+                throw new IllegalArgumentException("Transition time must be finite and nonnegative");
+            }
+            transitionSeconds = seconds;
+            return this;
+        }
+
         public DriveState initialState = DriveState.HOLONOMIC;
         public final Collection<Actuator> actuators = new ArrayList<Actuator>();
 
         @Override
         public DualActuated build(HardwareMap hardwareMap) {
+            setTransitionSeconds(transitionSeconds);
+            if (initialState == null) { throw new IllegalArgumentException("Initial state is required"); }
             if (flMotorConfig == null || frMotorConfig == null || blMotorConfig == null ||
                     brMotorConfig == null) {
                 throw new IllegalArgumentException(

@@ -1,5 +1,11 @@
 package feedforward.generators;
 
+import androidx.annotation.NonNull;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
 import core.FollowerConstants;
 import feedforward.FFLut;
 import feedforward.MotionParameters;
@@ -24,8 +30,8 @@ import paths.movements.Path;
  */
 public abstract class BaseProfileGenerator {
     protected static final double EPSILON = 1e-6;
-    /** Normalized full power. Values above this mean the model predicts saturation. */
-    private static final double UTILIZATION_LIMIT = 1.0;
+    /** Allow generated feedforward profiles to use full motor authority. */
+    private static final double UTILIZATION_LIMIT = 1.00;
     /** Small allowance so floating point noise does not create endless pinning. */
     private static final double UTILIZATION_TOLERANCE = 1e-3;
     /** Binary-search depth for local velocity caps. */
@@ -33,11 +39,15 @@ public abstract class BaseProfileGenerator {
 
     protected final FollowerConstants constants;
     protected final FollowerMovement path;
+    private DebugReport lastReport;
 
     protected BaseProfileGenerator(FollowerConstants constants, FollowerMovement path) {
         this.constants = constants;
         this.path = path;
     }
+
+    /** @return diagnostics from the last call to {@link #generate()} */
+    public DebugReport getLastDebugReport() { return lastReport; }
 
     // region Abstract Methods
 
@@ -54,8 +64,7 @@ public abstract class BaseProfileGenerator {
      * @return maximum tangential velocity allowed at this sample
      */
     protected abstract double calculateMaxTangentialVelocity(PathPoint point, Path path,
-                                                             double maxAngVel, double maxAngAccel,
-                                                             double maxCentripetalAccel);
+                                                             double maxAngVel, double maxAngAccel);
 
     /**
      * Evaluates normalized drivetrain utilization for the segment ending at {@code current}.
@@ -96,6 +105,8 @@ public abstract class BaseProfileGenerator {
             throw new IllegalStateException("Points must be set before generating.");
         }
 
+        lastReport = new DebugReport();
+
         // Start with each point's local velocity ceiling, then enforce reachability both ways.
         MotionParameters[] outputParams = generateBasePass(points, path);
         runBackwardPass(outputParams, points, path);
@@ -125,11 +136,28 @@ public abstract class BaseProfileGenerator {
 
             outputParams[pinIndex].setTangentialVel(Math.max(0.0, pinnedVelocity));
 
+            IterationLog log = new IterationLog();
+            log.iteration = iterations + 1;
+            log.pinnedIndex = pinIndex;
+            log.previousVelocity = previousVelocity;
+            log.newVelocity = outputParams[pinIndex].getTangentialVel();
+            log.maxUtilization = profileEval.maxUtilization;
+            log.totalPower = profileEval.totalPower;
+            log.pForward = profileEval.pForward;
+            log.pLateral = profileEval.pLateral;
+            log.pHeading = profileEval.pHeading;
+            lastReport.logs.add(log);
+
             runBackwardPass(outputParams, points, path);
             runForwardPass(outputParams, points, path);
             profileEval = populateKinematicsAndPower(outputParams, points, path);
             iterations++;
         }
+
+        lastReport.iterationsRun = Math.max(1, iterations + 1);
+        lastReport.finalMaxUtilization = profileEval.maxUtilization;
+        lastReport.converged =
+                profileEval.maxUtilization <= UTILIZATION_LIMIT + UTILIZATION_TOLERANCE;
 
         return outputParams;
     }
@@ -305,7 +333,8 @@ public abstract class BaseProfileGenerator {
 
         for (int i = 0; i < points.length; i++) {
             // Constraints are stepwise: the latest constraint whose s has been reached is active.
-            double pctCompleted = 1.0 - points[i].getDistanceToEndIn() / pathLength_in;
+            double pctCompleted = path.constraintProgress(
+                    1.0 - points[i].getDistanceToEndIn() / pathLength_in);
             double currentMaxVel = Double.MAX_VALUE;
             double currentMaxAngVel = Double.MAX_VALUE;
             double currentMaxAngAccel = Double.MAX_VALUE;
@@ -327,7 +356,7 @@ public abstract class BaseProfileGenerator {
             // Let the drivetrain-specific subclass translate heading/curvature demand into a
             // local top speed, then apply any explicit translational velocity constraint.
             double maxVel = calculateMaxTangentialVelocity(points[i], path, currentMaxAngVel,
-                    currentMaxAngAccel, constants.maxCentripetalAccelIn);
+                    currentMaxAngAccel);
             if (currentMaxVel != Double.MAX_VALUE && currentMaxVel > 0.0) {
                 maxVel = Math.min(maxVel, currentMaxVel);
             }
@@ -362,7 +391,8 @@ public abstract class BaseProfileGenerator {
                 continue;
             }
 
-            double pctCompleted = 1.0 - points[i + 1].getDistanceToEndIn() / pathLength_in;
+            double pctCompleted = path.constraintProgress(
+                    1.0 - points[i + 1].getDistanceToEndIn() / pathLength_in);
             double currentMaxAccel = Double.MAX_VALUE;
             double currentMaxAngAccel = Double.MAX_VALUE;
 
@@ -420,7 +450,8 @@ public abstract class BaseProfileGenerator {
                 continue;
             }
 
-            double pctCompleted = 1.0 - points[i].getDistanceToEndIn() / pathLength_in;
+            double pctCompleted = path.constraintProgress(
+                    1.0 - points[i].getDistanceToEndIn() / pathLength_in);
             double currentMaxAccel = Double.MAX_VALUE;
             double currentMaxAngAccel = Double.MAX_VALUE;
 
@@ -642,7 +673,7 @@ public abstract class BaseProfileGenerator {
         return 0.0;
     }
 
-    // region Evaluation results
+    // region Logging and CSV Export
 
     /**
      * Output container for one drivetrain power evaluation.
@@ -665,6 +696,33 @@ public abstract class BaseProfileGenerator {
             this.pLateral = other.pLateral;
             this.pHeading = other.pHeading;
         }
+    }
+
+    /** Summary of the iterative pinning phase from a generated profile. */
+    public static class DebugReport {
+        public int iterationsRun = 0;
+        public boolean converged = false;
+        public double finalMaxUtilization = 0.0;
+        public List<IterationLog> logs = new ArrayList<IterationLog>();
+
+        @Override
+        @NonNull
+        public String toString() {
+            return String.format(
+                    Locale.ENGLISH,
+                    "Converged: %b | Iterations: %d | Final Max Util: %.3f",
+                    converged, iterationsRun, finalMaxUtilization
+            );
+        }
+    }
+
+    /** One iteration of the pinning loop. */
+    public static class IterationLog {
+        public int iteration;
+        public int pinnedIndex;
+        public double previousVelocity, newVelocity;
+        public double maxUtilization, totalPower;
+        public double pForward, pLateral, pHeading;
     }
 
     /** Internal aggregate used to find the worst point in the current profile. */

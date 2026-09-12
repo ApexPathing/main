@@ -8,7 +8,6 @@ import core.FollowerConstants;
 import feedforward.generators.TurnProfileGenerator;
 import geometry.Angle;
 import geometry.Pose;
-import paths.Callback;
 import paths.movements.Turn;
 
 /**
@@ -22,7 +21,7 @@ import paths.movements.Turn;
 public class TurnBuilder {
     private final Pose startPose;
     private Angle targetHeading;
-    private final FollowerConstants constants;
+    private FollowerConstants constants;
 
     private double angularVelLimitRad;
     private double angularAccelLimitRad;
@@ -37,8 +36,21 @@ public class TurnBuilder {
     public TurnBuilder(Pose startPose) {
         this.startPose = startPose;
         this.constants = FollowerConstants.getInstance();
+        if (constants.drivetrainType == drivetrains.BaseDrivetrain.DrivetrainType.DUAL_ACTUATED) {
+            if (constants.getActiveProfile() != null) {
+                this.constants = constants.forProfile(constants.getActiveProfile());
+            }
+        }
         this.angularVelLimitRad = constants.angularVelLimitRad;
         this.angularAccelLimitRad = constants.angularAccelLimitRad;
+    }
+
+    /** Select the mode for a dual-actuated turn before setting custom limits. */
+    public TurnBuilder setDriveProfile(FollowerConstants.Profile profile) {
+        constants = FollowerConstants.getInstance().forProfile(profile);
+        angularVelLimitRad = constants.angularVelLimitRad;
+        angularAccelLimitRad = constants.angularAccelLimitRad;
+        return this;
     }
 
     /**
@@ -80,7 +92,7 @@ public class TurnBuilder {
                         "of this turn.");
             }
 
-            turn.addCallback(new Callback(angle, action));
+            turn.addAngularCallback(angle, action);
         });
 
         return this;
@@ -128,7 +140,14 @@ public class TurnBuilder {
                     "Use .turnTo().");
         }
 
-        Turn turn = new Turn(startPose, targetHeading);
+        Turn turn = new Turn(startPose, targetHeading, angularVelLimitRad,
+                angularAccelLimitRad);
+        if (constants.drivetrainType == drivetrains.BaseDrivetrain.DrivetrainType.DUAL_ACTUATED) {
+            if (constants.getActiveProfile() == null) {
+                throw new IllegalStateException("Select a drive profile for this turn");
+            }
+            turn.setDriveProfile(constants.getActiveProfile());
+        }
         for (Consumer<Turn> task : buildTasks) { task.accept(turn); }
 
         return turn;

@@ -8,7 +8,6 @@ import geometry.ArcPose;
 import geometry.Dist;
 import geometry.Pose;
 import geometry.Vector;
-import paths.Callback;
 import paths.constraint.PathConstraint;
 import paths.heading.InterpolationStyle;
 import paths.movements.Path;
@@ -53,7 +52,7 @@ public abstract class PathBuilder<T extends PathBuilder<T>> {
      * @return The current PathBuilder instance for method chaining.
      */
     @SuppressWarnings("unchecked")
-    protected T addConstraint(PathConstraint constraint) {
+    public T addConstraint(PathConstraint constraint) {
         if (constraint.getS() >= 1.0 || constraint.getS() < 0.0) {
             constraint.setS(Math.min(Math.max(constraint.getS(), 0.0), 0.9));
             path.addWarning("s must be within [0, 1) bounds! Normalized to " + constraint.getS() +
@@ -156,7 +155,7 @@ public abstract class PathBuilder<T extends PathBuilder<T>> {
      */
     @SuppressWarnings("unchecked")
     public T addDistanceCallback(double s, Runnable action) {
-        this.buildTasks.add(() -> path.addCallback(new Callback(s, action)));
+        this.buildTasks.add(() -> path.addDistanceCallback(s, action));
         return (T) this; // Safe cast because T is always a subclass of PathBuilder
     }
 

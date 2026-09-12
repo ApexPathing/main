@@ -26,8 +26,7 @@ public class SwerveProfileGenerator extends BaseProfileGenerator {
 
     @Override
     protected double calculateMaxTangentialVelocity(PathPoint point, Path path,
-                                                    double maxAngVel, double maxAngAccel,
-                                                    double maxCentripetalAccelIn) {
+                                                    double maxAngVel, double maxAngAccel) {
         double s = point.getDistanceToEndIn();
         double kappa = point.getSignedCurvature();
         double dKappa = point.getCurvatureDerivative();
@@ -115,15 +114,15 @@ public class SwerveProfileGenerator extends BaseProfileGenerator {
         double fDoublePrime = path.getInterpolator().getHeadingSecondDerivative(s, dKappa, finalTangent);
 
         double tanPow = vel * constants.translationalKV
-                + accel * constants.translationalKA
-                + signedStatic(vel, accel, constants.translationalCoeffs.kS);
+                + accel * constants.getTranslationalKA(vel, accel)
+                + signedStatic(vel, accel, constants.translationalFeedforwardKS);
 
         double normPow = vel * vel * kappa * constants.kCentripetal;
 
         double omega = fPrime * vel;
         double alpha = fDoublePrime * (vel * vel) + fPrime * accel;
 
-        double headingKs = signedStatic(omega, alpha, constants.angularCoeffs.kS);
+        double headingKs = signedStatic(omega, alpha, constants.angularFeedforwardKS);
         double heading = omega * constants.angularKV + alpha * constants.angularKA + headingKs;
 
         // Swerve can point the traction vector, so translation combines as vector magnitude.

@@ -4,13 +4,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import core.FollowerConstants;
-import drivetrains.BaseDrivetrain;
-import feedforward.FFLut;
-import feedforward.MotionParameters;
-import feedforward.generators.BaseProfileGenerator;
-import feedforward.generators.MecanumProfileGenerator;
-import feedforward.generators.SwerveProfileGenerator;
 import geometry.Angle;
 import geometry.ArcPose;
 import geometry.BSpline;
@@ -20,7 +13,6 @@ import geometry.PathPoint;
 import geometry.PathSegment;
 import geometry.Pose;
 import geometry.Vector;
-import paths.Callback;
 import paths.heading.HeadingNode;
 import paths.heading.InterpolationStyle;
 import paths.heading.HolonomicInterpolator;
@@ -124,7 +116,7 @@ public class HolonomicPathBuilder extends PathBuilder<HolonomicPathBuilder> {
                     }
                 }
             }
-            path.addCallback(new Callback(angle, action));
+            path.addAngularCallback(angle, action);
         });
         return this;
     }
@@ -375,39 +367,16 @@ public class HolonomicPathBuilder extends PathBuilder<HolonomicPathBuilder> {
     @Override
     public Path quickBuild() {
         compileGeometry();
-        path.setFeedforwardLut(null);
+        path.setBuildMode(Path.BuildMode.QUICK);
+        path.rebuildMotionProfile();
         return path;
     }
 
     @Override
     public Path profiledBuild() {
         compileGeometry();
-        FollowerConstants constants = FollowerConstants.getInstance();
-
-        BaseProfileGenerator generator;
-        if (constants.drivetrainType == BaseDrivetrain.DrivetrainType.COAXIAL_SWERVE) {
-            generator = new SwerveProfileGenerator(constants, path);
-        } else {
-            generator = new MecanumProfileGenerator(constants, path);
-        }
-        MotionParameters[] profile = generator.generate();
-        if (hasUsableStartup(profile)) {
-            path.setFeedforwardLut(new FFLut(profile));
-        } else {
-            // A degenerate profile must not leave an otherwise valid path permanently stationary.
-            // Quick following remains bounded by the drivetrain velocity limit and endpoint PDS.
-            path.setFeedforwardLut(null);
-            path.addWarning("APEX WARNING: Motion profile contained no movement; falling back " +
-                    "to closed-loop quick following.");
-        }
-
+        path.setBuildMode(Path.BuildMode.PROFILED);
+        path.rebuildMotionProfile();
         return path;
-    }
-
-    private static boolean hasUsableStartup(MotionParameters[] profile) {
-        if (profile == null || profile.length == 0) { return false; }
-        MotionParameters start = profile[0];
-        return start != null && (Math.abs(start.getTangentialVel()) > EPSILON ||
-                Math.abs(start.getTangentialAccel()) > EPSILON);
     }
 }

@@ -19,6 +19,8 @@ public class MotionParameters {
     /** Radians per second squared. */
     private double angularAccel;
     private double distAlongCurve;
+    /** Optional elapsed-time key used by time-parameterized profiles. */
+    private double timeSeconds;
     private double motorPower = 0.0;
 
     /**
@@ -83,6 +85,12 @@ public class MotionParameters {
      */
     public void setDistAlongCurve(double distAlongCurve) { this.distAlongCurve = distAlongCurve; }
 
+    /** Sets the elapsed-time key for this row and returns this object for chaining. */
+    public MotionParameters setTimeSeconds(double timeSeconds) {
+        this.timeSeconds = timeSeconds;
+        return this;
+    }
+
     /** @return path-relative linear velocity */
     public double getTangentialVel() { return tangentialVel; }
 
@@ -97,6 +105,9 @@ public class MotionParameters {
 
     /** @return interpolation key stored for this row */
     public double getDistAlongCurve() { return distAlongCurve; }
+
+    /** @return elapsed-time key in seconds for a time-parameterized profile */
+    public double getTimeSeconds() { return timeSeconds; }
 
     /** @return interpolation key used by {@link FFLut} */
     public double getProgression() { return distAlongCurve; }

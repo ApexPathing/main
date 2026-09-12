@@ -2,7 +2,6 @@ package geometry;
 
 import core.Follower;
 import paths.builders.HolonomicPathBuilder;
-import paths.builders.PathBuilder;
 import paths.builders.TankPathBuilder;
 import paths.builders.TurnBuilder;
 import paths.movements.Path;
@@ -19,21 +18,17 @@ import paths.movements.Turn;
 public class GeometryFactory {
     public enum PoseMirror { NONE, X, Y }
 
-    private boolean isHolonomic;
     private PoseMirror mirror = PoseMirror.NONE;
     private DistUnit distUnit = DistUnit.IN;
     private AngleUnit angleUnit = AngleUnit.DEG;
 
     // region Constructors
 
-    /** Creates a GeometryFactory with default units/mirroring. */
-    public GeometryFactory(Follower follower) {
-        this.isHolonomic = follower.getDrivetrain().isHolonomic();
-    }
+    /** Creates a factory with default units and mirroring; builders select drive mode. */
+    public GeometryFactory() { }
 
-    public GeometryFactory(boolean isHolonomic) { this.isHolonomic = isHolonomic; }
-
-    public GeometryFactory() { this.isHolonomic = true; }
+    /** Geometry no longer depends on the follower's current drivetrain mode. */
+    public GeometryFactory(Follower follower) { this(); }
 
     /** Applies the configured mirroring to a {@link Pose}. */
     private Pose applyMirror(Pose pose) {
@@ -62,17 +57,6 @@ public class GeometryFactory {
         return this;
     }
 
-    /**
-     * Sets the holonomic state for {@link drivetrains.DualActuated} drivetrains that can switch
-     * between holonomic and non-holonomic modes. This is used to determine how paths are built.
-     * Users with drivetrains that are always holonomic or always non-holonomic shouldn't use this
-     * method as the holonomic state is automatically determined from the drivetrain type. Dual
-     * actuated drivetrains use their initial state by default.
-     */
-    public GeometryFactory setHolonomic(boolean isHolonomic) {
-        this.isHolonomic = isHolonomic;
-        return this;
-    }
 
     // endregion
     // region Getters
@@ -86,8 +70,6 @@ public class GeometryFactory {
     /** @return the {@link AngleUnit} used for inputs. */
     public AngleUnit getAngleUnit() { return angleUnit; }
 
-    /** @return whether the factory is making holonomic paths or tank paths. */
-    public boolean isHolonomic() { return isHolonomic; }
 
     // endregion
     // region Poses and arc poses
@@ -121,14 +103,11 @@ public class GeometryFactory {
     // endregion
     // region Paths and turns
 
-    /**
-     * Creates a {@link PathBuilder} from the given poses. The type of PathBuilder returned depends
-     * on whether the factory is configured for holonomic or non-holonomic paths.
-     */
-    public PathBuilder<?> path(Pose... poses) {
-        if (isHolonomic) { return new HolonomicPathBuilder(poses); }
-        return new TankPathBuilder(poses);
-    }
+    /** Builds a tank path; following it selects traction mode on a dual-actuated drive. */
+    public TankPathBuilder tankPath(Pose... poses) { return new TankPathBuilder(poses); }
+
+    /** Builds a holonomic path; following it selects holonomic mode on a dual-actuated drive. */
+    public HolonomicPathBuilder holonomicPath(Pose... poses) { return new HolonomicPathBuilder(poses); }
 
     /** Creates a {@link TurnBuilder} from the given start pose. */
     public TurnBuilder turn(Pose startPose) { return new TurnBuilder(startPose); }

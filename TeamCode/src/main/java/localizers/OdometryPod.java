@@ -1,6 +1,5 @@
 package localizers;
 
-import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
@@ -14,6 +13,7 @@ public class OdometryPod {
     private final String name;
 
     private final double ticksPerInch;
+    private final double direction;
     private final DcMotorEx odometry;
 
     private int lastTicks;
@@ -21,9 +21,17 @@ public class OdometryPod {
     private double deltaTicks;
 
     public OdometryPod(HardwareMap hardwareMap, String name, double ticksPerInch) {
+        this(hardwareMap, name, ticksPerInch, false);
+    }
+
+    /** Creates a pod with an optional software reversal relative to the SDK encoder reading. */
+    public OdometryPod(HardwareMap hardwareMap, String name, double ticksPerInch,
+                       boolean reversed) {
         this.name = name;
         this.odometry = hardwareMap.get(DcMotorEx.class, this.name);
         this.ticksPerInch = ticksPerInch;
+        this.direction = reversed ? -1.0 : 1.0;
+        reset();
     }
 
     public String getName() { return this.name; }
@@ -35,15 +43,21 @@ public class OdometryPod {
     }
 
     public void reset() {
-        lastTicks = 0;
-        currentTicks = 0;
-        odometry.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        currentTicks = odometry.getCurrentPosition();
+        lastTicks = currentTicks;
+        deltaTicks = 0.0;
     }
 
     /** @return the amount of inches the encoder has moved since the last reset */
-    public double getInches() { return currentTicks / ticksPerInch; }
+    public double getInches() { return direction * currentTicks / ticksPerInch; }
 
     /** @return the amount of inches the encoder has moved since the last loop. */
-    public double getDeltaInches() { return deltaTicks / ticksPerInch; }
+    public double getDeltaInches() { return direction * deltaTicks / ticksPerInch; }
+
+    /** Returns the current raw SDK encoder position without changing the motor run mode. */
+    public int getTicks() { return currentTicks; }
+
+    /** Returns raw encoder ticks accumulated during the most recent update. */
+    public double getDeltaTicks() { return deltaTicks; }
 }
 

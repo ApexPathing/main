@@ -48,6 +48,20 @@ public class FFLut {
      * @return interpolated motion parameters for the follower
      */
     public MotionParameters getFFParams(double progression) {
+        return getFFParams(progression, false);
+    }
+
+    /**
+     * Tank stopping profiles preserve constant braking acceleration in the final
+     * interval ending at rest: v^2 = v0^2 + 2*a*ds. Independently blending the
+     * terminal zero velocity and zero acceleration weakens braking before arrival.
+     * Interior interpolation retains the existing curve tracking behavior.
+     */
+    public MotionParameters getTankFFParams(double distance) {
+        return getFFParams(distance, true);
+    }
+
+    private MotionParameters getFFParams(double progression, boolean constantAcceleration) {
         if (params.length == 1 || progression <= params[0].getProgression()) {
             return copyOf(params[0]);
         }
@@ -67,11 +81,50 @@ public class FFLut {
                 if (Math.abs(denominator) < 1e-9) { return copyOf(params2); }
 
                 double interpolationFraction = (progression - s0) / denominator;
+                if (constantAcceleration && i == params.length - 1
+                        && params2.getTangentialVel() == 0.0 && params1.getTangentialVel() > 0.0) {
+                    MotionParameters result = getFFParams(params1, interpolationFraction, params2, progression);
+                    double v0 = params1.getTangentialVel(), v1 = params2.getTangentialVel();
+                    double acceleration = (v1*v1-v0*v0)/(2*denominator);
+                    double velocity = Math.sqrt(Math.max(0, v0*v0+2*acceleration*(progression-s0)));
+                    double curvature0 = v0 > 1e-9 ? params1.getAngularVel()/v0
+                            : v1 > 1e-9 ? params2.getAngularVel()/v1 : 0;
+                    double curvature1 = v1 > 1e-9 ? params2.getAngularVel()/v1 : curvature0;
+                    double curvature = curvature0 + interpolationFraction*(curvature1-curvature0);
+                    return result.setTangentialVel(velocity).setTangentialAccel(acceleration)
+                            .setAngularVel(curvature*velocity)
+                            .setAngularAccel(curvature*acceleration
+                                    + (curvature1-curvature0)/denominator*velocity*velocity);
+                }
                 return getFFParams(params1, interpolationFraction, params2, progression);
             }
         }
         return copyOf(last);
     }
+
+    /** Returns a trajectory state interpolated by elapsed time. */
+    public MotionParameters getFFParamsByTime(double timeSeconds) {
+        if (params.length == 1 || timeSeconds <= params[0].getTimeSeconds()) {
+            return copyOf(params[0]);
+        }
+        MotionParameters last = params[params.length - 1];
+        if (timeSeconds >= last.getTimeSeconds()) { return copyOf(last); }
+
+        for (int i = 1; i < params.length; i++) {
+            if (timeSeconds <= params[i].getTimeSeconds()) {
+                MotionParameters before = params[i - 1];
+                MotionParameters after = params[i];
+                double dt = after.getTimeSeconds() - before.getTimeSeconds();
+                if (dt <= 1e-9) { return copyOf(after); }
+                double fraction = (timeSeconds - before.getTimeSeconds()) / dt;
+                return interpolate(before, fraction, after);
+            }
+        }
+        return copyOf(last);
+    }
+
+    /** @return final elapsed-time key, or zero for a displacement-only profile */
+    public double getDurationSeconds() { return params[params.length - 1].getTimeSeconds(); }
 
     /**
      * Blends two neighboring rows of the lookup table.
@@ -85,6 +138,14 @@ public class FFLut {
     private static MotionParameters getFFParams(MotionParameters params1,
                                                 double interpolationFraction,
                                                 MotionParameters params2, double progression) {
+        MotionParameters result = interpolate(params1, interpolationFraction, params2);
+        result.setDistAlongCurve(progression);
+        return result;
+    }
+
+    private static MotionParameters interpolate(MotionParameters params1,
+                                                double interpolationFraction,
+                                                MotionParameters params2) {
         double interpTransVel = params1.getTangentialVel() + interpolationFraction *
                         (params2.getTangentialVel() - params1.getTangentialVel());
         double interpTransAccel = params1.getTangentialAccel() + interpolationFraction *
@@ -94,15 +155,24 @@ public class FFLut {
         double interpAngAccel = params1.getAngularAccel() + interpolationFraction *
                         (params2.getAngularAccel() - params1.getAngularAccel());
 
-        return new MotionParameters(
-                interpTransVel, interpTransAccel, interpAngVel, interpAngAccel, progression
-        );
+        double interpProgression = params1.getProgression() + interpolationFraction *
+                (params2.getProgression() - params1.getProgression());
+        double interpTime = params1.getTimeSeconds() + interpolationFraction *
+                (params2.getTimeSeconds() - params1.getTimeSeconds());
+        double interpMotorPower = params1.getMotorPower() + interpolationFraction *
+                (params2.getMotorPower() - params1.getMotorPower());
+        MotionParameters result = new MotionParameters(interpTransVel, interpTransAccel,
+                interpAngVel, interpAngAccel, interpProgression).setTimeSeconds(interpTime);
+        result.setMotorPower(interpMotorPower);
+        return result;
     }
 
     private static MotionParameters copyOf(MotionParameters params) {
-        return new MotionParameters(
+        MotionParameters result = new MotionParameters(
                 params.getTangentialVel(), params.getTangentialAccel(), params.getAngularVel(),
                 params.getAngularAccel(), params.getProgression()
-        );
+        ).setTimeSeconds(params.getTimeSeconds());
+        result.setMotorPower(params.getMotorPower());
+        return result;
     }
 }

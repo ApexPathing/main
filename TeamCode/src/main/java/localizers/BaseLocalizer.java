@@ -2,6 +2,7 @@ package localizers;
 
 import geometry.Angle;
 import geometry.Dist;
+import geometry.DistUnit;
 import geometry.Pose;
 import geometry.Vector;
 import localizers.util.AdaptiveKalmanFilter;
@@ -53,6 +54,8 @@ public abstract class BaseLocalizer<T extends BaseLocalizerConstants<T>> {
     private Pose prevPose = Pose.zero();
     private Pose prevRawVelocity = Pose.zero();
     private long prevTimeNs = -1;
+    private long lastMeasurementTimeNanos = -1;
+    private boolean lastMeasurementValid;
 
     private int lastSize = 0;
     private int FILTER_WINDOW_SIZE = 7; //TODO: Verify this number and make it a constant or delete it
@@ -94,6 +97,12 @@ public abstract class BaseLocalizer<T extends BaseLocalizerConstants<T>> {
      *  @return the current raw acceleration estimate of the robot from the localizer
      */
     public Pose getRawAccel() { return rawAcceleration; }
+
+    /** Returns the timestamp of the last valid measurement accepted by this localizer. */
+    public long getLastMeasurementTimeNanos() { return lastMeasurementTimeNanos; }
+
+    /** Returns whether the most recent hardware update supplied a valid measurement. */
+    public boolean isLastMeasurementValid() { return lastMeasurementValid; }
 
     /** @return the velocity filter's moving-average window size in samples */
     public int getFilterWindowSize() { return FILTER_WINDOW_SIZE; }
@@ -142,11 +151,36 @@ public abstract class BaseLocalizer<T extends BaseLocalizerConstants<T>> {
     public abstract void setPose(Pose newPose);
 
     /**
+     * Integrates a robot-frame displacement as a constant-curvature arc.
+     *
+     * <p>The translational delta is the body-frame twist accumulated over the update. The SE(2)
+     * exponential scales its midpoint-heading projection by the arc-to-chord ratio, which also
+     * has a well-behaved straight-line limit.</p>
+     */
+    protected static Pose integrateArc(Pose start, double deltaX, double deltaY,
+                                       double deltaHeading, double finalHeading) {
+        double halfHeading = deltaHeading * 0.5;
+        double chordScale = Math.abs(halfHeading) < 1e-6
+                ? 1.0 - halfHeading * halfHeading / 6.0
+                : Math.sin(halfHeading) / halfHeading;
+        double projectionHeading = start.getHeading().getRad() + halfHeading;
+        double cos = Math.cos(projectionHeading);
+        double sin = Math.sin(projectionHeading);
+        double fieldDeltaX = chordScale * (deltaX * cos - deltaY * sin);
+        double fieldDeltaY = chordScale * (deltaX * sin + deltaY * cos);
+        return new Pose(
+                Vector.of(start.getX().getIn() + fieldDeltaX,
+                        start.getY().getIn() + fieldDeltaY, DistUnit.IN),
+                Angle.fromRad(finalHeading));
+    }
+
+    /**
      * Calculates the current velocity and/or acceleration for localizers that don't natively
      * support it
      **/
     protected void calculate(UpdateType updateType) {
         long currentTimeNs = System.nanoTime();
+        markMeasurementValid(currentTimeNs);
 
         if (prevTimeNs == -1) {
             prevTimeNs = currentTimeNs;
@@ -169,6 +203,7 @@ public abstract class BaseLocalizer<T extends BaseLocalizerConstants<T>> {
      */
     protected void calculate(Pose measuredVelocity) {
         long currentTimeNs = System.nanoTime();
+        markMeasurementValid(currentTimeNs);
         if (prevTimeNs == -1) {
             rawVelocity = measuredVelocity;
             rawAcceleration = Pose.zero();
@@ -225,7 +260,7 @@ public abstract class BaseLocalizer<T extends BaseLocalizerConstants<T>> {
 
     }
 
-    /** Clears motion history after an odometry pose reset. */
+    /** Clears motion history after an odometry pose reset or simulator staging teleport. */
     protected void resetKinematicEstimate(Pose newPose) {
         pose = newPose;
         velocity = Pose.zero();
@@ -235,9 +270,19 @@ public abstract class BaseLocalizer<T extends BaseLocalizerConstants<T>> {
         prevPose = newPose;
         prevRawVelocity = Pose.zero();
         prevTimeNs = -1;
+        lastMeasurementTimeNanos = -1;
+        lastMeasurementValid = false;
         xFilter.reset();
         yFilter.reset();
         headingFilter.reset();
+    }
+
+    /** Marks a hardware update invalid without pretending a cached value is a new sample. */
+    protected void markMeasurementInvalid() { lastMeasurementValid = false; }
+
+    private void markMeasurementValid(long timestamp) {
+        lastMeasurementTimeNanos = timestamp;
+        lastMeasurementValid = true;
     }
 
     public void setIsTuning(boolean isTuning) {

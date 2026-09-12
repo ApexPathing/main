@@ -5,9 +5,8 @@ import feedforward.MotionParameters;
 /**
  * Executes quick and displacement-profiled point turns.
  *
- * <p>Quick turns and overshoot recovery use the complete heading PDS controller. Normal profiled
- * motion deliberately uses only angular feedforward, the PDS controller's tuned static term, and
- * explicit angular velocity feedback.
+ * <p>Quick turns use the complete heading PDS controller. Profiled turns track a time-indexed
+ * heading, angular velocity, and angular acceleration reference.
  *
  * @author DrPixelCat - 7842 alum
  */
@@ -16,8 +15,6 @@ public class TurnController {
     // Preserve breakaway authority through the low-speed end of profile deceleration. Waiting
     // until nearly zero lets static friction stop the robot for a loop before recovery restarts it.
     private static final double LOW_SPEED_ANGULAR_VELOCITY = 0.25;
-    private static final double ENDPOINT_CAPTURE_HEADING = Math.toRadians(10.0);
-    private static final double ENDPOINT_CAPTURE_MEASURED_VELOCITY = 1.0;
     private static final double BREAKAWAY_RESERVE = 0.02;
     // Velocity feedback is a correction, not the primary command. Bounding its contribution keeps
     // an over-tuned/stale gain from turning profile tracking into full-power bang-bang control.
@@ -27,18 +24,20 @@ public class TurnController {
     private final PDSController headingPds;
     private double angularKV;
     private double angularKA;
+    private double angularFeedforwardKS;
     private double angularVelocityFeedbackGain;
 
-    private boolean overshootRecovery;
+    private boolean quickEndpointCapture;
 
     public TurnController(PDSController.PDSCoefficients headingCoefficients,
-                          double angularKV, double angularKA,
+                          double angularKV, double angularKA, double angularFeedforwardKS,
                           double angularVelocityFeedbackGain) {
         headingPds = new PDSController(headingCoefficients);
         headingPds.setAngularController();
 
         this.angularKV = angularKV;
         this.angularKA = angularKA;
+        this.angularFeedforwardKS = angularFeedforwardKS;
         this.angularVelocityFeedbackGain = angularVelocityFeedbackGain;
     }
 
@@ -49,8 +48,17 @@ public class TurnController {
 
     public void setMotionGains(double angularKV, double angularKA,
                                double angularVelocityFeedbackGain) {
+        setMotionGains(angularKV, angularKA, angularFeedforwardKS,
+                angularVelocityFeedbackGain);
+    }
+
+    /** Updates dynamic and moving-friction feedforward gains. */
+    public void setMotionGains(double angularKV, double angularKA,
+                               double angularFeedforwardKS,
+                               double angularVelocityFeedbackGain) {
         this.angularKV = angularKV;
         this.angularKA = angularKA;
+        this.angularFeedforwardKS = angularFeedforwardKS;
         this.angularVelocityFeedbackGain = angularVelocityFeedbackGain;
         reset();
     }
@@ -58,21 +66,21 @@ public class TurnController {
     /** Uses the complete heading PDS for an unprofiled turn. */
     public double calculateQuick(double headingError) { return headingPds.calculate(headingError); }
 
+    /** Latches out static compensation after a quick turn reaches its endpoint band. */
+    public double calculateQuick(double headingError, double measuredAngularVelocity,
+                                 double endpointCaptureHeading) {
+        if (Math.abs(headingError) <= endpointCaptureHeading) {
+            quickEndpointCapture = true;
+        }
+        return headingPds.calculate(
+                headingError, -measuredAngularVelocity, !quickEndpointCapture);
+    }
+
     /**
-     * Calculates a profiled turn command and permanently switches to PDS recovery after overshoot.
+     * Calculates a profiled turn command from a time-indexed position and velocity error.
      */
     public double calculateProfiled(double headingError, double intendedDirection,
                                     MotionParameters targets, double measuredAngularVelocity) {
-        if (!overshootRecovery && intendedDirection != 0.0 &&
-                intendedDirection * headingError < -EPSILON) {
-            overshootRecovery = true;
-            headingPds.reset();
-        }
-
-        if (overshootRecovery) {
-            return headingPds.calculate(headingError);
-        }
-
         double targetVelocity = targets.getAngularVel();
         double targetAcceleration = targets.getAngularAccel();
 
@@ -84,21 +92,18 @@ public class TurnController {
         }
 
         double feedforward = angularKV * targetVelocity + angularKA * targetAcceleration
-                + headingPds.getCoefficients().kS * motionSign;
-        double velocityFeedback = clipVelocityFeedback(angularVelocityFeedbackGain
-                * (targetVelocity - measuredAngularVelocity), intendedDirection);
+                + angularFeedforwardKS * motionSign;
+        double velocityFeedback = Math.abs(targetVelocity) > EPSILON
+                ? clipVelocityFeedback(angularVelocityFeedbackGain
+                * (targetVelocity - measuredAngularVelocity), intendedDirection)
+                : 0.0;
 
-        double requestedPower = feedforward + velocityFeedback;
-        // Endpoint capture is based on actual remaining heading and motion, not a particular LUT
-        // row. This keeps the handoff continuous even when displacement advances in coarse steps
-        // or the chassis stops before the profile reaches its exact zero-velocity sample.
-        if (Math.abs(headingError) < ENDPOINT_CAPTURE_HEADING) {
-            double positionPower = headingPds.calculate(headingError);
-            requestedPower = blendEndpointCapturePower(
-                    requestedPower, positionPower, headingError,
-                    measuredAngularVelocity, ENDPOINT_CAPTURE_HEADING,
-                    ENDPOINT_CAPTURE_MEASURED_VELOCITY);
-        }
+        double errorRate = targetVelocity - measuredAngularVelocity;
+        boolean stoppedReference = Math.abs(targetVelocity) <= EPSILON &&
+                Math.abs(measuredAngularVelocity) < LOW_SPEED_ANGULAR_VELOCITY;
+        double positionPower = headingPds.calculate(
+                headingError, errorRate, stoppedReference);
+        double requestedPower = feedforward + velocityFeedback + positionPower;
         return clip(ensureProfiledMotionBreakaway(
                 requestedPower,
                 targetVelocity,
@@ -126,27 +131,8 @@ public class TurnController {
         return Math.copySign(minimumPower, targetVelocity);
     }
 
-    static double blendEndpointCapturePower(double profilePower, double positionPower,
-                                            double headingError, double measuredVelocity,
-                                            double captureHeading, double stalledVelocity) {
-        if (!Double.isFinite(profilePower) || !Double.isFinite(positionPower) ||
-                !Double.isFinite(headingError) || !Double.isFinite(measuredVelocity) ||
-                !Double.isFinite(captureHeading) || !Double.isFinite(stalledVelocity) ||
-                captureHeading <= 0.0 || stalledVelocity <= 0.0) {
-            return profilePower;
-        }
-        if (Math.abs(headingError) >= captureHeading) { return profilePower; }
-        double headingWeight = 1.0 - Math.abs(headingError) / captureHeading;
-        double stalledWeight = Math.max(0.0,
-                1.0 - Math.abs(measuredVelocity) / stalledVelocity);
-        // Do not let position-controller derivative braking fight a still-active high-speed
-        // profile. It takes authority progressively only as both angle and actual motion settle.
-        double positionWeight = headingWeight * stalledWeight;
-        return profilePower * (1.0 - positionWeight) + positionPower * positionWeight;
-    }
-
     public void reset() {
-        overshootRecovery = false;
+        quickEndpointCapture = false;
         headingPds.reset();
     }
 

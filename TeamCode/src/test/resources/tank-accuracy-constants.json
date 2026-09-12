@@ -1,0 +1,27 @@
+{
+    "schemaVersion": 2,
+    "profiles": {"DEFAULT": {
+        "velocityFeedbackGain": 0,
+        "translationalD": 0.02,
+        "translationKV": 0.012569274653446578,
+        "headingP": 1.04124375,
+        "headingD": 0.273625,
+        "angularFeedforwardS": 0.07159326109465312,
+        "forwardAccelLimitIn": 128.0223497382084,
+        "angularKA": 0.040416496572471275,
+        "kCentripetal": 0,
+        "strafeVelLimitIn": 0,
+        "angularAccelLimitRad": 19.381768643572677,
+        "strafeAccelLimitIn": 0,
+        "angularVelLimitRad": 8.737853924684913,
+        "translationalFeedforwardS": 0.07175672241394312,
+        "headingS": 0.240234375,
+        "angularKV": 0.08805687736302,
+        "angularVelocityFeedbackGain": 0.1875,
+        "translationalS": 0.251953125,
+        "forwardVelLimitIn": 64.66399507719423,
+        "translationalP": 0.052000000000000005,
+        "translationKA": 0.005664558275153056
+    }},
+    "drivetrainType": "TANK"
+}

@@ -14,4 +14,18 @@ import localizers.BaseLocalizerConstants;
 public interface ApexConstants {
     BaseDrivetrainConstants<?> drivetrainConstants();
     BaseLocalizerConstants<?> localizerConstants();
+
+    /**
+     * Returns whether a dual-actuated drivetrain uses one localizer configuration in both modes.
+     * Existing robot configurations remain shared by default.
+     */
+    default boolean usesSharedLocalizer() { return true; }
+
+    /**
+     * Returns the localizer configuration for a dual-actuated mode when
+     * {@link #usesSharedLocalizer()} is false.
+     */
+    default BaseLocalizerConstants<?> localizerConstants(FollowerConstants.Profile profile) {
+        return localizerConstants();
+    }
 }

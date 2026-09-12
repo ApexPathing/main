@@ -15,6 +15,13 @@ import paths.movements.Path;
  * @author DrPixelCat - 7842 alum
  */
 public class TankProfileGenerator extends BaseProfileGenerator {
+    static double tractionLimitedVelocity(double velocity, double curvature, double acceleration) {
+        if (!Double.isFinite(acceleration) || acceleration <= 0.0
+                || Math.abs(curvature) <= EPSILON) {
+            return velocity;
+        }
+        return Math.min(velocity, Math.sqrt(acceleration / Math.abs(curvature)));
+    }
     /** Number of binary-search steps used for velocity ceilings. */
     private static final int VELOCITY_SEARCH_ITERATIONS = 8;
 
@@ -33,7 +40,7 @@ public class TankProfileGenerator extends BaseProfileGenerator {
     @Override
     protected double calculateMaxTangentialVelocity(PathPoint point,
                                                     Path path, double maxAngVel,
-                                                    double maxAngAccel, double maxCentripetalAccelIn) {
+                                                    double maxAngAccel) {
         double s = point.getDistanceToEndIn();
         double kappa = point.getSignedCurvature();
         double dKappa = point.getCurvatureDerivative();
@@ -49,11 +56,14 @@ public class TankProfileGenerator extends BaseProfileGenerator {
         double effectiveAngAccelLimit = Math.min(constants.angularAccelLimitRad,
                 maxAngAccel);
 
+        // Traction depends on curvature magnitude, independently of heading interpolation.
+        maxPhysicalVel = tractionLimitedVelocity(maxPhysicalVel, kappa,
+                constants.maxCentripetalAccelIn);
+
         // Angular velocity limit: |f' * v| <= omega_max, so v <= omega_max / |f'|.
         if (Math.abs(fPrime) > EPSILON) {
             double maxVelFromOmega = effectiveAngVelLimit / Math.abs(fPrime);
-            double maxCentripetalVel = Math.sqrt(maxCentripetalAccelIn * (1.0 / kappa));
-            maxPhysicalVel = Math.min(maxPhysicalVel, Math.min(maxVelFromOmega, maxCentripetalVel));
+            maxPhysicalVel = Math.min(maxPhysicalVel, maxVelFromOmega);
         }
 
         // Angular acceleration limit at zero tangential accel: |f'' * v^2| <= alpha_max.
@@ -79,20 +89,20 @@ public class TankProfileGenerator extends BaseProfileGenerator {
     /**
      * Estimates normalized tank power for a local state.
      *
-     * <p>Translation uses {@code kV*v + kA*a + kS}. Heading uses the same structure with
-     * {@code omega} and {@code alpha}. The two absolute magnitudes are added because they share
-     * the same motor output budget.
+     * <p>Translation uses {@code kV*v + kA*a + kS}. Heading adds its velocity and acceleration
+     * terms, but not another kS: the translation command has already broken static friction on
+     * both shared tank sides. The two absolute magnitudes are added because they share the same
+     * motor output budget.
      */
     private double evaluatePower(double v, double fPrime, double fDoublePrime) {
         double transPower = Math.abs(v * constants.translationalKV +
-                        signedStatic(v, 0.0, constants.translationalCoeffs.kS));
+                        signedStatic(v, 0.0, constants.translationalFeedforwardKS));
 
         double omega = fPrime * v;
         double alpha = fDoublePrime * (v * v) + fPrime * 0.0;
-        double headingKs = signedStatic(omega, alpha, constants.angularCoeffs.kS);
-
-        double rotPower = Math.abs(omega * constants.angularKV + alpha *
-                constants.angularKA + headingKs);
+        // Translation has already broken static friction on both tank sides. Adding the angular
+        // kS again would double-count the same wheels during a moving spatial path.
+        double rotPower = Math.abs(omega * constants.angularKV + alpha * constants.angularKA);
 
         return transPower + rotPower;
     }
@@ -114,11 +124,11 @@ public class TankProfileGenerator extends BaseProfileGenerator {
         double omega = fPrime * v;
         double alpha = fDoublePrime * (v * v) + fPrime * a_t;
 
-        double pForward = v * constants.translationalKV + a_t * constants.translationalKA
-                        + signedStatic(v, a_t, constants.translationalCoeffs.kS);
+        double pForward = v * constants.translationalKV +
+                a_t * constants.getTranslationalKA(v, a_t)
+                        + signedStatic(v, a_t, constants.translationalFeedforwardKS);
 
-        double headingKs = signedStatic(omega, alpha, constants.angularCoeffs.kS);
-        double pHeading = omega * constants.angularKV + alpha * constants.angularKA + headingKs;
+        double pHeading = omega * constants.angularKV + alpha * constants.angularKA;
 
         outResult.pForward = Math.abs(pForward);
         outResult.pLateral = 0.0;

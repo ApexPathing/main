@@ -7,6 +7,8 @@ import com.qualcomm.robotcore.hardware.I2cDeviceSynchDevice;
 import com.qualcomm.robotcore.hardware.configuration.annotations.DeviceProperties;
 import com.qualcomm.robotcore.hardware.configuration.annotations.I2cDeviceType;
 
+import org.json.JSONObject;
+
 import java.nio.ByteBuffer;
 
 import geometry.Pose;
@@ -52,6 +54,21 @@ public class OTOS extends BaseLocalizer<OTOS.Constants> {
         public Pose offset = Pose.zero();
         public double linearScalar = 1.0;
         public double angularScalar = 1.0;
+
+        @Override
+        public JSONObject getCalibrationValues() {
+            try {
+                return CalibrationJson.pose(offset).put("linearScalar", linearScalar)
+                        .put("angularScalar", angularScalar);
+            } catch (Exception e) { throw new IllegalStateException(e); }
+        }
+
+        @Override
+        public void applyCalibrationValues(JSONObject values) {
+            offset = CalibrationJson.pose(values, offset);
+            setLinearScalar(CalibrationJson.positive(values, "linearScalar", linearScalar));
+            setAngularScalar(CalibrationJson.positive(values, "angularScalar", angularScalar));
+        }
 
         @Override
         public OTOS build(HardwareMap hardwareMap) {

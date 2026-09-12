@@ -82,7 +82,20 @@ public class DriveController {
 
     public double calculateCrossTrack(double error) { return crossTrackPDS.calculate(error); }
 
+    /** Calculates cross-track correction with optional static-friction compensation. */
+    public double calculateCrossTrack(double error, boolean applyStaticCompensation) {
+        return crossTrackPDS.calculate(error, applyStaticCompensation);
+    }
+
     public double calculateEndDistance(double error) { return endDistancePDS.calculate(error); }
+
+    /**
+     * Calculates endpoint power using a measured error rate instead of differentiating projected
+     * path distance. For a fixed endpoint, pass the negative measured tangential velocity.
+     */
+    public double calculateEndDistance(double error, double errorRate) {
+        return endDistancePDS.calculate(error, errorRate);
+    }
 
     /** Allocates one field-centric stage using mecanum direction-dependent wheel demand. */
     public AllocatedCommand allocateMecanum(Vector fieldCommand, Angle currentHeading,
