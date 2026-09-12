@@ -43,14 +43,14 @@ public class DualActuatedProfilesTest {
             };
             Follower follower = new Follower(config, hardware.hardwareMap);
             DualActuated drive = (DualActuated) follower.getDrivetrain();
-            assertEquals(0.04, cached(follower, "translationalKV"), 0);
+            assertEquals(0.04, follower.getConstants().translationalKV, 0);
             Path tankPath = new TankPathBuilder(Pose.zero(),
                     new Pose(Vector.of(24, 0, DistUnit.IN), Angle.zero())).quickBuild();
             assertEquals(FollowerConstants.Profile.HOLONOMIC, constants.getActiveProfile());
             assertNotNull(tankPath.getFeedforwardLut());
             follower.follow(tankPath);
             assertFalse(drive.isHolonomic());
-            assertEquals(0.02, cached(follower, "translationalKV"), 0);
+            assertEquals(0.02, follower.getConstants().translationalKV, 0);
             assertEquals(25, constants.forwardVelLimitIn, 0);
             follower.stop();
             follower.setPose(Pose.zero());
@@ -67,7 +67,7 @@ public class DualActuatedProfilesTest {
             assertEquals(FollowerConstants.Profile.TANK, constants.getActiveProfile());
             follower.follow(turn.reversed());
             assertTrue(drive.isHolonomic());
-            assertEquals(0.04, cached(follower, "translationalKV"), 0);
+            assertEquals(0.04, follower.getConstants().translationalKV, 0);
             follower.stop();
 
             driveConfig.setTransitionSeconds(1);
@@ -77,7 +77,7 @@ public class DualActuatedProfilesTest {
             assertEquals(0, drive.getLastFlPower(), 0);
             follower.update(false);
             assertEquals(FollowerConstants.Profile.TANK, constants.getActiveProfile());
-            assertEquals(0.02, cached(follower, "translationalKV"), 0);
+            assertEquals(0.02, follower.getConstants().translationalKV, 0);
         } finally {
             singleton.set(null, prior);
             restore(ApexStorage.DIRECTORY_PROPERTY, priorStorage);
@@ -92,11 +92,6 @@ public class DualActuatedProfilesTest {
                 .put("forwardVelLimitIn", velocity).put("forwardAccelLimitIn", 40)
                 .put("strafeVelLimitIn", 30).put("strafeAccelLimitIn", 30)
                 .put("angularVelLimitRad", 3).put("angularAccelLimitRad", 5);
-    }
-    private static double cached(Follower follower, String name) throws Exception {
-        Field field = Follower.class.getDeclaredField(name);
-        field.setAccessible(true);
-        return field.getDouble(follower);
     }
     private static void restore(String key, String value) {
         if (value == null) { System.clearProperty(key); } else { System.setProperty(key, value); }
