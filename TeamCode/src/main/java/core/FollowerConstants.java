@@ -44,6 +44,8 @@ public class FollowerConstants {
     public double strafeAccelLimitIn = 0.0;
     public double angularVelLimitRad = 0.0;
     public double angularAccelLimitRad = 0.0;
+    /** Optional tank traction limit in in/s squared; zero means unconfigured. */
+    public double maxCentripetalAccelIn = 0.0;
 
     public enum Profile { DEFAULT, TANK, HOLONOMIC }
     private final java.util.EnumMap<Profile, JSONObject> profiles =
@@ -236,6 +238,7 @@ public class FollowerConstants {
         strafeAccelLimitIn = loadDouble(json, "strafeAccelLimitIn");
         angularVelLimitRad = loadDouble(json, "angularVelLimitRad");
         angularAccelLimitRad = loadDouble(json, "angularAccelLimitRad");
+        maxCentripetalAccelIn = loadDouble(json, "maxCentripetalAccelIn");
     }
 
     private JSONObject valuesToJson() {
@@ -262,6 +265,7 @@ public class FollowerConstants {
             json.put("strafeAccelLimitIn", strafeAccelLimitIn);
             json.put("angularVelLimitRad", angularVelLimitRad);
             json.put("angularAccelLimitRad", angularAccelLimitRad);
+            json.put("maxCentripetalAccelIn", maxCentripetalAccelIn);
         } catch (Exception e) {
             throw new IllegalStateException("Cannot save non-finite follower constants", e);
         }

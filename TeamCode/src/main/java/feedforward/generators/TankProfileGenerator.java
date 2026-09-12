@@ -15,6 +15,13 @@ import paths.movements.Path;
  * @author DrPixelCat - 7842 alum
  */
 public class TankProfileGenerator extends BaseProfileGenerator {
+    static double tractionLimitedVelocity(double velocity, double curvature, double acceleration) {
+        if (!Double.isFinite(acceleration) || acceleration <= 0.0
+                || Math.abs(curvature) <= EPSILON) {
+            return velocity;
+        }
+        return Math.min(velocity, Math.sqrt(acceleration / Math.abs(curvature)));
+    }
     /** Number of binary-search steps used for velocity ceilings. */
     private static final int VELOCITY_SEARCH_ITERATIONS = 8;
 
@@ -48,6 +55,10 @@ public class TankProfileGenerator extends BaseProfileGenerator {
         double effectiveAngVelLimit = Math.min(constants.angularVelLimitRad, maxAngVel);
         double effectiveAngAccelLimit = Math.min(constants.angularAccelLimitRad,
                 maxAngAccel);
+
+        // Traction depends on curvature magnitude, independently of heading interpolation.
+        maxPhysicalVel = tractionLimitedVelocity(maxPhysicalVel, kappa,
+                constants.maxCentripetalAccelIn);
 
         // Angular velocity limit: |f' * v| <= omega_max, so v <= omega_max / |f'|.
         if (Math.abs(fPrime) > EPSILON) {
